@@ -8,6 +8,7 @@ Servidor web sin dependencias externas:
 - Calculadora comercial para casos de IA.
 - Captura de oportunidades/leads con exportación y campañas de email.
 - Asistente estratégico local con integración opcional Azure OpenAI / LiteLLM compatible.
+- Sistema de inventario con asistente conversacional para smartstacks.
 
 Ejecutar:
     python3 proyectos/sabrina_ai_lab/app.py
@@ -190,6 +191,32 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS inventory_products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                code TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                quantity INTEGER NOT NULL DEFAULT 0,
+                price REAL,
+                description TEXT,
+                category TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS inventory_conversations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                channel TEXT NOT NULL,
+                question TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                source TEXT NOT NULL
+            )
+            """
+        )
 
 
 def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
@@ -290,6 +317,28 @@ def get_dashboard_state() -> dict[str, Any]:
         "leads": leads,
         "estimates": estimates,
         "assistant_events": events,
+    }
+
+
+def get_smartstacks_state() -> dict[str, Any]:
+    """Obtiene el estado del módulo smartstacks (inventario + asistente)."""
+    with db_connect() as conn:
+        products = rows_to_dicts(
+            conn.execute("SELECT * FROM inventory_products ORDER BY created_at DESC").fetchall()
+        )
+        conversations = rows_to_dicts(
+            conn.execute("SELECT * FROM inventory_conversations ORDER BY id DESC LIMIT 20").fetchall()
+        )
+        total_stock = conn.execute("SELECT SUM(quantity) AS total FROM inventory_products").fetchone()["total"] or 0
+        product_count = conn.execute("SELECT COUNT(*) AS c FROM inventory_products").fetchone()["c"]
+
+    return {
+        "products": products,
+        "conversations": conversations,
+        "metrics": {
+            "total_products": product_count,
+            "total_stock": total_stock,
+        },
     }
 
 
@@ -415,6 +464,103 @@ def local_strategy_answer(question: str, channel: str) -> str:
     ).strip()
 
 
+def get_inventory_context() -> str:
+    """Obtiene un contexto de inventario para pasar al asistente."""
+    with db_connect() as conn:
+        products = rows_to_dicts(
+            conn.execute("SELECT code, name, quantity, price, description FROM inventory_products ORDER BY name").fetchall()
+        )
+
+    if not products:
+        return "El inventario está vacío."
+
+    lines = ["INVENTARIO ACTUAL:\n"]
+    for p in products:
+        lines.append(f"- Código {p['code']}: {p['name']} (Stock: {p['quantity']} unidades, Precio: ${p['price'] or 'N/A'})")
+        if p['description']:
+            lines.append(f"  Descripción: {p['description']}")
+
+    return "\n".join(lines)
+
+
+def smartstacks_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
+    """Asistente que responde consultando el inventario."""
+    question = str(payload.get("question", "")).strip()
+    channel = str(payload.get("channel", "web")).strip() or "web"
+
+    if not question:
+        return {"ok": False, "error": "Escribe una pregunta sobre el inventario."}
+
+    inventory_context = get_inventory_context()
+    answer, source = call_external_model_with_inventory(question, channel, inventory_context)
+
+    with db_connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO inventory_conversations (created_at, channel, question, answer, source)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (now_iso(), channel, question, answer, source),
+        )
+
+    return {"ok": True, "answer": answer, "source": source}
+
+
+def call_external_model_with_inventory(question: str, channel: str, inventory_context: str) -> tuple[str, str]:
+    """Llama al modelo externo con contexto de inventario."""
+    litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
+    litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
+    azure_key = os.environ.get("AZURE_OPENAI_API_KEY")
+    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    azure_deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
+    azure_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+
+    system_prompt = f"""Eres un asistente experto de atención al cliente para un negocio.
+Responde preguntas sobre productos, disponibilidad y detalles técnicos basándote ÚNICAMENTE en el inventario proporcionado.
+Sé conciso, amable y profesional. Si algo no está en el inventario, indícalo claramente.
+
+{inventory_context}"""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Canal: {channel}\nConsulta: {question}"},
+    ]
+
+    if litellm_base:
+        url = f"{litellm_base}/chat/completions"
+        payload = {"model": os.environ.get("LITELLM_MODEL", "gpt-4o-mini"), "messages": messages}
+        headers = {"Authorization": f"Bearer {litellm_key}", "Content-Type": "application/json"}
+        return post_chat_completion(url, headers, payload), "litellm"
+
+    if azure_key and azure_endpoint and azure_deployment:
+        url = (
+            f"{azure_endpoint}/openai/deployments/{azure_deployment}/chat/completions"
+            f"?api-version={azure_version}"
+        )
+        payload = {"messages": messages, "temperature": 0.4, "max_tokens": 650}
+        headers = {"api-key": azure_key, "Content-Type": "application/json"}
+        return post_chat_completion(url, headers, payload), "azure_openai"
+
+    return local_inventory_answer(question, inventory_context, channel), "local"
+
+
+def local_inventory_answer(question: str, inventory_context: str, channel: str) -> str:
+    """Respuesta local simulada basada en inventario."""
+    q = question.lower()
+
+    # Búsquedas simples
+    if "hay" in q or "stock" in q or "disponible" in q or "tenemos" in q:
+        return f"Según nuestro inventario actual:\n\n{inventory_context}\n\n¿Hay algo específico que necesites?"
+
+    if "código" in q or "code" in q or "referencia" in q:
+        return f"Aquí están nuestros productos con sus códigos:\n\n{inventory_context}"
+
+    if "precio" in q or "costo" in q or "valor" in q:
+        return f"Te muestro nuestro catálogo con precios:\n\n{inventory_context}"
+
+    return f"Te ayudo consultando nuestro inventario:\n\n{inventory_context}\n\n¿Necesitas información sobre algún producto específico?"
+
+
 def call_external_model(question: str, channel: str) -> tuple[str, str]:
     litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
     litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
@@ -486,28 +632,122 @@ def assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "answer": answer, "source": source}
 
 
+def add_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
+    """Agrega un producto al inventario."""
+    missing = validate_required(payload, ["code", "name", "quantity"])
+    if missing:
+        return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
+
+    try:
+        code = str(payload["code"]).strip()
+        name = str(payload["name"]).strip()
+        quantity = int(payload["quantity"])
+        price = float(payload.get("price", 0)) if payload.get("price") else None
+        description = str(payload.get("description", "")).strip() or None
+        category = str(payload.get("category", "")).strip() or None
+
+        with db_connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO inventory_products (created_at, code, name, quantity, price, description, category)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (now_iso(), code, name, quantity, price, description, category),
+            )
+            product_id = cur.lastrowid
+
+        return {
+            "ok": True,
+            "product_id": product_id,
+            "message": f"Producto '{name}' (Código: {code}) agregado al inventario con {quantity} unidades.",
+        }
+    except sqlite3.IntegrityError:
+        return {"ok": False, "error": f"El código '{code}' ya existe en el inventario."}
+    except ValueError as e:
+        return {"ok": False, "error": f"Error en los datos: {str(e)}"}
+
+
+def update_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
+    """Actualiza un producto del inventario."""
+    missing = validate_required(payload, ["product_id"])
+    if missing:
+        return {"ok": False, "error": "Falta el ID del producto."}
+
+    try:
+        product_id = int(payload["product_id"])
+
+        updates = []
+        values = []
+
+        if "quantity" in payload:
+            updates.append("quantity = ?")
+            values.append(int(payload["quantity"]))
+
+        if "price" in payload:
+            updates.append("price = ?")
+            values.append(float(payload["price"]) if payload["price"] else None)
+
+        if "description" in payload:
+            updates.append("description = ?")
+            values.append(str(payload["description"]).strip() or None)
+
+        if "name" in payload:
+            updates.append("name = ?")
+            values.append(str(payload["name"]).strip())
+
+        if not updates:
+            return {"ok": False, "error": "No hay campos para actualizar."}
+
+        values.append(product_id)
+
+        with db_connect() as conn:
+            conn.execute(f"UPDATE inventory_products SET {', '.join(updates)} WHERE id = ?", values)
+
+        return {"ok": True, "message": "Producto actualizado correctamente."}
+    except ValueError as e:
+        return {"ok": False, "error": f"Error en los datos: {str(e)}"}
+
+
+def delete_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
+    """Elimina un producto del inventario."""
+    product_id = payload.get("product_id")
+    if not product_id:
+        return {"ok": False, "error": "Falta el ID del producto."}
+
+    try:
+        product_id = int(product_id)
+        with db_connect() as conn:
+            conn.execute("DELETE FROM inventory_products WHERE id = ?", (product_id,))
+
+        return {"ok": True, "message": "Producto eliminado correctamente."}
+    except ValueError:
+        return {"ok": False, "error": "ID inválido."}
+
+
 def export_leads_csv() -> bytes:
     """Exporta todos los leads a CSV."""
     with db_connect() as conn:
         leads = conn.execute("SELECT * FROM leads ORDER BY created_at DESC").fetchall()
-    
+
     output = io.StringIO()
     if leads:
         writer = csv.writer(output)
         writer.writerow(["ID", "Fecha", "Nombre", "Negocio", "Email", "Caso", "Dolor", "Presupuesto", "Estado"])
         for lead in leads:
-            writer.writerow([
-                lead["id"],
-                lead["created_at"],
-                lead["name"],
-                lead["business"],
-                lead["email"],
-                lead["use_case"],
-                lead["pain"],
-                lead["budget"],
-                lead["status"],
-            ])
-    
+            writer.writerow(
+                [
+                    lead["id"],
+                    lead["created_at"],
+                    lead["name"],
+                    lead["business"],
+                    lead["email"],
+                    lead["use_case"],
+                    lead["pain"],
+                    lead["budget"],
+                    lead["status"],
+                ]
+            )
+
     return output.getvalue().encode("utf-8")
 
 
@@ -515,28 +755,54 @@ def export_leads_json() -> bytes:
     """Exporta todos los leads a JSON."""
     with db_connect() as conn:
         leads = rows_to_dicts(conn.execute("SELECT * FROM leads ORDER BY created_at DESC").fetchall())
-    
+
     return json.dumps(leads, ensure_ascii=False, indent=2).encode("utf-8")
+
+
+def export_inventory_csv() -> bytes:
+    """Exporta inventario a CSV."""
+    with db_connect() as conn:
+        products = conn.execute("SELECT * FROM inventory_products ORDER BY created_at DESC").fetchall()
+
+    output = io.StringIO()
+    if products:
+        writer = csv.writer(output)
+        writer.writerow(["ID", "Código", "Nombre", "Cantidad", "Precio", "Categoría", "Descripción", "Fecha"])
+        for p in products:
+            writer.writerow(
+                [
+                    p["id"],
+                    p["code"],
+                    p["name"],
+                    p["quantity"],
+                    p["price"] or "",
+                    p["category"] or "",
+                    p["description"] or "",
+                    p["created_at"],
+                ]
+            )
+
+    return output.getvalue().encode("utf-8")
 
 
 def send_email(recipient: str, subject: str, body: str) -> tuple[bool, str]:
     """Envía un correo individual."""
     if not SMTP_HOST or not SMTP_USER or not SMTP_PASSWORD:
         return False, "Email no configurado. Configura SMTP_HOST, SMTP_USER, SMTP_PASSWORD."
-    
+
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = f"{SENDER_NAME} <{SENDER_EMAIL}>"
         msg["To"] = recipient
-        
+
         msg.attach(MIMEText(body, "plain", "utf-8"))
-        
+
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.send_message(msg)
-        
+
         return True, "Correo enviado"
     except Exception as e:
         return False, str(e)
@@ -547,23 +813,23 @@ def create_email_campaign(payload: dict[str, Any]) -> dict[str, Any]:
     missing = validate_required(payload, ["subject", "body", "recipient_emails"])
     if missing:
         return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
-    
+
     recipient_list = payload.get("recipient_emails", [])
     if not isinstance(recipient_list, list) or not recipient_list:
         return {"ok": False, "error": "recipient_emails debe ser una lista de emails"}
-    
+
     recipient_str = json.dumps(recipient_list)
-    
+
     with db_connect() as conn:
         cur = conn.execute(
             """
             INSERT INTO email_campaigns (created_at, subject, body, recipient_emails, status)
             VALUES (?, ?, ?, ?, ?)
             """,
-            (now_iso(), payload["subject"], payload["body"], recipient_str, "draft")
+            (now_iso(), payload["subject"], payload["body"], recipient_str, "draft"),
         )
         campaign_id = cur.lastrowid
-    
+
     return {
         "ok": True,
         "campaign_id": campaign_id,
@@ -575,21 +841,19 @@ def create_email_campaign(payload: dict[str, Any]) -> dict[str, Any]:
 def send_email_campaign(campaign_id: int) -> dict[str, Any]:
     """Envía una campaña de email."""
     with db_connect() as conn:
-        campaign = conn.execute(
-            "SELECT * FROM email_campaigns WHERE id = ?", (campaign_id,)
-        ).fetchone()
-        
+        campaign = conn.execute("SELECT * FROM email_campaigns WHERE id = ?", (campaign_id,)).fetchone()
+
         if not campaign:
             return {"ok": False, "error": "Campaña no encontrada"}
-        
+
         if campaign["status"] == "sent":
             return {"ok": False, "error": "Esta campaña ya fue enviada"}
-        
+
         recipient_emails = json.loads(campaign["recipient_emails"])
         sent_count = 0
         failed_count = 0
         errors = []
-        
+
         for email in recipient_emails:
             success, msg = send_email(email, campaign["subject"], campaign["body"])
             if success:
@@ -597,20 +861,19 @@ def send_email_campaign(campaign_id: int) -> dict[str, Any]:
             else:
                 failed_count += 1
                 errors.append(f"{email}: {msg}")
-            
+
             conn.execute(
                 """
                 INSERT INTO email_logs (campaign_id, recipient_email, sent_at, status, error_message)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (campaign_id, email, now_iso(), "sent" if success else "failed", msg if not success else None)
+                (campaign_id, email, now_iso(), "sent" if success else "failed", msg if not success else None),
             )
-        
+
         conn.execute(
-            "UPDATE email_campaigns SET status = 'sent', sent_at = ? WHERE id = ?",
-            (now_iso(), campaign_id)
+            "UPDATE email_campaigns SET status = 'sent', sent_at = ? WHERE id = ?", (now_iso(), campaign_id)
         )
-    
+
     return {
         "ok": True,
         "campaign_id": campaign_id,
@@ -626,32 +889,30 @@ def send_single_email(payload: dict[str, Any]) -> dict[str, Any]:
     missing = validate_required(payload, ["lead_id", "subject", "body"])
     if missing:
         return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
-    
+
     lead_id = int(payload["lead_id"])
-    
+
     with db_connect() as conn:
-        lead = conn.execute(
-            "SELECT email, name FROM leads WHERE id = ?", (lead_id,)
-        ).fetchone()
-        
+        lead = conn.execute("SELECT email, name FROM leads WHERE id = ?", (lead_id,)).fetchone()
+
         if not lead:
             return {"ok": False, "error": "Lead no encontrado"}
-        
+
         body = payload["body"].replace("{name}", lead["name"]).replace("{email}", lead["email"])
-        
+
         success, msg = send_email(lead["email"], payload["subject"], body)
-        
+
         if not success:
             return {"ok": False, "error": f"No se pudo enviar: {msg}"}
-        
+
         conn.execute(
             """
             INSERT INTO email_logs (campaign_id, recipient_email, sent_at, status, error_message)
             VALUES (?, ?, ?, ?, ?)
             """,
-            (-1, lead["email"], now_iso(), "sent", None)
+            (-1, lead["email"], now_iso(), "sent", None),
         )
-    
+
     return {
         "ok": True,
         "message": f"Correo enviado a {lead['email']}",
@@ -705,10 +966,10 @@ def render_index() -> str:
     .brand {{ display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.03em; }}
     .logo {{ width: 38px; height: 38px; border-radius: 14px; background: linear-gradient(135deg, var(--brand), var(--brand2)); display:grid; place-items:center; box-shadow: var(--shadow); }}
     .navlinks {{ display: flex; gap: 10px; flex-wrap: wrap; }}
-    .navlinks a {{ text-decoration: none; color: var(--muted); font-size: 14px; padding: 8px 10px; border-radius: 999px; }}
-    .navlinks a:hover {{ background: var(--panel); color: var(--text); }}
+    .navlinks a {{ text-decoration: none; color: var(--muted); font-size: 14px; padding: 8px 10px; border-radius: 999px; cursor: pointer; }}
+    .navlinks a:hover, .navlinks a.active {{ background: var(--panel); color: var(--text); }}
     .hero {{ padding: 72px 0 36px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: center; }}
-    .eyebrow {{ display:inline-flex; gap: 8px; align-items:center; color: var(--brand2); background: rgba(51,214,166,.09); border:1px solid rgba(51,214,166,.25); padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; }}
+    .eyebrow {{ display:inline-flex; gap: 8px; align-items:center; color: var(--brand2); background: rgba(51,214,166,.09); border:1px solid rgba(51,214,166,.25); padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }}
     h1 {{ font-size: clamp(42px, 7vw, 76px); line-height: .92; margin: 20px 0; letter-spacing: -.07em; }}
     h2 {{ font-size: clamp(26px, 4vw, 42px); margin: 0 0 14px; letter-spacing: -.04em; }}
     h3 {{ margin: 0 0 8px; letter-spacing: -.02em; }}
@@ -726,8 +987,9 @@ def render_index() -> str:
     .grid.two {{ grid-template-columns: repeat(2, 1fr); }}
     .metric {{ font-size: 32px; font-weight: 900; letter-spacing: -.04em; }}
     .muted {{ color: var(--muted); }}
-    .tag {{ display:inline-flex; padding: 6px 9px; border-radius: 999px; background: rgba(155,140,255,.13); border: 1px solid rgba(155,140,255,.28); color: #d8d2ff; font-size: 12px; font-weight: 800; }}
-    section {{ padding: 38px 0; }}
+    .tag {{ display:inline-flex; padding: 6px 9px; border-radius: 999px; background: rgba(155,140,255,.13); border: 1px solid rgba(155,140,255,.28); color: #d8d2ff; font-size: 12px; font-weight: 600; }}
+    section {{ padding: 38px 0; display: none; }}
+    section.active {{ display: block; }}
     input, textarea, select {{
       width: 100%; background: rgba(0,0,0,.24); color: var(--text);
       border: 1px solid var(--line); border-radius: 14px; padding: 12px 13px;
@@ -741,8 +1003,12 @@ def render_index() -> str:
     th, td {{ text-align:left; padding: 12px; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: top; }}
     th {{ color: var(--text); background: rgba(255,255,255,.06); }}
     .status-ok {{ color: var(--brand2); font-weight: 900; }}
+    .conversation {{ background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0; border-left: 3px solid var(--brand2); }}
+    .conversation.user {{ border-left-color: var(--brand); }}
+    .conversation strong {{ color: var(--brand2); }}
+    .conversation.user strong {{ color: var(--brand); }}
     footer {{ border-top: 1px solid var(--line); margin-top: 36px; padding: 24px 0 36px; color: var(--muted); }}
-    .toast {{ position: fixed; right: 18px; bottom: 18px; background: #102018; color: #d9ffe8; border: 1px solid rgba(51,214,166,.38); padding: 12px 14px; border-radius: 14px; opacity:0; transform: translateY(24px); transition: all .3s; }}
+    .toast {{ position: fixed; right: 18px; bottom: 18px; background: #102018; color: #d9ffe8; border: 1px solid rgba(51,214,166,.38); padding: 12px 14px; border-radius: 14px; opacity:0; transform: translateY(100px); transition: all .3s ease; z-index: 999; }}
     .toast.show {{ opacity:1; transform: translateY(0); }}
     .checkbox-group {{ display:flex; gap: 8px; flex-wrap:wrap; margin: 8px 0; }}
     .checkbox-group label {{ display:flex; align-items:center; gap: 6px; margin: 0; font-weight: normal; color: var(--muted); }}
@@ -759,26 +1025,33 @@ def render_index() -> str:
       <nav>
         <div class="brand"><div class="logo">✦</div><span>Sabrina AI Lab</span></div>
         <div class="navlinks">
-          <a href="#leads">Leads</a>
-          <a href="#campaigns">Campañas</a>
+          <a onclick="showSection('dashboard')" class="active">Dashboard</a>
+          <a onclick="showSection('leads')">Leads</a>
+          <a onclick="showSection('smartstacks')">SmartStacks</a>
+          <a onclick="showSection('campaigns')">Campañas</a>
         </div>
       </nav>
     </div>
   </header>
 
   <main class="wrap">
-    <section class="hero">
-      <div>
-        <span class="eyebrow">✨ NUEVA RAMA DE PRUEBA</span>
-        <h1>Gestión de Leads + Email Automatizado</h1>
-        <p>
-          Exporta tus leads a CSV o JSON, crea campañas de email masivas o envía mensajes personalizados a contactos individuales.
-          Sistema completamente integrado sin dependencias externas.
-        </p>
-      </div>
-      <div class="card">
-        <h3>Sistema de Email</h3>
-        <p id="emailStatus">Cargando estado...</p>
+    <section id="dashboard" class="active">
+      <div class="hero">
+        <div>
+          <span class="eyebrow">✨ SISTEMA INTEGRAL</span>
+          <h1>Sabrina AI Lab</h1>
+          <p>
+            Gestión integral de leads, inventario y asistentes de IA para comercios.
+            Incluye automación de email, inventario en tiempo real y consultor estratégico.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Estado del Sistema</h3>
+          <div style="margin: 12px 0; font-size: 12px; color: var(--muted);">
+            <p>✓ Base de datos: Activa</p>
+            <p id="modeStatus">Cargando...</p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -806,6 +1079,54 @@ def render_index() -> str:
             <div class="full"><label>Presupuesto</label><input name="budget" required></div>
             <div class="full"><label>Dolor</label><textarea name="pain" required></textarea></div>
             <div class="full"><button type="submit">Guardar lead</button></div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="smartstacks">
+      <h2>🏪 SmartStacks - Asistente de Inventario</h2>
+      <div class="grid two">
+        <div class="card">
+          <h3>📊 Inventario Actual</h3>
+          <div style="margin-bottom: 12px;">
+            <p><strong>Total de productos:</strong> <span id="productCount">0</span></p>
+            <p><strong>Stock total:</strong> <span id="totalStock">0</span> unidades</p>
+          </div>
+          <div style="overflow:auto; max-height: 500px;">
+            <table>
+              <thead>
+                <tr><th>Código</th><th>Nombre</th><th>Stock</th><th>Precio</th><th>Acción</th></tr>
+              </thead>
+              <tbody id="productRows"></tbody>
+            </table>
+          </div>
+          <div style="margin-top: 14px;">
+            <button onclick="exportInventoryCSV()" class="secondary">📥 CSV</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>➕ Agregar Producto</h3>
+          <form id="productForm" class="formgrid">
+            <div class="full"><label>Código (ej: E404)</label><input name="code" required></div>
+            <div class="full"><label>Nombre</label><input name="name" required></div>
+            <div class="full"><label>Cantidad</label><input name="quantity" type="number" min="0" required></div>
+            <div><label>Precio</label><input name="price" type="number" step="0.01" min="0"></div>
+            <div><label>Categoría</label><input name="category"></div>
+            <div class="full"><label>Descripción</label><textarea name="description" style="min-height: 80px;"></textarea></div>
+            <div class="full"><button type="submit">Guardar Producto</button></div>
+          </form>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top: 28px;">
+        <div class="card">
+          <h3>🤖 Asistente de Inventario</h3>
+          <div id="conversationHistory" style="overflow:auto; max-height: 400px; margin-bottom: 14px;"></div>
+          <form id="smartstacksForm" class="formgrid">
+            <div class="full"><label>Tu pregunta sobre inventario</label><textarea id="smartQuestion" name="question" placeholder="Ej: ¿Hay martillos disponibles? ¿Cuál es el stock del código E404?" required></textarea></div>
+            <div class="full"><button type="submit">Hacer pregunta</button></div>
           </form>
         </div>
       </div>
@@ -841,7 +1162,7 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
 
   <footer>
     <div class="wrap">
-      <strong>Sabrina AI Lab</strong> · Branch: <code>feature/email-campaigns-export</code> · Ejecuta: <code>python3 proyectos/sabrina_ai_lab/app.py</code>
+      <strong>Sabrina AI Lab</strong> · Ejecuta: <code>python3 proyectos/sabrina_ai_lab/app.py</code>
     </div>
   </footer>
 
@@ -849,8 +1170,10 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
 
 <script>
 const state = {state_json};
+let smartstacksState = {{}};
 
 const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
 const api = async (url, data) => {{
   const res = await fetch(url, {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(data)}});
   return await res.json();
@@ -862,10 +1185,17 @@ const toast = (msg) => {{
   setTimeout(() => el.classList.remove('show'), 3000);
 }};
 
+function showSection(id) {{
+  $$('section').forEach(s => s.classList.remove('active'));
+  $$('.navlinks a').forEach(a => a.classList.remove('active'));
+  $(`#${{id}}`).classList.add('active');
+  event.target.classList.add('active');
+}}
+
 function renderState() {{
-  $('#emailStatus').textContent = state.integrations.email_ready ? 
+  $('#modeStatus').textContent = state.integrations.email_ready ? 
     '✓ Email configurado' : 
-    '⚠ Email no configurado (configura SMTP_HOST, SMTP_USER, SMTP_PASSWORD)';
+    '⚠ Email no configurado';
     
   $('#leadRows').innerHTML = state.leads.length ? state.leads.map(l => `
     <tr>
@@ -885,6 +1215,28 @@ function renderState() {{
   `).join('') : '<option>Sin leads</option>';
 }}
 
+function renderSmartStacks() {{
+  $('#productCount').textContent = smartstacksState.metrics.total_products;
+  $('#totalStock').textContent = smartstacksState.metrics.total_stock;
+  
+  $('#productRows').innerHTML = smartstacksState.products.length ? smartstacksState.products.map(p => `
+    <tr>
+      <td><strong>${{p.code}}</strong></td>
+      <td>${{p.name}}</td>
+      <td>${{p.quantity}}</td>
+      <td>${{p.price ? '$' + p.price : 'N/A'}}</td>
+      <td><button class="secondary" onclick="deleteProduct(${{p.id}})" style="padding: 6px 8px; font-size: 12px;">Eliminar</button></td>
+    </tr>
+  `).join('') : '<tr><td colspan="5" style="text-align:center;">Sin productos</td></tr>';
+  
+  $('#conversationHistory').innerHTML = smartstacksState.conversations.length ? smartstacksState.conversations.reverse().map((c, i) => `
+    <div class="conversation ${{i % 2 === 0 ? 'user' : 'assistant'}}">
+      <strong>${{i % 2 === 0 ? 'Tú' : 'Asistente'}}:</strong>
+      <p>${{i % 2 === 0 ? c.question : c.answer}}</p>
+    </div>
+  `).join('') : '<p style="color: var(--muted); text-align: center;">Sin conversaciones aún</p>';
+}}
+
 async function refresh() {{
   const res = await fetch('/api/state');
   const newState = await res.json();
@@ -892,8 +1244,23 @@ async function refresh() {{
   renderState();
 }}
 
+async function refreshSmartStacks() {{
+  const res = await fetch('/api/smartstacks/state');
+  smartstacksState = await res.json();
+  renderSmartStacks();
+}}
+
 function exportLeadsCSV() {{ window.location.href = '/api/leads/export/csv'; toast('Descargando CSV...'); }}
 function exportLeadsJSON() {{ window.location.href = '/api/leads/export/json'; toast('Descargando JSON...'); }}
+function exportInventoryCSV() {{ window.location.href = '/api/inventory/export/csv'; toast('Descargando CSV...'); }}
+
+async function deleteProduct(id) {{
+  if (!confirm('¿Eliminar este producto?')) return;
+  const result = await api('/api/inventory/product/delete', {{ product_id: id }});
+  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
+  toast(result.message);
+  refreshSmartStacks();
+}}
 
 $('#leadForm').addEventListener('submit', async (e) => {{
   e.preventDefault();
@@ -903,6 +1270,29 @@ $('#leadForm').addEventListener('submit', async (e) => {{
   toast(out.message);
   e.target.reset();
   refresh();
+}});
+
+$('#productForm').addEventListener('submit', async (e) => {{
+  e.preventDefault();
+  const data = new FormData(e.target);
+  const payload = Object.fromEntries(data);
+  payload.quantity = parseInt(payload.quantity);
+  if (payload.price) payload.price = parseFloat(payload.price);
+  const out = await api('/api/inventory/product/add', payload);
+  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+  toast(out.message);
+  e.target.reset();
+  refreshSmartStacks();
+}});
+
+$('#smartstacksForm').addEventListener('submit', async (e) => {{
+  e.preventDefault();
+  const data = new FormData(e.target);
+  const out = await api('/api/smartstacks/assistant', Object.fromEntries(data));
+  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+  toast('Respuesta recibida');
+  e.target.reset();
+  refreshSmartStacks();
 }});
 
 $('#emailForm').addEventListener('submit', async (e) => {{
@@ -947,6 +1337,8 @@ $('#singleEmailForm').addEventListener('submit', async (e) => {{
 }});
 
 renderState();
+refreshSmartStacks();
+setInterval(refreshSmartStacks, 5000);
 </script>
 </body>
 </html>"""
@@ -966,6 +1358,9 @@ class SabrinaHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/state":
             json_response(self, get_dashboard_state())
             return
+        if parsed.path == "/api/smartstacks/state":
+            json_response(self, get_smartstacks_state())
+            return
         if parsed.path == "/api/leads/export/csv":
             csv_data = export_leads_csv()
             file_response(self, csv_data, "leads.csv", "text/csv")
@@ -973,6 +1368,10 @@ class SabrinaHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/leads/export/json":
             json_data = export_leads_json()
             file_response(self, json_data, "leads.json", "application/json")
+            return
+        if parsed.path == "/api/inventory/export/csv":
+            csv_data = export_inventory_csv()
+            file_response(self, csv_data, "inventory.csv", "text/csv")
             return
         if parsed.path == "/health":
             json_response(self, {"ok": True, "time": now_iso()})
@@ -985,6 +1384,22 @@ class SabrinaHandler(BaseHTTPRequestHandler):
             payload = read_json(self)
             if parsed.path == "/api/leads":
                 result = create_lead(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/inventory/product/add":
+                result = add_inventory_product(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/inventory/product/update":
+                result = update_inventory_product(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/inventory/product/delete":
+                result = delete_inventory_product(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/smartstacks/assistant":
+                result = smartstacks_assistant_reply(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
             if parsed.path == "/api/email/campaign/create":
@@ -1015,7 +1430,6 @@ def main() -> None:
     server = ThreadingHTTPServer((HOST, PORT), SabrinaHandler)
     print(f"Sabrina AI Lab listo en http://{HOST}:{PORT}")
     print(f"Base de datos: {DB_PATH}")
-    print("Branch: feature/email-campaigns-export")
     print("Ctrl+C para detener.")
     try:
         server.serve_forever()
