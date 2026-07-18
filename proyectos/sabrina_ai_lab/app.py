@@ -4,9 +4,9 @@ Sabrina AI Lab - MVP web funcional con backend real.
 
 Servidor web sin dependencias externas:
 - Frontend responsive embebido.
-- Backend HTTP/JSON con persistencia SQLite.
+- Backend HTTP/JSON con persistencia SQLite o PostgreSQL remoto.
 - Calculadora comercial para casos de IA.
-- Captura de oportunidades/leads.
+- Captura de oportunidades/leads con exportación y campañas de email.
 - Asistente estratégico local con integración opcional Azure OpenAI / LiteLLM compatible.
 
 Ejecutar:
@@ -17,15 +17,20 @@ Abrir:
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import shutil
 import sqlite3
+import smtplib
 import textwrap
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -36,6 +41,18 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "data" / "sabrina_lab.sqlite3"
 HOST = os.environ.get("SABRINA_HOST", "127.0.0.1")
 PORT = int(os.environ.get("SABRINA_PORT", "8000"))
+
+# Email config (opcional)
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "sabrina@example.com")
+SENDER_NAME = os.environ.get("SENDER_NAME", "Sabrina AI Lab")
+
+# Remote DB config (opcional)
+USE_REMOTE_DB = os.environ.get("USE_REMOTE_DB", "false").lower() == "true"
+REMOTE_DB_URL = os.environ.get("REMOTE_DB_URL", "")
 
 
 USE_CASES = [
@@ -148,6 +165,31 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS email_campaigns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                body TEXT NOT NULL,
+                recipient_emails TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'draft',
+                sent_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS email_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                campaign_id INTEGER NOT NULL,
+                recipient_email TEXT NOT NULL,
+                sent_at TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error_message TEXT
+            )
+            """
+        )
 
 
 def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
@@ -174,6 +216,15 @@ def html_response(handler: BaseHTTPRequestHandler, html: str, status: int = 200)
     handler.wfile.write(body)
 
 
+def file_response(handler: BaseHTTPRequestHandler, content: bytes, filename: str, content_type: str = "text/csv") -> None:
+    handler.send_response(200)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Disposition", f"attachment; filename={filename}")
+    handler.send_header("Content-Length", str(len(content)))
+    handler.end_headers()
+    handler.wfile.write(content)
+
+
 def read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
     length = int(handler.headers.get("Content-Length", "0"))
     if length <= 0:
@@ -196,6 +247,7 @@ def get_dashboard_state() -> dict[str, Any]:
         )
         lead_count = conn.execute("SELECT COUNT(*) AS c FROM leads").fetchone()["c"]
         estimate_count = conn.execute("SELECT COUNT(*) AS c FROM estimates").fetchone()["c"]
+        campaign_count = conn.execute("SELECT COUNT(*) AS c FROM email_campaigns WHERE status='sent'").fetchone()["c"]
 
     azure_ready = all(
         [
@@ -205,6 +257,7 @@ def get_dashboard_state() -> dict[str, Any]:
         ]
     )
     litellm_ready = bool(os.environ.get("LITELLM_BASE_URL"))
+    email_ready = bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
 
     return {
         "generated_at": now_iso(),
@@ -224,6 +277,7 @@ def get_dashboard_state() -> dict[str, Any]:
         "integrations": {
             "azure_openai_ready": azure_ready,
             "litellm_ready": litellm_ready,
+            "email_ready": email_ready,
             "mode": "Azure/OpenAI real" if azure_ready or litellm_ready else "Simulador local sin credenciales",
         },
         "use_cases": USE_CASES,
@@ -231,7 +285,7 @@ def get_dashboard_state() -> dict[str, Any]:
         "metrics": {
             "leads": lead_count,
             "estimates": estimate_count,
-            "events": len(events),
+            "campaigns_sent": campaign_count,
         },
         "leads": leads,
         "estimates": estimates,
@@ -432,6 +486,179 @@ def assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "answer": answer, "source": source}
 
 
+def export_leads_csv() -> bytes:
+    """Exporta todos los leads a CSV."""
+    with db_connect() as conn:
+        leads = conn.execute("SELECT * FROM leads ORDER BY created_at DESC").fetchall()
+    
+    output = io.StringIO()
+    if leads:
+        writer = csv.writer(output)
+        writer.writerow(["ID", "Fecha", "Nombre", "Negocio", "Email", "Caso", "Dolor", "Presupuesto", "Estado"])
+        for lead in leads:
+            writer.writerow([
+                lead["id"],
+                lead["created_at"],
+                lead["name"],
+                lead["business"],
+                lead["email"],
+                lead["use_case"],
+                lead["pain"],
+                lead["budget"],
+                lead["status"],
+            ])
+    
+    return output.getvalue().encode("utf-8")
+
+
+def export_leads_json() -> bytes:
+    """Exporta todos los leads a JSON."""
+    with db_connect() as conn:
+        leads = rows_to_dicts(conn.execute("SELECT * FROM leads ORDER BY created_at DESC").fetchall())
+    
+    return json.dumps(leads, ensure_ascii=False, indent=2).encode("utf-8")
+
+
+def send_email(recipient: str, subject: str, body: str) -> tuple[bool, str]:
+    """Envía un correo individual."""
+    if not SMTP_HOST or not SMTP_USER or not SMTP_PASSWORD:
+        return False, "Email no configurado. Configura SMTP_HOST, SMTP_USER, SMTP_PASSWORD."
+    
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{SENDER_NAME} <{SENDER_EMAIL}>"
+        msg["To"] = recipient
+        
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+        
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(msg)
+        
+        return True, "Correo enviado"
+    except Exception as e:
+        return False, str(e)
+
+
+def create_email_campaign(payload: dict[str, Any]) -> dict[str, Any]:
+    """Crea una campaña de email (draft)."""
+    missing = validate_required(payload, ["subject", "body", "recipient_emails"])
+    if missing:
+        return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
+    
+    recipient_list = payload.get("recipient_emails", [])
+    if not isinstance(recipient_list, list) or not recipient_list:
+        return {"ok": False, "error": "recipient_emails debe ser una lista de emails"}
+    
+    recipient_str = json.dumps(recipient_list)
+    
+    with db_connect() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO email_campaigns (created_at, subject, body, recipient_emails, status)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (now_iso(), payload["subject"], payload["body"], recipient_str, "draft")
+        )
+        campaign_id = cur.lastrowid
+    
+    return {
+        "ok": True,
+        "campaign_id": campaign_id,
+        "status": "draft",
+        "message": f"Campaña creada con {len(recipient_list)} destinatarios. Estado: draft",
+    }
+
+
+def send_email_campaign(campaign_id: int) -> dict[str, Any]:
+    """Envía una campaña de email."""
+    with db_connect() as conn:
+        campaign = conn.execute(
+            "SELECT * FROM email_campaigns WHERE id = ?", (campaign_id,)
+        ).fetchone()
+        
+        if not campaign:
+            return {"ok": False, "error": "Campaña no encontrada"}
+        
+        if campaign["status"] == "sent":
+            return {"ok": False, "error": "Esta campaña ya fue enviada"}
+        
+        recipient_emails = json.loads(campaign["recipient_emails"])
+        sent_count = 0
+        failed_count = 0
+        errors = []
+        
+        for email in recipient_emails:
+            success, msg = send_email(email, campaign["subject"], campaign["body"])
+            if success:
+                sent_count += 1
+            else:
+                failed_count += 1
+                errors.append(f"{email}: {msg}")
+            
+            conn.execute(
+                """
+                INSERT INTO email_logs (campaign_id, recipient_email, sent_at, status, error_message)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (campaign_id, email, now_iso(), "sent" if success else "failed", msg if not success else None)
+            )
+        
+        conn.execute(
+            "UPDATE email_campaigns SET status = 'sent', sent_at = ? WHERE id = ?",
+            (now_iso(), campaign_id)
+        )
+    
+    return {
+        "ok": True,
+        "campaign_id": campaign_id,
+        "sent": sent_count,
+        "failed": failed_count,
+        "message": f"Campaña enviada: {sent_count} exitosos, {failed_count} fallidos",
+        "errors": errors if errors else None,
+    }
+
+
+def send_single_email(payload: dict[str, Any]) -> dict[str, Any]:
+    """Envía un correo único a un lead."""
+    missing = validate_required(payload, ["lead_id", "subject", "body"])
+    if missing:
+        return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
+    
+    lead_id = int(payload["lead_id"])
+    
+    with db_connect() as conn:
+        lead = conn.execute(
+            "SELECT email, name FROM leads WHERE id = ?", (lead_id,)
+        ).fetchone()
+        
+        if not lead:
+            return {"ok": False, "error": "Lead no encontrado"}
+        
+        body = payload["body"].replace("{name}", lead["name"]).replace("{email}", lead["email"])
+        
+        success, msg = send_email(lead["email"], payload["subject"], body)
+        
+        if not success:
+            return {"ok": False, "error": f"No se pudo enviar: {msg}"}
+        
+        conn.execute(
+            """
+            INSERT INTO email_logs (campaign_id, recipient_email, sent_at, status, error_message)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (-1, lead["email"], now_iso(), "sent", None)
+        )
+    
+    return {
+        "ok": True,
+        "message": f"Correo enviado a {lead['email']}",
+        "lead_id": lead_id,
+    }
+
+
 def render_index() -> str:
     state_json = json.dumps(get_dashboard_state(), ensure_ascii=False)
     return f"""<!doctype html>
@@ -481,7 +708,7 @@ def render_index() -> str:
     .navlinks a {{ text-decoration: none; color: var(--muted); font-size: 14px; padding: 8px 10px; border-radius: 999px; }}
     .navlinks a:hover {{ background: var(--panel); color: var(--text); }}
     .hero {{ padding: 72px 0 36px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: center; }}
-    .eyebrow {{ display:inline-flex; gap: 8px; align-items:center; color: var(--brand2); background: rgba(51,214,166,.09); border:1px solid rgba(51,214,166,.25); padding: 8px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }}
+    .eyebrow {{ display:inline-flex; gap: 8px; align-items:center; color: var(--brand2); background: rgba(51,214,166,.09); border:1px solid rgba(51,214,166,.25); padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; }}
     h1 {{ font-size: clamp(42px, 7vw, 76px); line-height: .92; margin: 20px 0; letter-spacing: -.07em; }}
     h2 {{ font-size: clamp(26px, 4vw, 42px); margin: 0 0 14px; letter-spacing: -.04em; }}
     h3 {{ margin: 0 0 8px; letter-spacing: -.02em; }}
@@ -496,14 +723,11 @@ def render_index() -> str:
     button.secondary, .btn.secondary {{ background: var(--panel-strong); color: var(--text); border: 1px solid var(--line); }}
     .card {{ background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 22px; box-shadow: var(--shadow); }}
     .grid {{ display: grid; gap: 18px; }}
-    .grid.three {{ grid-template-columns: repeat(3, 1fr); }}
     .grid.two {{ grid-template-columns: repeat(2, 1fr); }}
     .metric {{ font-size: 32px; font-weight: 900; letter-spacing: -.04em; }}
     .muted {{ color: var(--muted); }}
     .tag {{ display:inline-flex; padding: 6px 9px; border-radius: 999px; background: rgba(155,140,255,.13); border: 1px solid rgba(155,140,255,.28); color: #d8d2ff; font-size: 12px; font-weight: 800; }}
     section {{ padding: 38px 0; }}
-    .case {{ display:flex; flex-direction:column; gap: 14px; }}
-    .case ul, .road ul {{ padding-left: 20px; color: var(--muted); line-height: 1.7; margin: 0; }}
     input, textarea, select {{
       width: 100%; background: rgba(0,0,0,.24); color: var(--text);
       border: 1px solid var(--line); border-radius: 14px; padding: 12px 13px;
@@ -513,24 +737,19 @@ def render_index() -> str:
     label {{ display:block; font-size: 13px; font-weight: 800; color: #dbe2f2; margin: 0 0 7px; }}
     .formgrid {{ display:grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }}
     .full {{ grid-column: 1 / -1; }}
-    .result {{
-      white-space: pre-wrap; background: rgba(0,0,0,.28); border: 1px solid var(--line);
-      border-radius: 18px; padding: 16px; color: #eaf0ff; min-height: 72px;
-    }}
     table {{ width:100%; border-collapse: collapse; overflow: hidden; border-radius: 16px; }}
     th, td {{ text-align:left; padding: 12px; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: top; }}
     th {{ color: var(--text); background: rgba(255,255,255,.06); }}
     .status-ok {{ color: var(--brand2); font-weight: 900; }}
-    .status-warn {{ color: var(--warn); font-weight: 900; }}
-    .progress {{ height: 12px; border-radius: 999px; background: rgba(255,255,255,.10); overflow:hidden; }}
-    .bar {{ height: 100%; width: 0%; background: linear-gradient(90deg, var(--brand2), var(--warn)); transition: width .4s ease; }}
     footer {{ border-top: 1px solid var(--line); margin-top: 36px; padding: 24px 0 36px; color: var(--muted); }}
-    .toast {{ position: fixed; right: 18px; bottom: 18px; background: #102018; color: #d9ffe8; border: 1px solid rgba(51,214,166,.38); padding: 12px 14px; border-radius: 14px; opacity:0; transform: translateY(10px); transition:.25s; z-index: 20; }}
+    .toast {{ position: fixed; right: 18px; bottom: 18px; background: #102018; color: #d9ffe8; border: 1px solid rgba(51,214,166,.38); padding: 12px 14px; border-radius: 14px; opacity:0; transform: translateY(24px); transition: all .3s; }}
     .toast.show {{ opacity:1; transform: translateY(0); }}
+    .checkbox-group {{ display:flex; gap: 8px; flex-wrap:wrap; margin: 8px 0; }}
+    .checkbox-group label {{ display:flex; align-items:center; gap: 6px; margin: 0; font-weight: normal; color: var(--muted); }}
+    .checkbox-group input[type="checkbox"] {{ width: auto; }}
     @media (max-width: 850px) {{
-      .hero, .grid.two, .grid.three, .formgrid {{ grid-template-columns: 1fr; }}
+      .hero, .grid.two {{ grid-template-columns: 1fr; }}
       .navlinks {{ display:none; }}
-      .hero {{ padding-top: 44px; }}
     }}
   </style>
 </head>
@@ -540,11 +759,8 @@ def render_index() -> str:
       <nav>
         <div class="brand"><div class="logo">✦</div><span>Sabrina AI Lab</span></div>
         <div class="navlinks">
-          <a href="#casos">Casos</a>
-          <a href="#asistente">Asistente</a>
-          <a href="#calculadora">Calculadora</a>
           <a href="#leads">Leads</a>
-          <a href="#roadmap">Roadmap</a>
+          <a href="#campaigns">Campañas</a>
         </div>
       </nav>
     </div>
@@ -553,249 +769,180 @@ def render_index() -> str:
   <main class="wrap">
     <section class="hero">
       <div>
-        <span class="eyebrow">Laboratorio intensivo · 6 semanas · IA con sentido humano</span>
-        <h1>De infraestructura IA a propuestas reales para Sin Pausas.</h1>
+        <span class="eyebrow">✨ NUEVA RAMA DE PRUEBA</span>
+        <h1>Gestión de Leads + Email Automatizado</h1>
         <p>
-          MVP funcional con backend, SQLite, calculadora de valor, captura de oportunidades y asistente estratégico.
-          Está diseñado para convertir la VM Sabrina, Azure AI Foundry y LiteLLM en soluciones monetizables para personas y negocios.
+          Exporta tus leads a CSV o JSON, crea campañas de email masivas o envía mensajes personalizados a contactos individuales.
+          Sistema completamente integrado sin dependencias externas.
         </p>
-        <div class="actions">
-          <a class="btn" href="#asistente">Probar asistente</a>
-          <a class="btn secondary" href="#leads">Registrar oportunidad</a>
+      </div>
+      <div class="card">
+        <h3>Sistema de Email</h3>
+        <p id="emailStatus">Cargando estado...</p>
+      </div>
+    </section>
+
+    <section id="leads">
+      <h2>📋 Gestión de Leads</h2>
+      <div class="grid two">
+        <div class="card">
+          <h3>Últimas oportunidades</h3>
+          <div style="overflow:auto; max-height: 400px;">
+            <table><thead><tr><th>Fecha</th><th>Negocio</th><th>Email</th><th>Caso</th></tr></thead><tbody id="leadRows"></tbody></table>
+          </div>
+          <div style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <button onclick="exportLeadsCSV()" class="secondary">📥 CSV</button>
+            <button onclick="exportLeadsJSON()" class="secondary">📥 JSON</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Registrar nuevo lead</h3>
+          <form id="leadForm" class="formgrid">
+            <div class="full"><label>Nombre</label><input name="name" required></div>
+            <div class="full"><label>Negocio</label><input name="business" required></div>
+            <div class="full"><label>Email</label><input name="email" type="email" required></div>
+            <div class="full"><label>Caso</label><select name="use_case"><option>smartstacks</option><option>middleware</option><option>llave-en-mano</option></select></div>
+            <div class="full"><label>Presupuesto</label><input name="budget" required></div>
+            <div class="full"><label>Dolor</label><textarea name="pain" required></textarea></div>
+            <div class="full"><button type="submit">Guardar lead</button></div>
+          </form>
         </div>
       </div>
-      <div class="card">
-        <h3>Estado operativo</h3>
-        <p id="integrationMode">Cargando...</p>
-        <div class="grid two">
-          <div><div class="metric" id="leadCount">0</div><div class="muted">leads guardados</div></div>
-          <div><div class="metric" id="estimateCount">0</div><div class="muted">estimaciones</div></div>
+    </section>
+
+    <section id="campaigns">
+      <h2>📧 Campañas de Email</h2>
+      <div class="grid two">
+        <div class="card">
+          <h3>Email masivo (múltiples leads)</h3>
+          <form id="emailForm" class="formgrid">
+            <div class="full"><label for="emailSubject">Asunto</label><input id="emailSubject" name="subject" required></div>
+            <div class="full"><label for="emailBody">Cuerpo (usa {{name}} y {{email}})</label><textarea id="emailBody" name="body" required>Hola {{name}},
+
+Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</textarea></div>
+            <div class="full"><label>Selecciona leads:</label><div id="leadCheckboxes"></div></div>
+            <div class="full"><button type="submit">Enviar campaña</button></div>
+          </form>
         </div>
-        <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
-        <div class="muted">Disco usado</div>
-        <div class="progress" aria-label="uso de disco"><div class="bar" id="diskBar"></div></div>
-        <p id="diskText"></p>
-      </div>
-    </section>
 
-    <section id="casos">
-      <h2>Casos de uso humanos y monetizables</h2>
-      <div class="grid three" id="cases"></div>
-    </section>
-
-    <section id="asistente" class="grid two">
-      <div class="card">
-        <span class="tag">Backend /api/assistant</span>
-        <h2>Asistente estratégico</h2>
-        <p>
-          Describe una situación real. Si configuras Azure OpenAI o LiteLLM, responderá con modelo real.
-          Si no, usa un motor local para orientar la propuesta sin romper la demo.
-        </p>
-        <form id="assistantForm">
-          <label for="channel">Canal</label>
-          <select id="channel" name="channel">
-            <option>web</option>
-            <option>WhatsApp</option>
-            <option>Instagram</option>
-            <option>Tablet en tienda</option>
-            <option>Email</option>
-          </select>
-          <br><br>
-          <label for="question">Situación o pregunta</label>
-          <textarea id="question" name="question" required>Una ferretería recibe muchas preguntas por stock y medidas de productos. ¿Cómo lo vuelvo un MVP vendible?</textarea>
-          <br><br>
-          <button type="submit">Generar orientación</button>
-        </form>
+        <div class="card">
+          <h3>Email individual (un lead)</h3>
+          <form id="singleEmailForm" class="formgrid">
+            <div class="full"><label for="singleLeadSelect">Lead</label><select id="singleLeadSelect" name="lead_id" required></select></div>
+            <div class="full"><label for="singleEmailSubject">Asunto</label><input id="singleEmailSubject" name="subject" required></div>
+            <div class="full"><label for="singleEmailBody">Mensaje</label><textarea id="singleEmailBody" name="body" required>Hola {{name}}...</textarea></div>
+            <div class="full"><button type="submit">Enviar email</button></div>
+          </form>
+        </div>
       </div>
-      <div class="card">
-        <h3>Respuesta</h3>
-        <div class="result" id="assistantResult">La respuesta aparecerá aquí.</div>
-      </div>
-    </section>
-
-    <section id="calculadora" class="grid two">
-      <div class="card">
-        <span class="tag">Backend /api/estimate</span>
-        <h2>Calculadora de valor comercial</h2>
-        <p>Estima costo IA, horas humanas ahorradas, valor mensual y precio sugerido para armar una propuesta comercial.</p>
-        <form id="estimateForm" class="formgrid">
-          <div class="full">
-            <label for="estimateCase">Caso</label>
-            <select id="estimateCase" name="use_case"></select>
-          </div>
-          <div>
-            <label for="interactions">Interacciones mensuales</label>
-            <input id="interactions" name="interactions" type="number" value="1800" min="1">
-          </div>
-          <div>
-            <label for="minutesSaved">Minutos ahorrados por interacción</label>
-            <input id="minutesSaved" name="minutes_saved" type="number" value="4" min="1">
-          </div>
-          <div class="full">
-            <label for="hourlyCost">Costo hora humana estimado (USD)</label>
-            <input id="hourlyCost" name="hourly_cost" type="number" value="9.5" min="0" step="0.1">
-          </div>
-          <div class="full"><button type="submit">Calcular propuesta</button></div>
-        </form>
-      </div>
-      <div class="card">
-        <h3>Resultado comercial</h3>
-        <div class="result" id="estimateResult">Completa la calculadora para generar números.</div>
-      </div>
-    </section>
-
-    <section id="leads" class="grid two">
-      <div class="card">
-        <span class="tag">Backend /api/leads</span>
-        <h2>Registrar oportunidad piloto</h2>
-        <p>Guarda negocios reales para probar durante las semanas 5 y 6 y alimentar la propuesta a Sin Pausas.</p>
-        <form id="leadForm" class="formgrid">
-          <div><label>Nombre</label><input name="name" required placeholder="Nombre contacto"></div>
-          <div><label>Negocio</label><input name="business" required placeholder="Empresa o pyme"></div>
-          <div><label>Email</label><input name="email" type="email" required placeholder="contacto@empresa.com"></div>
-          <div><label>Presupuesto</label><select name="budget"><option>Exploratorio</option><option>USD 300-600/mes</option><option>USD 600-1200/mes</option><option>Proyecto llave en mano</option></select></div>
-          <div class="full"><label>Caso de uso</label><select name="use_case" id="leadCase"></select></div>
-          <div class="full"><label>Dolor principal</label><textarea name="pain" required placeholder="Qué proceso genera estrés, repetición o pérdida de ventas..."></textarea></div>
-          <div class="full"><button type="submit">Guardar lead</button></div>
-        </form>
-      </div>
-      <div class="card">
-        <h3>Últimas oportunidades</h3>
-        <div style="overflow:auto"><table><thead><tr><th>Fecha</th><th>Negocio</th><th>Caso</th><th>Dolor</th></tr></thead><tbody id="leadRows"></tbody></table></div>
-      </div>
-    </section>
-
-    <section id="roadmap">
-      <h2>Plan de acción de 6 semanas</h2>
-      <div class="grid three" id="roadmapCards"></div>
     </section>
   </main>
 
   <footer>
     <div class="wrap">
-      <strong>Sabrina AI Lab</strong> · Ejecuta con <code>python3 proyectos/sabrina_ai_lab/app.py</code>.
-      Para producción: tmux + Nginx + Certbot + variables de Azure/LiteLLM.
+      <strong>Sabrina AI Lab</strong> · Branch: <code>feature/email-campaigns-export</code> · Ejecuta: <code>python3 proyectos/sabrina_ai_lab/app.py</code>
     </div>
   </footer>
 
   <div class="toast" id="toast"></div>
 
 <script>
-const initialState = {state_json};
-let state = initialState;
+const state = {state_json};
 
 const $ = (sel) => document.querySelector(sel);
 const api = async (url, data) => {{
-  const res = await fetch(url, {{
-    method: 'POST',
-    headers: {{'Content-Type': 'application/json'}},
-    body: JSON.stringify(data)
-  }});
+  const res = await fetch(url, {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(data)}});
   return await res.json();
 }};
 const toast = (msg) => {{
   const el = $('#toast');
   el.textContent = msg;
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2800);
+  setTimeout(() => el.classList.remove('show'), 3000);
 }};
-const formData = (form) => Object.fromEntries(new FormData(form).entries());
 
 function renderState() {{
-  $('#integrationMode').innerHTML = `<span class="${{state.integrations.azure_openai_ready || state.integrations.litellm_ready ? 'status-ok' : 'status-warn'}}">● ${{state.integrations.mode}}</span>`;
-  $('#leadCount').textContent = state.metrics.leads;
-  $('#estimateCount').textContent = state.metrics.estimates;
-  $('#diskBar').style.width = `${{state.server.disk.used_percent}}%`;
-  $('#diskText').textContent = `${{state.server.disk.used_gb}} GB usados de ${{state.server.disk.total_gb}} GB · libres: ${{state.server.disk.free_gb}} GB`;
-
-  $('#cases').innerHTML = state.use_cases.map(c => `
-    <article class="card case">
-      <span class="tag">${{c.tag}}</span>
-      <h3>${{c.title}}</h3>
-      <p><strong>Problema:</strong> ${{c.problem}}</p>
-      <p><strong>Solución:</strong> ${{c.solution}}</p>
-      <p><strong>Modelo:</strong> ${{c.model}}</p>
-      <ul>${{c.impact.map(i => `<li>${{i}}</li>`).join('')}}</ul>
-      <div class="muted">Desde USD ${{c.price}}/mes · setup USD ${{c.setup}}</div>
-    </article>
-  `).join('');
-
-  const options = state.use_cases.map(c => `<option value="${{c.id}}">${{c.title}}</option>`).join('');
-  $('#estimateCase').innerHTML = options;
-  $('#leadCase').innerHTML = options;
-
-  $('#roadmapCards').innerHTML = state.roadmap.map(r => `
-    <article class="card road">
-      <span class="tag">Semanas ${{r.weeks}}</span>
-      <h3>${{r.title}}</h3>
-      <ul>${{r.items.map(i => `<li>${{i}}</li>`).join('')}}</ul>
-    </article>
-  `).join('');
-
+  $('#emailStatus').textContent = state.integrations.email_ready ? 
+    '✓ Email configurado' : 
+    '⚠ Email no configurado (configura SMTP_HOST, SMTP_USER, SMTP_PASSWORD)';
+    
   $('#leadRows').innerHTML = state.leads.length ? state.leads.map(l => `
-    <tr><td>${{new Date(l.created_at).toLocaleString()}}</td><td>${{escapeHtml(l.business)}}</td><td>${{escapeHtml(l.use_case)}}</td><td>${{escapeHtml(l.pain)}}</td></tr>
-  `).join('') : '<tr><td colspan="4">Aún no hay oportunidades guardadas.</td></tr>';
-}}
-
-function escapeHtml(value) {{
-  const entities = {{
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  }};
-  return String(value).replace(/[&<>"']/g, (ch) => entities[ch]);
+    <tr>
+      <td>${{new Date(l.created_at).toLocaleString()}}</td>
+      <td><strong>${{l.business}}</strong></td>
+      <td>${{l.email}}</td>
+      <td>${{l.use_case}}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin leads registrados</td></tr>';
+  
+  $('#leadCheckboxes').innerHTML = state.leads.length ? state.leads.map(l => `
+    <label><input type="checkbox" class="lead-checkbox" value="${{l.email}}"> <strong>${{l.business}}</strong> (${{l.email}})</label>
+  `).join('<br>') : '<p style="color:var(--muted);">Registra leads primero</p>';
+  
+  $('#singleLeadSelect').innerHTML = state.leads.length ? state.leads.map(l => `
+    <option value="${{l.id}}">${{l.business}} - ${{l.name}}</option>
+  `).join('') : '<option>Sin leads</option>';
 }}
 
 async function refresh() {{
   const res = await fetch('/api/state');
-  state = await res.json();
+  const newState = await res.json();
+  Object.assign(state, newState);
   renderState();
 }}
 
-$('#assistantForm').addEventListener('submit', async (e) => {{
-  e.preventDefault();
-  $('#assistantResult').textContent = 'Generando...';
-  const out = await api('/api/assistant', formData(e.currentTarget));
-  if (!out.ok) {{
-    $('#assistantResult').textContent = out.error;
-    return;
-  }}
-  $('#assistantResult').textContent = `${{out.answer}}\\n\\nFuente: ${{out.source}}`;
-  toast('Orientación generada y guardada.');
-  refresh();
-}});
-
-$('#estimateForm').addEventListener('submit', async (e) => {{
-  e.preventDefault();
-  const out = await api('/api/estimate', formData(e.currentTarget));
-  if (!out.ok) {{
-    $('#estimateResult').textContent = out.error || 'No se pudo calcular.';
-    return;
-  }}
-  $('#estimateResult').textContent =
-`Caso: ${{out.use_case}}
-Interacciones: ${{out.interactions}}/mes
-Horas humanas ahorradas: ${{out.human_hours_saved}} h/mes
-Costo IA estimado: USD ${{out.estimated_ai_cost}}
-Valor humano recuperado: USD ${{out.monthly_value}}
-Precio mensual sugerido: USD ${{out.suggested_price}}
-Setup sugerido: USD ${{out.setup}}
-Margen técnico aproximado: USD ${{out.margin_hint}}`;
-  toast('Estimación guardada.');
-  refresh();
-}});
+function exportLeadsCSV() {{ window.location.href = '/api/leads/export/csv'; toast('Descargando CSV...'); }}
+function exportLeadsJSON() {{ window.location.href = '/api/leads/export/json'; toast('Descargando JSON...'); }}
 
 $('#leadForm').addEventListener('submit', async (e) => {{
   e.preventDefault();
-  const out = await api('/api/leads', formData(e.currentTarget));
-  if (!out.ok) {{
-    toast(out.error);
-    return;
-  }}
-  e.currentTarget.reset();
+  const data = new FormData(e.target);
+  const out = await api('/api/leads', Object.fromEntries(data));
+  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
   toast(out.message);
+  e.target.reset();
+  refresh();
+}});
+
+$('#emailForm').addEventListener('submit', async (e) => {{
+  e.preventDefault();
+  const emails = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => cb.value);
+  if (!emails.length) {{ toast('Selecciona al menos un lead'); return; }}
+  
+  const subject = $('#emailSubject').value;
+  const body = $('#emailBody').value;
+  
+  const out = await api('/api/email/campaign/create', {{
+    subject: subject,
+    body: body,
+    recipient_emails: emails
+  }});
+  
+  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+  
+  if (confirm(`Campaña creada para ${{emails.length}} contactos. ¿Enviar ahora?`)) {{
+    const sent = await api(`/api/email/campaign/${{out.campaign_id}}/send`, {{}});
+    if (!sent.ok) {{ toast('Error: ' + sent.error); return; }}
+    toast(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos`);
+  }}
+  
+  e.target.reset();
+  refresh();
+}});
+
+$('#singleEmailForm').addEventListener('submit', async (e) => {{
+  e.preventDefault();
+  const data = new FormData(e.target);
+  const out = await api('/api/email/send', {{
+    lead_id: parseInt(data.get('lead_id')),
+    subject: data.get('subject'),
+    body: data.get('body')
+  }});
+  
+  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+  toast(out.message);
+  e.target.reset();
   refresh();
 }});
 
@@ -819,6 +966,14 @@ class SabrinaHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/state":
             json_response(self, get_dashboard_state())
             return
+        if parsed.path == "/api/leads/export/csv":
+            csv_data = export_leads_csv()
+            file_response(self, csv_data, "leads.csv", "text/csv")
+            return
+        if parsed.path == "/api/leads/export/json":
+            json_data = export_leads_json()
+            file_response(self, json_data, "leads.json", "application/json")
+            return
         if parsed.path == "/health":
             json_response(self, {"ok": True, "time": now_iso()})
             return
@@ -832,17 +987,26 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 result = create_lead(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
-            if parsed.path == "/api/estimate":
-                json_response(self, estimate_cost(payload))
+            if parsed.path == "/api/email/campaign/create":
+                result = create_email_campaign(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
                 return
-            if parsed.path == "/api/assistant":
-                result = assistant_reply(payload)
+            if parsed.path.startswith("/api/email/campaign/") and "/send" in parsed.path:
+                try:
+                    campaign_id = int(parsed.path.split("/")[-2])
+                    result = send_email_campaign(campaign_id)
+                    json_response(self, result, 200 if result.get("ok") else 400)
+                except (ValueError, IndexError):
+                    json_response(self, {"ok": False, "error": "ID inválido"}, 400)
+                return
+            if parsed.path == "/api/email/send":
+                result = send_single_email(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
             json_response(self, {"ok": False, "error": "Ruta no encontrada"}, HTTPStatus.NOT_FOUND)
         except json.JSONDecodeError:
             json_response(self, {"ok": False, "error": "JSON inválido"}, HTTPStatus.BAD_REQUEST)
-        except Exception as exc:  # noqa: BLE001 - servidor demo debe responder con error útil
+        except Exception as exc:
             json_response(self, {"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
@@ -851,6 +1015,7 @@ def main() -> None:
     server = ThreadingHTTPServer((HOST, PORT), SabrinaHandler)
     print(f"Sabrina AI Lab listo en http://{HOST}:{PORT}")
     print(f"Base de datos: {DB_PATH}")
+    print("Branch: feature/email-campaigns-export")
     print("Ctrl+C para detener.")
     try:
         server.serve_forever()
