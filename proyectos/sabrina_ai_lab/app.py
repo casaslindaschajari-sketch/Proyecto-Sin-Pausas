@@ -738,7 +738,14 @@ function renderState() {{
 }}
 
 function escapeHtml(value) {{
-  return String(value).replace(/[&<>"']/g, (ch) => ({{'&':'&','<':'<','>':'>','"':'"',"'":'&#039;'}}[ch]));
+  const entities = {{
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }};
+  return String(value).replace(/[&<>"']/g, (ch) => entities[ch]);
 }}
 
 async function refresh() {{
