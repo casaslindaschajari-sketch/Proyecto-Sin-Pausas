@@ -1027,6 +1027,8 @@ def render_index() -> str:
         <div class="navlinks">
           <a onclick="showSection('dashboard')" class="active">Dashboard</a>
           <a onclick="showSection('leads')">Leads</a>
+          <a onclick="showSection('estimator')">Calculadora</a>
+          <a onclick="showSection('assistant')">Asistente</a>
           <a onclick="showSection('smartstacks')">SmartStacks</a>
           <a onclick="showSection('campaigns')">Campañas</a>
         </div>
@@ -1080,6 +1082,59 @@ def render_index() -> str:
             <div class="full"><label>Dolor</label><textarea name="pain" required></textarea></div>
             <div class="full"><button type="submit">Guardar lead</button></div>
           </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="estimator">
+      <h2>🧮 Calculadora de Valor Comercial</h2>
+      <div class="grid two">
+        <div class="card">
+          <h3>Calcular propuesta</h3>
+          <form id="estimateForm" class="formgrid">
+            <div class="full">
+              <label>Caso de uso</label>
+              <select name="use_case">
+                <option value="smartstacks">SmartStacks (Inventario + ventas)</option>
+                <option value="middleware">Automatización Empática Multicanal</option>
+                <option value="llave-en-mano">Digitalización IA Llave en Mano</option>
+              </select>
+            </div>
+            <div><label>Interacciones / mes</label><input name="interactions" type="number" min="1" value="1500" required></div>
+            <div><label>Minutos ahorrados / interacción</label><input name="minutes_saved" type="number" min="1" value="4" required></div>
+            <div class="full"><label>Costo horario del equipo (USD)</label><input name="hourly_cost" type="number" min="0" step="0.1" value="9.5" required></div>
+            <div class="full"><button type="submit">Calcular</button></div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Resultado</h3>
+          <div id="estimateResult"><p class="muted">Completa el formulario para ver la estimación.</p></div>
+          <div style="margin-top: 22px;">
+            <h3>Historial reciente</h3>
+            <div style="overflow:auto; max-height: 260px;">
+              <table><thead><tr><th>Caso</th><th>Interacciones</th><th>Valor mensual</th><th>Precio sugerido</th></tr></thead><tbody id="estimateRows"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="assistant">
+      <h2>🧭 Asistente Estratégico</h2>
+      <div class="grid two">
+        <div class="card">
+          <h3>Consultar al asistente</h3>
+          <form id="assistantForm" class="formgrid">
+            <div class="full"><label>Canal</label><input name="channel" value="WhatsApp" required></div>
+            <div class="full"><label>Tu pregunta o situación de negocio</label><textarea name="question" placeholder="Ej: Una ferretería recibe muchas preguntas por stock. ¿Cómo lo vuelvo un MVP vendible?" required></textarea></div>
+            <div class="full"><button type="submit">Preguntar</button></div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Conversación</h3>
+          <div id="assistantHistory" style="overflow:auto; max-height: 460px;"><p class="muted">Sin consultas aún.</p></div>
         </div>
       </div>
     </section>
@@ -1213,6 +1268,20 @@ function renderState() {{
   $('#singleLeadSelect').innerHTML = state.leads.length ? state.leads.map(l => `
     <option value="${{l.id}}">${{l.business}} - ${{l.name}}</option>
   `).join('') : '<option>Sin leads</option>';
+
+  $('#estimateRows').innerHTML = state.estimates.length ? state.estimates.map(e => `
+    <tr>
+      <td>${{e.use_case}}</td>
+      <td>${{e.interactions}}</td>
+      <td>$${{e.monthly_value}}</td>
+      <td>$${{e.suggested_price}}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin cálculos aún</td></tr>';
+
+  $('#assistantHistory').innerHTML = state.assistant_events.length ? state.assistant_events.slice().reverse().map(ev => `
+    <div class="conversation user"><strong>Tú (${{ev.channel}}):</strong><p>${{ev.question}}</p></div>
+    <div class="conversation"><strong>Asistente · ${{ev.source}}:</strong><p>${{ev.answer.replace(/\\n/g, '<br>')}}</p></div>
+  `).join('') : '<p class="muted">Sin consultas aún.</p>';
 }}
 
 function renderSmartStacks() {{
@@ -1268,6 +1337,38 @@ $('#leadForm').addEventListener('submit', async (e) => {{
   const out = await api('/api/leads', Object.fromEntries(data));
   if (!out.ok) {{ toast('Error: ' + out.error); return; }}
   toast(out.message);
+  e.target.reset();
+  refresh();
+}});
+
+$('#estimateForm').addEventListener('submit', async (e) => {{
+  e.preventDefault();
+  const data = new FormData(e.target);
+  const payload = Object.fromEntries(data);
+  payload.interactions = parseInt(payload.interactions);
+  payload.minutes_saved = parseInt(payload.minutes_saved);
+  payload.hourly_cost = parseFloat(payload.hourly_cost);
+  const out = await api('/api/estimate', payload);
+  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+  $('#estimateResult').innerHTML = `
+    <p><strong>Caso:</strong> ${{out.use_case}}</p>
+    <p><strong>Horas humanas ahorradas/mes:</strong> ${{out.human_hours_saved}}</p>
+    <p><strong>Valor mensual generado:</strong> $${{out.monthly_value}}</p>
+    <p><strong>Costo estimado de IA:</strong> $${{out.estimated_ai_cost}}</p>
+    <p><strong>Precio mensual sugerido:</strong> <span class="metric">$${{out.suggested_price}}</span></p>
+    <p><strong>Setup sugerido:</strong> $${{out.setup}}</p>
+    <p class="muted">Margen aproximado: $${{out.margin_hint}}</p>
+  `;
+  toast('Estimación calculada');
+  refresh();
+}});
+
+$('#assistantForm').addEventListener('submit', async (e) => {{
+  e.preventDefault();
+  const data = new FormData(e.target);
+  const out = await api('/api/assistant', Object.fromEntries(data));
+  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+  toast('Respuesta recibida (' + out.source + ')');
   e.target.reset();
   refresh();
 }});
@@ -1386,6 +1487,14 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 result = create_lead(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
+            if parsed.path == "/api/estimate":
+                result = estimate_cost(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/assistant":
+                result = assistant_reply(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
             if parsed.path == "/api/inventory/product/add":
                 result = add_inventory_product(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
@@ -1438,6 +1547,9 @@ def main() -> None:
     finally:
         server.server_close()
 
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()
