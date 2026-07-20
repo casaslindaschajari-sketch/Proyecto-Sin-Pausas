@@ -464,13 +464,16 @@ def local_strategy_answer(question: str, channel: str) -> str:
     ).strip()
 
 
-def get_inventory_context() -> str:
-    """Obtiene un contexto de inventario para pasar al asistente."""
+def get_inventory_products() -> list[dict[str, Any]]:
+    """Obtiene los productos actuales del inventario como lista de dicts."""
     with db_connect() as conn:
-        products = rows_to_dicts(
+        return rows_to_dicts(
             conn.execute("SELECT code, name, quantity, price, description FROM inventory_products ORDER BY name").fetchall()
         )
 
+
+def format_inventory_context(products: list[dict[str, Any]]) -> str:
+    """Convierte la lista de productos en un bloque de texto para dar contexto al modelo."""
     if not products:
         return "El inventario está vacío."
 
@@ -483,6 +486,89 @@ def get_inventory_context() -> str:
     return "\n".join(lines)
 
 
+def get_inventory_context() -> str:
+    """Obtiene un contexto de inventario para pasar al asistente."""
+    return format_inventory_context(get_inventory_products())
+
+
+_INVENTORY_STOPWORDS = {
+    "tienes", "tiene", "tienen", "hay", "tenemos", "tengo", "disponible", "disponibles",
+    "stock", "cuanto", "cuanta", "cuantos", "cuantas", "cuesta", "cuestan", "precio", "precios",
+    "costo", "costos", "valor", "de", "del", "el", "la", "los", "las", "un", "una", "unos", "unas",
+    "que", "cual", "cuales", "es", "son", "por", "favor", "porfavor", "como", "quiero", "necesito",
+    "busco", "sobre", "info", "informacion", "dame", "dime", "puedes", "podrias", "codigo", "code",
+    "referencia", "a", "en", "con", "para", "y", "o", "me", "nos", "si", "no", "hola", "buenas",
+}
+
+
+def _normalize_text(text: str) -> str:
+    """Minúsculas, sin tildes y sin signos de puntuación, para comparar de forma tolerante."""
+    replacements = str.maketrans("áéíóúñü", "aeiounu")
+    cleaned = text.lower().translate(replacements)
+    for ch in "¿?¡!.,;:()[]{}\"'":
+        cleaned = cleaned.replace(ch, " ")
+    return cleaned
+
+
+def _extract_search_terms(question: str) -> list[str]:
+    words = _normalize_text(question).split()
+    return [w for w in words if w and w not in _INVENTORY_STOPWORDS]
+
+
+def _term_matches(term: str, haystack: str) -> bool:
+    """Compara un término de búsqueda contra el texto del producto, tolerando plurales simples."""
+    if term in haystack:
+        return True
+    for suffix in ("es", "s"):
+        if term.endswith(suffix) and len(term) - len(suffix) >= 3:
+            stem = term[: -len(suffix)]
+            if stem in haystack:
+                return True
+    return False
+
+
+def _search_inventory_products(products: list[dict[str, Any]], terms: list[str]) -> list[dict[str, Any]]:
+    if not terms:
+        return []
+    matches = []
+    for p in products:
+        haystack = _normalize_text(f"{p['code']} {p['name']} {p.get('description') or ''}")
+        if all(_term_matches(term, haystack) for term in terms):
+            matches.append(p)
+    return matches
+
+
+def local_inventory_answer(question: str, products: list[dict[str, Any]], channel: str) -> str:
+    """Respuesta local simulada basada en inventario, con búsqueda real por producto."""
+    if not products:
+        return "Nuestro inventario está vacío por ahora. Agrega productos desde el panel de SmartStacks para poder responder consultas."
+
+    terms = _extract_search_terms(question)
+
+    # Pregunta genérica ("qué tienes", "qué hay disponible") sin producto específico -> catálogo completo.
+    if not terms:
+        return f"Claro, este es nuestro catálogo actual:\n\n{format_inventory_context(products)}\n\n¿Buscas algo en particular?"
+
+    matches = _search_inventory_products(products, terms)
+
+    if not matches:
+        catalog_names = ", ".join(p["name"] for p in products)
+        return (
+            f"No tenemos '{' '.join(terms)}' en nuestro inventario actual. "
+            f"Estos son los productos que sí tenemos disponibles: {catalog_names}."
+        )
+
+    lines = [f"Sí, tenemos {len(matches)} producto(s) que coinciden con '{' '.join(terms)}':\n"]
+    for p in matches:
+        stock_line = f"Stock: {p['quantity']} unidades" if p["quantity"] > 0 else "Sin stock por el momento"
+        price_line = f"Precio: ${p['price']}" if p["price"] else "Precio: no definido"
+        lines.append(f"- {p['name']} (Código {p['code']}) — {stock_line}, {price_line}")
+        if p.get("description"):
+            lines.append(f"  {p['description']}")
+
+    return "\n".join(lines)
+
+
 def smartstacks_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
     """Asistente que responde consultando el inventario."""
     question = str(payload.get("question", "")).strip()
@@ -491,8 +577,8 @@ def smartstacks_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
     if not question:
         return {"ok": False, "error": "Escribe una pregunta sobre el inventario."}
 
-    inventory_context = get_inventory_context()
-    answer, source = call_external_model_with_inventory(question, channel, inventory_context)
+    products = get_inventory_products()
+    answer, source = call_external_model_with_inventory(question, channel, products)
 
     with db_connect() as conn:
         conn.execute(
@@ -506,8 +592,9 @@ def smartstacks_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "answer": answer, "source": source}
 
 
-def call_external_model_with_inventory(question: str, channel: str, inventory_context: str) -> tuple[str, str]:
+def call_external_model_with_inventory(question: str, channel: str, products: list[dict[str, Any]]) -> tuple[str, str]:
     """Llama al modelo externo con contexto de inventario."""
+    inventory_context = format_inventory_context(products)
     litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
     litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
     azure_key = os.environ.get("AZURE_OPENAI_API_KEY")
@@ -541,24 +628,7 @@ Sé conciso, amable y profesional. Si algo no está en el inventario, indícalo 
         headers = {"api-key": azure_key, "Content-Type": "application/json"}
         return post_chat_completion(url, headers, payload), "azure_openai"
 
-    return local_inventory_answer(question, inventory_context, channel), "local"
-
-
-def local_inventory_answer(question: str, inventory_context: str, channel: str) -> str:
-    """Respuesta local simulada basada en inventario."""
-    q = question.lower()
-
-    # Búsquedas simples
-    if "hay" in q or "stock" in q or "disponible" in q or "tenemos" in q:
-        return f"Según nuestro inventario actual:\n\n{inventory_context}\n\n¿Hay algo específico que necesites?"
-
-    if "código" in q or "code" in q or "referencia" in q:
-        return f"Aquí están nuestros productos con sus códigos:\n\n{inventory_context}"
-
-    if "precio" in q or "costo" in q or "valor" in q:
-        return f"Te muestro nuestro catálogo con precios:\n\n{inventory_context}"
-
-    return f"Te ayudo consultando nuestro inventario:\n\n{inventory_context}\n\n¿Necesitas información sobre algún producto específico?"
+    return local_inventory_answer(question, products, channel), "local"
 
 
 def call_external_model(question: str, channel: str) -> tuple[str, str]:
@@ -1547,9 +1617,6 @@ def main() -> None:
     finally:
         server.server_close()
 
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
