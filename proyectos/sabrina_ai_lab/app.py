@@ -41,7 +41,7 @@ from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "data" / "sabrina_lab.sqlite3"
-HOST = os.environ.get("SABRINA_HOST", "127.0.0.1")
+HOST = os.environ.get("SABRINA_HOST", "0.0.0.0")  # Cambiado a 0.0.0.0 para Codespaces
 PORT = int(os.environ.get("SABRINA_PORT", "8000"))
 
 # Email config (opcional)
@@ -267,14 +267,14 @@ def init_db() -> None:
                 customer_email TEXT NOT NULL,
                 customer_phone TEXT,
                 customer_rut TEXT,
-                products TEXT NOT NULL,  -- JSON con lista de productos
+                products TEXT NOT NULL,
                 subtotal REAL NOT NULL,
                 tax REAL NOT NULL,
                 total REAL NOT NULL,
                 payment_method TEXT NOT NULL,
                 bank_account TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'pending',  -- pending, paid, cancelled, verified
-                payment_proof TEXT,  -- URL o path de la captura de pantalla
+                status TEXT NOT NULL DEFAULT 'pending',
+                payment_proof TEXT,
                 verified_by TEXT,
                 verified_at TEXT,
                 notes TEXT,
@@ -317,11 +317,11 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 created_at TEXT NOT NULL,
                 invoice_id INTEGER NOT NULL,
-                type TEXT NOT NULL,  -- 'pending', 'paid', 'verified'
+                type TEXT NOT NULL,
                 message TEXT NOT NULL,
                 sent_at TEXT,
                 sent_to TEXT,
-                status TEXT DEFAULT 'pending'  -- pending, sent, failed
+                status TEXT DEFAULT 'pending'
             )
             """
         )
@@ -1156,7 +1156,6 @@ def create_invoice(payload: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(products, list) or not products:
             return {"ok": False, "error": "Debe seleccionar al menos un producto"}
 
-        # Validar y calcular totales
         subtotal = 0
         product_details = []
         with db_connect() as conn:
@@ -1177,7 +1176,6 @@ def create_invoice(payload: dict[str, Any]) -> dict[str, Any]:
                 if product["price"] is None:
                     return {"ok": False, "error": f"El producto {product['name']} no tiene precio definido"}
 
-                # Verificar stock
                 if product["quantity"] < quantity:
                     return {"ok": False, "error": f"Stock insuficiente para {product['name']}. Disponible: {product['quantity']}"}
 
@@ -1194,13 +1192,12 @@ def create_invoice(payload: dict[str, Any]) -> dict[str, Any]:
                     "total_price": total_price
                 })
 
-                # Actualizar stock
                 conn.execute(
                     "UPDATE inventory_products SET quantity = quantity - ? WHERE id = ?",
                     (quantity, product["id"])
                 )
 
-        tax_rate = 0.19  # 19% IVA para Chile
+        tax_rate = 0.19
         tax = subtotal * tax_rate
         total = subtotal + tax
 
@@ -1208,7 +1205,6 @@ def create_invoice(payload: dict[str, Any]) -> dict[str, Any]:
         payment_method = str(payload["payment_method"])
         bank_account_id = int(payload["bank_account_id"])
 
-        # Obtener cuenta bancaria seleccionada
         bank_account = None
         with db_connect() as conn:
             bank_account = conn.execute(
@@ -1219,7 +1215,6 @@ def create_invoice(payload: dict[str, Any]) -> dict[str, Any]:
         if not bank_account:
             return {"ok": False, "error": "Cuenta bancaria no válida o inactiva"}
 
-        # Crear la factura
         with db_connect() as conn:
             cur = conn.execute(
                 """
@@ -1248,10 +1243,7 @@ def create_invoice(payload: dict[str, Any]) -> dict[str, Any]:
             )
             invoice_id = cur.lastrowid
 
-        # Crear notificación para el administrador
         create_invoice_notification(invoice_id, "pending", f"Nueva factura {invoice_number} creada")
-
-        # Notificar al cliente por email
         send_invoice_email(invoice_id, payload["customer_email"])
 
         return {
@@ -1282,7 +1274,6 @@ def send_invoice_email(invoice_id: int, recipient_email: str) -> None:
         bank_account = json.loads(invoice["bank_account"])
         products = json.loads(invoice["products"])
 
-        # Generar el cuerpo del email
         product_list = "\n".join([
             f"- {p['name']} x{p['quantity']}: ${p['total_price']:.2f}"
             for p in products
@@ -1356,7 +1347,6 @@ def get_invoices() -> dict[str, Any]:
         invoices = rows_to_dicts(
             conn.execute("SELECT * FROM invoices ORDER BY created_at DESC").fetchall()
         )
-        # Parsear JSON fields
         for invoice in invoices:
             if invoice.get("products"):
                 try:
@@ -1420,11 +1410,9 @@ def update_invoice_status(payload: dict[str, Any]) -> dict[str, Any]:
             (status, now_iso() if status == "verified" else None, invoice_id)
         )
 
-        # Crear notificación
         message = f"Factura {invoice['invoice_number']} cambiada a estado: {status}"
         create_invoice_notification(invoice_id, status, message)
 
-        # Si se verificó, notificar al admin
         if status == "verified":
             verified_by = payload.get("verified_by", "Sistema")
             conn.execute(
@@ -1462,7 +1450,6 @@ def upload_payment_proof(payload: dict[str, Any]) -> dict[str, Any]:
             (proof_reference, invoice_id)
         )
 
-        # Notificar al admin
         create_invoice_notification(
             invoice_id,
             "payment_received",
@@ -1491,7 +1478,6 @@ def update_bank_account(payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "error": "Falta el ID de la cuenta"}
 
     account_id = int(payload["account_id"])
-    active = payload.get("active")
 
     updates = []
     values = []
@@ -1589,10 +1575,6 @@ def get_invoice_assistant_context() -> str:
     return context
 
 
-# ============================================
-# FUNCIONES DEL ASISTENTE DE FACTURACIÓN
-# ============================================
-
 def invoice_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
     """Asistente especializado en facturación."""
     question = str(payload.get("question", "")).strip()
@@ -1601,12 +1583,10 @@ def invoice_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
     if not question:
         return {"ok": False, "error": "Escribe una pregunta sobre facturación."}
 
-    # Intentar detectar si es una solicitud de compra
     q_lower = question.lower()
     if any(word in q_lower for word in ["comprar", "quiero", "necesito", "cotizar", "factura", "boleta"]):
         return process_purchase_request(question, channel)
 
-    # Si no es una solicitud de compra, usar el asistente general
     answer, source = call_external_model_with_invoice_context(question, channel)
     return {"ok": True, "answer": answer, "source": source}
 
@@ -1710,7 +1690,6 @@ def process_purchase_request(question: str, channel: str) -> dict[str, Any]:
             "needs_verification": False
         }
 
-    # Intentar extraer productos de la pregunta usando búsqueda simple
     requested_products = []
     q_lower = question.lower()
 
@@ -1736,7 +1715,6 @@ def process_purchase_request(question: str, channel: str) -> dict[str, Any]:
             "needs_verification": False
         }
 
-    # Crear una cotización rápida
     subtotal = sum(p["price"] * 1 for p in requested_products if p.get("price"))
     tax = subtotal * 0.19
     total = subtotal + tax
@@ -1772,7 +1750,7 @@ def process_purchase_request(question: str, channel: str) -> dict[str, Any]:
 
 
 # ============================================
-# RENDER HTML
+# RENDER HTML - Versión simplificada
 # ============================================
 
 def render_index() -> str:
@@ -1808,6 +1786,7 @@ def render_index() -> str:
         linear-gradient(135deg, #080a12, #111827 48%, #07111d);
       color: var(--text);
       min-height: 100vh;
+      padding: 20px;
     }}
     a {{ color: inherit; }}
     .wrap {{ width: min(1180px, calc(100% - 32px)); margin: 0 auto; }}
@@ -1816,6 +1795,7 @@ def render_index() -> str:
       backdrop-filter: blur(18px);
       background: rgba(9,11,18,.72);
       border-bottom: 1px solid var(--line);
+      padding: 10px 0;
     }}
     nav {{ display: flex; justify-content: space-between; align-items: center; padding: 14px 0; gap: 14px; }}
     .brand {{ display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.03em; }}
@@ -1865,9 +1845,6 @@ def render_index() -> str:
     footer {{ border-top: 1px solid var(--line); margin-top: 36px; padding: 24px 0 36px; color: var(--muted); }}
     .toast {{ position: fixed; right: 18px; bottom: 18px; background: #102018; color: #d9ffe8; border: 1px solid rgba(51,214,166,.38); padding: 12px 14px; border-radius: 14px; opacity:0; transform: translateY(100px); transition: all .3s ease; z-index: 999; }}
     .toast.show {{ opacity:1; transform: translateY(0); }}
-    .checkbox-group {{ display:flex; gap: 8px; flex-wrap:wrap; margin: 8px 0; }}
-    .checkbox-group label {{ display:flex; align-items:center; gap: 6px; margin: 0; font-weight: normal; color: var(--muted); }}
-    .checkbox-group input[type="checkbox"] {{ width: auto; }}
     .status-badge {{
       display: inline-block;
       padding: 4px 10px;
@@ -1886,8 +1863,8 @@ def render_index() -> str:
   </style>
 </head>
 <body>
-  <header>
-    <div class="wrap">
+  <div class="wrap">
+    <header>
       <nav>
         <div class="brand"><div class="logo">✦</div><span>Sabrina AI Lab</span></div>
         <div class="navlinks">
@@ -1900,264 +1877,240 @@ def render_index() -> str:
           <a onclick="showSection('campaigns')">Campañas</a>
         </div>
       </nav>
-    </div>
-  </header>
+    </header>
 
-  <main class="wrap">
-    <section id="dashboard" class="active">
-      <div class="hero">
-        <div>
-          <span class="eyebrow">✨ SISTEMA INTEGRAL</span>
-          <h1>Sabrina AI Lab</h1>
-          <p>
-            Gestión integral de leads, inventario, facturación y asistentes de IA para comercios.
-            Incluye automación de email, inventario en tiempo real y consultor estratégico.
-          </p>
-        </div>
-        <div class="card">
-          <h3>Estado del Sistema</h3>
-          <div style="margin: 12px 0; font-size: 12px; color: var(--muted);">
-            <p>✓ Base de datos: Activa</p>
-            <p id="modeStatus">Cargando...</p>
+    <main>
+      <section id="dashboard" class="active">
+        <div class="hero">
+          <div>
+            <span class="eyebrow">✨ SISTEMA INTEGRAL</span>
+            <h1>Sabrina AI Lab</h1>
+            <p>
+              Gestión integral de leads, inventario, facturación y asistentes de IA para comercios.
+              Incluye automación de email, inventario en tiempo real y consultor estratégico.
+            </p>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="leads">
-      <h2>📋 Gestión de Leads</h2>
-      <div class="grid two">
-        <div class="card">
-          <h3>Últimas oportunidades</h3>
-          <div style="overflow:auto; max-height: 400px;">
-            <table><thead><tr><th>Fecha</th><th>Negocio</th><th>Email</th><th>Caso</th></tr></thead><tbody id="leadRows"></tbody></table>
-          </div>
-          <div style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
-            <button onclick="exportLeadsCSV()" class="secondary">📥 CSV</button>
-            <button onclick="exportLeadsJSON()" class="secondary">📥 JSON</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>Registrar nuevo lead</h3>
-          <form id="leadForm" class="formgrid">
-            <div class="full"><label>Nombre</label><input name="name" required></div>
-            <div class="full"><label>Negocio</label><input name="business" required></div>
-            <div class="full"><label>Email</label><input name="email" type="email" required></div>
-            <div class="full"><label>Caso</label><select name="use_case"><option>smartstacks</option><option>middleware</option><option>llave-en-mano</option></select></div>
-            <div class="full"><label>Presupuesto</label><input name="budget" required></div>
-            <div class="full"><label>Dolor</label><textarea name="pain" required></textarea></div>
-            <div class="full"><button type="submit">Guardar lead</button></div>
-          </form>
-        </div>
-      </div>
-    </section>
-
-    <section id="estimator">
-      <h2>🧮 Calculadora de Valor Comercial</h2>
-      <div class="grid two">
-        <div class="card">
-          <h3>Calcular propuesta</h3>
-          <form id="estimateForm" class="formgrid">
-            <div class="full">
-              <label>Caso de uso</label>
-              <select name="use_case">
-                <option value="smartstacks">SmartStacks (Inventario + ventas)</option>
-                <option value="middleware">Automatización Empática Multicanal</option>
-                <option value="llave-en-mano">Digitalización IA Llave en Mano</option>
-              </select>
-            </div>
-            <div><label>Interacciones / mes</label><input name="interactions" type="number" min="1" value="1500" required></div>
-            <div><label>Minutos ahorrados / interacción</label><input name="minutes_saved" type="number" min="1" value="4" required></div>
-            <div class="full"><label>Costo horario del equipo (USD)</label><input name="hourly_cost" type="number" min="0" step="0.1" value="9.5" required></div>
-            <div class="full"><button type="submit">Calcular</button></div>
-          </form>
-        </div>
-
-        <div class="card">
-          <h3>Resultado</h3>
-          <div id="estimateResult"><p class="muted">Completa el formulario para ver la estimación.</p></div>
-          <div style="margin-top: 22px;">
-            <h3>Historial reciente</h3>
-            <div style="overflow:auto; max-height: 260px;">
-              <table><thead><tr><th>Caso</th><th>Interacciones</th><th>Valor mensual</th><th>Precio sugerido</th></tr></thead><tbody id="estimateRows"></tbody></table>
+          <div class="card">
+            <h3>Estado del Sistema</h3>
+            <div style="margin: 12px 0; font-size: 12px; color: var(--muted);">
+              <p>✓ Base de datos: Activa</p>
+              <p id="modeStatus">Cargando...</p>
+              <p>Facturas: <span id="invoiceCount">0</span></p>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section id="assistant">
-      <h2>🧭 Asistente Estratégico</h2>
-      <div class="grid two">
-        <div class="card">
-          <h3>Consultar al asistente</h3>
-          <form id="assistantForm" class="formgrid">
-            <div class="full"><label>Canal</label><input name="channel" value="WhatsApp" required></div>
-            <div class="full"><label>Tu pregunta o situación de negocio</label><textarea name="question" placeholder="Ej: Una ferretería recibe muchas preguntas por stock. ¿Cómo lo vuelvo un MVP vendible?" required></textarea></div>
-            <div class="full"><button type="submit">Preguntar</button></div>
-          </form>
-        </div>
-
-        <div class="card">
-          <h3>Conversación</h3>
-          <div id="assistantHistory" style="overflow:auto; max-height: 460px;"><p class="muted">Sin consultas aún.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="smartstacks">
-      <h2>🏪 SmartStacks - Asistente de Inventario</h2>
-      <div class="grid two">
-        <div class="card">
-          <h3>📊 Inventario Actual</h3>
-          <div style="margin-bottom: 12px;">
-            <p><strong>Total de productos:</strong> <span id="productCount">0</span></p>
-            <p><strong>Stock total:</strong> <span id="totalStock">0</span> unidades</p>
-          </div>
-          <div style="overflow:auto; max-height: 500px;">
-            <table>
-              <thead>
-                <tr><th>Código</th><th>Nombre</th><th>Stock</th><th>Precio</th><th>Acción</th></tr>
-              </thead>
-              <tbody id="productRows"></tbody>
-            </table>
-          </div>
-          <div style="margin-top: 14px;">
-            <button onclick="exportInventoryCSV()" class="secondary">📥 CSV</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>➕ Agregar Producto</h3>
-          <form id="productForm" class="formgrid">
-            <div class="full"><label>Código (ej: E404)</label><input name="code" required></div>
-            <div class="full"><label>Nombre</label><input name="name" required></div>
-            <div class="full"><label>Cantidad</label><input name="quantity" type="number" min="0" required></div>
-            <div><label>Precio</label><input name="price" type="number" step="0.01" min="0"></div>
-            <div><label>Categoría</label><input name="category"></div>
-            <div class="full"><label>Descripción</label><textarea name="description" style="min-height: 80px;"></textarea></div>
-            <div class="full"><button type="submit">Guardar Producto</button></div>
-          </form>
-        </div>
-      </div>
-
-      <div class="grid" style="margin-top: 28px;">
-        <div class="card">
-          <h3>🤖 Asistente de Inventario</h3>
-          <div id="conversationHistory" style="overflow:auto; max-height: 400px; margin-bottom: 14px;"></div>
-          <form id="smartstacksForm" class="formgrid">
-            <div class="full"><label>Tu pregunta sobre inventario</label><textarea id="smartQuestion" name="question" placeholder="Ej: ¿Hay martillos disponibles? ¿Cuál es el stock del código E404?" required></textarea></div>
-            <div class="full"><button type="submit">Hacer pregunta</button></div>
-          </form>
-        </div>
-      </div>
-    </section>
-
-    <section id="invoicing">
-      <h2>🧾 Facturación y Pagos</h2>
-      
-      <div class="grid" style="margin-bottom: 24px;">
-        <div class="card">
-          <h3>📱 Asistente de Facturación</h3>
-          <div id="invoiceAssistantHistory" style="overflow:auto; max-height: 250px; margin-bottom: 14px;"></div>
-          <form id="invoiceAssistantForm" class="formgrid">
-            <div class="full"><label>Tu consulta sobre facturación</label>
-              <textarea id="invoiceQuestion" name="question" placeholder="Ej: Quiero comprar 2 martillos y 1 serrucho. ¿Cómo hago?" required></textarea>
+      <section id="leads">
+        <h2>📋 Gestión de Leads</h2>
+        <div class="grid two">
+          <div class="card">
+            <h3>Últimas oportunidades</h3>
+            <div style="overflow:auto; max-height: 400px;">
+              <table><thead><tr><th>Fecha</th><th>Negocio</th><th>Email</th><th>Caso</th></tr></thead><tbody id="leadRows"></tbody></table>
             </div>
-            <div class="full"><button type="submit">Consultar</button></div>
-          </form>
-        </div>
-      </div>
-
-      <div class="grid two">
-        <div class="card">
-          <h3>📋 Crear Factura</h3>
-          <form id="invoiceForm" class="formgrid">
-            <div class="full"><label>Nombre del Cliente</label><input id="invoiceCustomerName" name="customer_name" required></div>
-            <div class="full"><label>Email del Cliente</label><input id="invoiceCustomerEmail" name="customer_email" type="email" required></div>
-            <div><label>Teléfono</label><input id="invoiceCustomerPhone" name="customer_phone"></div>
-            <div><label>RUT</label><input id="invoiceCustomerRut" name="customer_rut"></div>
-            <div class="full"><label>Seleccionar Productos</label>
-              <div id="invoiceProductSelection" style="max-height: 200px; overflow-y: auto; background: rgba(0,0,0,.2); border-radius: 12px; padding: 12px;"></div>
+            <div style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+              <button onclick="exportLeadsCSV()" class="secondary">📥 CSV</button>
+              <button onclick="exportLeadsJSON()" class="secondary">📥 JSON</button>
             </div>
-            <div class="full"><label>Método de Pago</label>
-              <select id="invoicePaymentMethod" name="payment_method">
-                <option value="transferencia">Transferencia Bancaria</option>
-                <option value="tarjeta">Tarjeta de Crédito/Débito</option>
-              </select>
-            </div>
-            <div class="full"><label>Cuenta Bancaria</label>
-              <select id="invoiceBankAccount" name="bank_account_id"></select>
-            </div>
-            <div class="full"><button type="submit">Crear Factura</button></div>
-          </form>
-        </div>
-
-        <div class="card">
-          <h3>📄 Facturas Recientes</h3>
-          <div style="overflow:auto; max-height: 500px;">
-            <table>
-              <thead>
-                <tr><th>N°</th><th>Cliente</th><th>Total</th><th>Estado</th><th>Acción</th></tr>
-              </thead>
-              <tbody id="invoiceRows"></tbody>
-            </table>
+          </div>
+          <div class="card">
+            <h3>Registrar nuevo lead</h3>
+            <form id="leadForm" class="formgrid">
+              <div class="full"><label>Nombre</label><input name="name" required></div>
+              <div class="full"><label>Negocio</label><input name="business" required></div>
+              <div class="full"><label>Email</label><input name="email" type="email" required></div>
+              <div class="full"><label>Caso</label><select name="use_case"><option>smartstacks</option><option>middleware</option><option>llave-en-mano</option></select></div>
+              <div class="full"><label>Presupuesto</label><input name="budget" required></div>
+              <div class="full"><label>Dolor</label><textarea name="pain" required></textarea></div>
+              <div class="full"><button type="submit">Guardar lead</button></div>
+            </form>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="grid" style="margin-top: 24px;">
-        <div class="card">
-          <h3>🏦 Configuración de Cuentas Bancarias</h3>
-          <div id="bankAccountsList"></div>
-          <div style="margin-top: 14px; display: flex; gap: 8px;">
-            <button onclick="refreshBankAccounts()" class="secondary">🔄 Actualizar</button>
+      <section id="estimator">
+        <h2>🧮 Calculadora de Valor Comercial</h2>
+        <div class="grid two">
+          <div class="card">
+            <h3>Calcular propuesta</h3>
+            <form id="estimateForm" class="formgrid">
+              <div class="full">
+                <label>Caso de uso</label>
+                <select name="use_case">
+                  <option value="smartstacks">SmartStacks (Inventario + ventas)</option>
+                  <option value="middleware">Automatización Empática Multicanal</option>
+                  <option value="llave-en-mano">Digitalización IA Llave en Mano</option>
+                </select>
+              </div>
+              <div><label>Interacciones / mes</label><input name="interactions" type="number" min="1" value="1500" required></div>
+              <div><label>Minutos ahorrados / interacción</label><input name="minutes_saved" type="number" min="1" value="4" required></div>
+              <div class="full"><label>Costo horario del equipo (USD)</label><input name="hourly_cost" type="number" min="0" step="0.1" value="9.5" required></div>
+              <div class="full"><button type="submit">Calcular</button></div>
+            </form>
+          </div>
+          <div class="card">
+            <h3>Resultado</h3>
+            <div id="estimateResult"><p class="muted">Completa el formulario para ver la estimación.</p></div>
+            <div style="margin-top: 22px;">
+              <h3>Historial reciente</h3>
+              <div style="overflow:auto; max-height: 260px;">
+                <table><thead><tr><th>Caso</th><th>Interacciones</th><th>Valor mensual</th><th>Precio sugerido</th></tr></thead><tbody id="estimateRows"></tbody></table>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section id="campaigns">
-      <h2>📧 Campañas de Email</h2>
-      <div class="grid two">
-        <div class="card">
-          <h3>Email masivo (múltiples leads)</h3>
-          <form id="emailForm" class="formgrid">
-            <div class="full"><label for="emailSubject">Asunto</label><input id="emailSubject" name="subject" required></div>
-            <div class="full"><label for="emailBody">Cuerpo (usa {{name}} y {{email}})</label><textarea id="emailBody" name="body" required>Hola {{name}},
+      <section id="assistant">
+        <h2>🧭 Asistente Estratégico</h2>
+        <div class="grid two">
+          <div class="card">
+            <h3>Consultar al asistente</h3>
+            <form id="assistantForm" class="formgrid">
+              <div class="full"><label>Canal</label><input name="channel" value="WhatsApp" required></div>
+              <div class="full"><label>Tu pregunta o situación de negocio</label><textarea name="question" placeholder="Ej: Una ferretería recibe muchas preguntas por stock. ¿Cómo lo vuelvo un MVP vendible?" required></textarea></div>
+              <div class="full"><button type="submit">Preguntar</button></div>
+            </form>
+          </div>
+          <div class="card">
+            <h3>Conversación</h3>
+            <div id="assistantHistory" style="overflow:auto; max-height: 460px;"><p class="muted">Sin consultas aún.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="smartstacks">
+        <h2>🏪 SmartStacks - Asistente de Inventario</h2>
+        <div class="grid two">
+          <div class="card">
+            <h3>📊 Inventario Actual</h3>
+            <div style="margin-bottom: 12px;">
+              <p><strong>Total de productos:</strong> <span id="productCount">0</span></p>
+              <p><strong>Stock total:</strong> <span id="totalStock">0</span> unidades</p>
+            </div>
+            <div style="overflow:auto; max-height: 500px;">
+              <table>
+                <thead>
+                  <tr><th>Código</th><th>Nombre</th><th>Stock</th><th>Precio</th><th>Acción</th></tr>
+                </thead>
+                <tbody id="productRows"></tbody>
+              </table>
+            </div>
+            <div style="margin-top: 14px;">
+              <button onclick="exportInventoryCSV()" class="secondary">📥 CSV</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>➕ Agregar Producto</h3>
+            <form id="productForm" class="formgrid">
+              <div class="full"><label>Código (ej: E404)</label><input name="code" required></div>
+              <div class="full"><label>Nombre</label><input name="name" required></div>
+              <div class="full"><label>Cantidad</label><input name="quantity" type="number" min="0" required></div>
+              <div><label>Precio</label><input name="price" type="number" step="0.01" min="0"></div>
+              <div><label>Categoría</label><input name="category"></div>
+              <div class="full"><label>Descripción</label><textarea name="description" style="min-height: 80px;"></textarea></div>
+              <div class="full"><button type="submit">Guardar Producto</button></div>
+            </form>
+          </div>
+        </div>
+        <div class="grid" style="margin-top: 28px;">
+          <div class="card">
+            <h3>🤖 Asistente de Inventario</h3>
+            <div id="conversationHistory" style="overflow:auto; max-height: 400px; margin-bottom: 14px;"></div>
+            <form id="smartstacksForm" class="formgrid">
+              <div class="full"><label>Tu pregunta sobre inventario</label><textarea id="smartQuestion" name="question" placeholder="Ej: ¿Hay martillos disponibles? ¿Cuál es el stock del código E404?" required></textarea></div>
+              <div class="full"><button type="submit">Hacer pregunta</button></div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="invoicing">
+        <h2>🧾 Facturación y Pagos</h2>
+        <div class="grid two">
+          <div class="card">
+            <h3>📋 Crear Factura</h3>
+            <form id="invoiceForm" class="formgrid">
+              <div class="full"><label>Nombre del Cliente</label><input id="invoiceCustomerName" name="customer_name" required></div>
+              <div class="full"><label>Email del Cliente</label><input id="invoiceCustomerEmail" name="customer_email" type="email" required></div>
+              <div><label>Teléfono</label><input id="invoiceCustomerPhone" name="customer_phone"></div>
+              <div><label>RUT</label><input id="invoiceCustomerRut" name="customer_rut"></div>
+              <div class="full"><label>Seleccionar Productos</label>
+                <div id="invoiceProductSelection" style="max-height: 200px; overflow-y: auto; background: rgba(0,0,0,.2); border-radius: 12px; padding: 12px;"></div>
+              </div>
+              <div class="full"><label>Método de Pago</label>
+                <select id="invoicePaymentMethod" name="payment_method">
+                  <option value="transferencia">Transferencia Bancaria</option>
+                  <option value="tarjeta">Tarjeta de Crédito/Débito</option>
+                </select>
+              </div>
+              <div class="full"><label>Cuenta Bancaria</label>
+                <select id="invoiceBankAccount" name="bank_account_id"></select>
+              </div>
+              <div class="full"><button type="submit">Crear Factura</button></div>
+            </form>
+          </div>
+          <div class="card">
+            <h3>📄 Facturas Recientes</h3>
+            <div style="overflow:auto; max-height: 500px;">
+              <table>
+                <thead>
+                  <tr><th>N°</th><th>Cliente</th><th>Total</th><th>Estado</th><th>Acción</th></tr>
+                </thead>
+                <tbody id="invoiceRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="grid" style="margin-top: 24px;">
+          <div class="card">
+            <h3>🏦 Configuración de Cuentas Bancarias</h3>
+            <div id="bankAccountsList"></div>
+            <div style="margin-top: 14px; display: flex; gap: 8px;">
+              <button onclick="refreshBankAccounts()" class="secondary">🔄 Actualizar</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="campaigns">
+        <h2>📧 Campañas de Email</h2>
+        <div class="grid two">
+          <div class="card">
+            <h3>Email masivo (múltiples leads)</h3>
+            <form id="emailForm" class="formgrid">
+              <div class="full"><label for="emailSubject">Asunto</label><input id="emailSubject" name="subject" required></div>
+              <div class="full"><label for="emailBody">Cuerpo (usa {{name}} y {{email}})</label><textarea id="emailBody" name="body" required>Hola {{name}},
 
 Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</textarea></div>
-            <div class="full"><label>Selecciona leads:</label><div id="leadCheckboxes"></div></div>
-            <div class="full"><button type="submit">Enviar campaña</button></div>
-          </form>
+              <div class="full"><label>Selecciona leads:</label><div id="leadCheckboxes"></div></div>
+              <div class="full"><button type="submit">Enviar campaña</button></div>
+            </form>
+          </div>
+          <div class="card">
+            <h3>Email individual (un lead)</h3>
+            <form id="singleEmailForm" class="formgrid">
+              <div class="full"><label for="singleLeadSelect">Lead</label><select id="singleLeadSelect" name="lead_id" required></select></div>
+              <div class="full"><label for="singleEmailSubject">Asunto</label><input id="singleEmailSubject" name="subject" required></div>
+              <div class="full"><label for="singleEmailBody">Mensaje</label><textarea id="singleEmailBody" name="body" required>Hola {{name}}...</textarea></div>
+              <div class="full"><button type="submit">Enviar email</button></div>
+            </form>
+          </div>
         </div>
+      </section>
+    </main>
 
-        <div class="card">
-          <h3>Email individual (un lead)</h3>
-          <form id="singleEmailForm" class="formgrid">
-            <div class="full"><label for="singleLeadSelect">Lead</label><select id="singleLeadSelect" name="lead_id" required></select></div>
-            <div class="full"><label for="singleEmailSubject">Asunto</label><input id="singleEmailSubject" name="subject" required></div>
-            <div class="full"><label for="singleEmailBody">Mensaje</label><textarea id="singleEmailBody" name="body" required>Hola {{name}}...</textarea></div>
-            <div class="full"><button type="submit">Enviar email</button></div>
-          </form>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <div class="wrap">
+    <footer>
       <strong>Sabrina AI Lab</strong> · Ejecuta: <code>python3 proyectos/sabrina_ai_lab/app.py</code>
-    </div>
-  </footer>
+    </footer>
+  </div>
 
   <div class="toast" id="toast"></div>
 
 <script>
 const state = {state_json};
 let smartstacksState = {{}};
-let invoiceAssistantHistory = [];
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -2167,6 +2120,7 @@ const api = async (url, data) => {{
 }};
 const toast = (msg) => {{
   const el = $('#toast');
+  if (!el) return;
   el.textContent = msg;
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 3000);
@@ -2193,9 +2147,14 @@ function renderState() {{
       '⚠ Email no configurado';
   }}
   
+  const invoiceCount = $('#invoiceCount');
+  if (invoiceCount) {{
+    invoiceCount.textContent = state.metrics.invoices || 0;
+  }}
+  
   const leadRows = $('#leadRows');
   if (leadRows) {{
-    leadRows.innerHTML = state.leads.length ? state.leads.map(l => `
+    leadRows.innerHTML = state.leads && state.leads.length ? state.leads.map(l => `
       <tr>
         <td>${{new Date(l.created_at).toLocaleString()}}</td>
         <td><strong>${{l.business}}</strong></td>
@@ -2207,21 +2166,21 @@ function renderState() {{
   
   const leadCheckboxes = $('#leadCheckboxes');
   if (leadCheckboxes) {{
-    leadCheckboxes.innerHTML = state.leads.length ? state.leads.map(l => `
+    leadCheckboxes.innerHTML = state.leads && state.leads.length ? state.leads.map(l => `
       <label><input type="checkbox" class="lead-checkbox" value="${{l.email}}"> <strong>${{l.business}}</strong> (${{l.email}})</label>
     `).join('<br>') : '<p style="color:var(--muted);">Registra leads primero</p>';
   }}
   
   const singleLeadSelect = $('#singleLeadSelect');
   if (singleLeadSelect) {{
-    singleLeadSelect.innerHTML = state.leads.length ? state.leads.map(l => `
+    singleLeadSelect.innerHTML = state.leads && state.leads.length ? state.leads.map(l => `
       <option value="${{l.id}}">${{l.business}} - ${{l.name}}</option>
     `).join('') : '<option>Sin leads</option>';
   }}
 
   const estimateRows = $('#estimateRows');
   if (estimateRows) {{
-    estimateRows.innerHTML = state.estimates.length ? state.estimates.map(e => `
+    estimateRows.innerHTML = state.estimates && state.estimates.length ? state.estimates.map(e => `
       <tr>
         <td>${{e.use_case}}</td>
         <td>${{e.interactions}}</td>
@@ -2233,7 +2192,7 @@ function renderState() {{
 
   const assistantHistory = $('#assistantHistory');
   if (assistantHistory) {{
-    assistantHistory.innerHTML = state.assistant_events.length ? state.assistant_events.slice().reverse().map(ev => `
+    assistantHistory.innerHTML = state.assistant_events && state.assistant_events.length ? state.assistant_events.slice().reverse().map(ev => `
       <div class="conversation user"><strong>Tú (${{ev.channel}}):</strong><p>${{ev.question}}</p></div>
       <div class="conversation"><strong>Asistente · ${{ev.source}}:</strong><p>${{ev.answer.replace(/\\n/g, '<br>')}}</p></div>
     `).join('') : '<p class="muted">Sin consultas aún.</p>';
@@ -2243,12 +2202,12 @@ function renderState() {{
 function renderSmartStacks() {{
   const productCount = $('#productCount');
   const totalStock = $('#totalStock');
-  if (productCount) productCount.textContent = smartstacksState.metrics.total_products;
-  if (totalStock) totalStock.textContent = smartstacksState.metrics.total_stock;
+  if (productCount) productCount.textContent = smartstacksState.metrics?.total_products || 0;
+  if (totalStock) totalStock.textContent = smartstacksState.metrics?.total_stock || 0;
   
   const productRows = $('#productRows');
   if (productRows) {{
-    productRows.innerHTML = smartstacksState.products.length ? smartstacksState.products.map(p => `
+    productRows.innerHTML = smartstacksState.products && smartstacksState.products.length ? smartstacksState.products.map(p => `
       <tr>
         <td><strong>${{p.code}}</strong></td>
         <td>${{p.name}}</td>
@@ -2261,7 +2220,7 @@ function renderSmartStacks() {{
   
   const conversationHistory = $('#conversationHistory');
   if (conversationHistory) {{
-    conversationHistory.innerHTML = smartstacksState.conversations.length ? smartstacksState.conversations.slice().reverse().map(c => `
+    conversationHistory.innerHTML = smartstacksState.conversations && smartstacksState.conversations.length ? smartstacksState.conversations.slice().reverse().map(c => `
       <div class="conversation user">
         <strong>Tú (${{c.channel}}):</strong>
         <p>${{c.question}}</p>
@@ -2307,10 +2266,6 @@ async function deleteProduct(id) {{
   refreshSmartStacks();
 }}
 
-// ============================================
-// FUNCIONES DE FACTURACIÓN
-// ============================================
-
 async function refreshInvoices() {{
   try {{
     const res = await fetch('/api/invoices');
@@ -2319,7 +2274,7 @@ async function refreshInvoices() {{
     
     const invoiceRows = $('#invoiceRows');
     if (invoiceRows) {{
-      invoiceRows.innerHTML = data.invoices.length ? data.invoices.map(inv => `
+      invoiceRows.innerHTML = data.invoices && data.invoices.length ? data.invoices.map(inv => `
         <tr>
           <td><strong>${{inv.invoice_number}}</strong></td>
           <td>${{inv.customer_name}}</td>
@@ -2345,14 +2300,14 @@ async function refreshBankAccounts() {{
     
     const select = $('#invoiceBankAccount');
     if (select) {{
-      select.innerHTML = data.bank_accounts.map(acc => `
+      select.innerHTML = data.bank_accounts && data.bank_accounts.length ? data.bank_accounts.map(acc => `
         <option value="${{acc.id}}">${{acc.name}} - ${{acc.bank}} - ${{acc.account_number}}</option>
-      `).join('');
+      `).join('') : '<option>No hay cuentas activas</option>';
     }}
     
     const bankAccountsList = $('#bankAccountsList');
     if (bankAccountsList) {{
-      bankAccountsList.innerHTML = data.bank_accounts.map(acc => `
+      bankAccountsList.innerHTML = data.bank_accounts && data.bank_accounts.length ? data.bank_accounts.map(acc => `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid var(--line);">
           <div>
             <strong>${{acc.name}}</strong>
@@ -2363,7 +2318,7 @@ async function refreshBankAccounts() {{
             <button onclick="toggleBankAccount(${{acc.id}})" class="secondary" style="padding: 4px 8px; font-size: 11px;">Desactivar</button>
           </div>
         </div>
-      `).join('');
+      `).join('') : '<p style="color: var(--muted);">No hay cuentas bancarias configuradas</p>';
     }}
   }} catch (e) {{
     console.error('Error refreshing bank accounts:', e);
@@ -2419,10 +2374,7 @@ async function loadProductsForInvoice() {{
   }}
 }}
 
-// ============================================
-// EVENT HANDLERS
-// ============================================
-
+// Event Handlers
 const leadForm = $('#leadForm');
 if (leadForm) {{
   leadForm.addEventListener('submit', async (e) => {{
@@ -2506,54 +2458,6 @@ if (smartstacksForm) {{
   }});
 }}
 
-// Facturación - Asistente
-const invoiceAssistantForm = $('#invoiceAssistantForm');
-if (invoiceAssistantForm) {{
-  invoiceAssistantForm.addEventListener('submit', async (e) => {{
-    e.preventDefault();
-    const data = new FormData(e.target);
-    const question = data.get('question');
-    
-    if (!question) {{ toast('Escribe una consulta'); return; }}
-    
-    invoiceAssistantHistory.push({{role: 'user', content: question}});
-    renderInvoiceAssistantHistory();
-    
-    const out = await api('/api/invoice/assistant', {{question: question, channel: 'web'}});
-    
-    if (!out.ok) {{
-      toast('Error: ' + out.error);
-      return;
-    }}
-    
-    invoiceAssistantHistory.push({{role: 'assistant', content: out.answer, source: out.source}});
-    renderInvoiceAssistantHistory();
-    
-    toast('Respuesta recibida');
-    e.target.reset();
-  }});
-}}
-
-function renderInvoiceAssistantHistory() {{
-  const container = $('#invoiceAssistantHistory');
-  if (!container) return;
-  
-  container.innerHTML = invoiceAssistantHistory.map(msg => {{
-    const roleLabel = msg.role === 'user' ? 'Tú' : 'Asistente';
-    const sourceLabel = msg.source ? ' · ' + msg.source : '';
-    const userClass = msg.role === 'user' ? 'user' : '';
-    return `
-      <div class="conversation ${{userClass}}">
-        <strong>${{roleLabel}}${{sourceLabel}}:</strong>
-        <p>${{(msg.content || '').replace(/\\n/g, '<br>')}}</p>
-      </div>
-    `;
-  }}).join('') || '<p class="muted">Inicia una conversación sobre facturación.</p>';
-  
-  container.scrollTop = container.scrollHeight;
-}}
-
-// Facturación - Crear factura
 const invoiceForm = $('#invoiceForm');
 if (invoiceForm) {{
   invoiceForm.addEventListener('submit', async (e) => {{
@@ -2592,7 +2496,6 @@ if (invoiceForm) {{
   }});
 }}
 
-// Email campaigns
 const emailForm = $('#emailForm');
 if (emailForm) {{
   emailForm.addEventListener('submit', async (e) => {{
@@ -2640,10 +2543,7 @@ if (singleEmailForm) {{
   }});
 }}
 
-// ============================================
-// INICIALIZACIÓN
-// ============================================
-
+// Inicialización
 renderState();
 refreshSmartStacks();
 refreshBankAccounts();
@@ -2668,7 +2568,7 @@ class SabrinaHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path == "/":
+        if parsed.path == "/" or parsed.path == "":
             html_response(self, render_index())
             return
         if parsed.path == "/api/state":
@@ -2708,7 +2608,6 @@ class SabrinaHandler(BaseHTTPRequestHandler):
         try:
             payload = read_json(self)
             
-            # Rutas existentes
             if parsed.path == "/api/leads":
                 result = create_lead(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
@@ -2753,8 +2652,6 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 result = send_single_email(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
-            
-            # Nuevas rutas de facturación
             if parsed.path == "/api/invoice/create":
                 result = create_invoice(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
