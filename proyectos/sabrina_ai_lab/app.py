@@ -2337,7 +2337,7 @@ async function toggleBankAccount(accountId) {{
 }}
 
 async function updateInvoiceStatus(invoiceId, status) {{
-  if (!confirm(`¿Cambiar estado de factura a "${status}"?`)) return;
+  if (!confirm(`¿Cambiar estado de factura a "${{status}}"?`)) return;
   const result = await api('/api/invoice/status', {{
     invoice_id: invoiceId,
     status: status,
@@ -2705,3 +2705,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
