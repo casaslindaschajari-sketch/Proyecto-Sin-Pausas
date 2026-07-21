@@ -9,6 +9,7 @@ Servidor web sin dependencias externas:
 - Captura de oportunidades/leads con exportación y campañas de email.
 - Asistente estratégico local con integración opcional Azure OpenAI / LiteLLM compatible.
 - Sistema de inventario con asistente conversacional para smartstacks.
+- Sistema de facturación completo con integración bancaria.
 
 Ejecutar:
     python3 proyectos/sabrina_ai_lab/app.py
@@ -111,6 +112,42 @@ ROADMAP = [
 ]
 
 
+# ============================================
+# CONFIGURACIÓN BANCARIA
+# ============================================
+BANK_ACCOUNTS = [
+    {
+        "id": "banco_1",
+        "name": "Banco Nacional - Cuenta Corriente",
+        "bank": "Banco Nacional",
+        "account_type": "Cuenta Corriente",
+        "account_number": "1234567890",
+        "rut": "12.345.678-9",
+        "email": "pagos@tunegocio.cl",
+        "phone": "+569 1234 5678",
+        "active": True
+    },
+    {
+        "id": "banco_2",
+        "name": "Banco Internacional - Cuenta Ahorro",
+        "bank": "Banco Internacional",
+        "account_type": "Cuenta Ahorro",
+        "account_number": "0987654321",
+        "rut": "98.765.432-1",
+        "email": "ahorro@tunegocio.cl",
+        "phone": "+569 8765 4321",
+        "active": True
+    }
+]
+
+# Configuración de métodos de pago
+PAYMENT_METHODS = [
+    {"id": "transferencia", "name": "Transferencia Bancaria", "active": True},
+    {"id": "tarjeta", "name": "Tarjeta de Crédito/Débito", "active": True},
+    {"id": "paypal", "name": "PayPal", "active": False},
+]
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -124,6 +161,7 @@ def db_connect() -> sqlite3.Connection:
 
 def init_db() -> None:
     with db_connect() as conn:
+        # Tablas existentes...
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS leads (
@@ -218,6 +256,100 @@ def init_db() -> None:
             """
         )
 
+        # NUEVAS TABLAS PARA FACTURACIÓN
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS invoices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_number TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                customer_name TEXT NOT NULL,
+                customer_email TEXT NOT NULL,
+                customer_phone TEXT,
+                customer_rut TEXT,
+                products TEXT NOT NULL,  -- JSON con lista de productos
+                subtotal REAL NOT NULL,
+                tax REAL NOT NULL,
+                total REAL NOT NULL,
+                payment_method TEXT NOT NULL,
+                bank_account TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',  -- pending, paid, cancelled, verified
+                payment_proof TEXT,  -- URL o path de la captura de pantalla
+                verified_by TEXT,
+                verified_at TEXT,
+                notes TEXT,
+                notification_sent INTEGER DEFAULT 0
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bank_accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                name TEXT NOT NULL,
+                bank TEXT NOT NULL,
+                account_type TEXT NOT NULL,
+                account_number TEXT NOT NULL,
+                rut TEXT NOT NULL,
+                email TEXT,
+                phone TEXT,
+                active INTEGER DEFAULT 1
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS payment_methods (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                name TEXT NOT NULL,
+                active INTEGER DEFAULT 1
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS invoice_notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                invoice_id INTEGER NOT NULL,
+                type TEXT NOT NULL,  -- 'pending', 'paid', 'verified'
+                message TEXT NOT NULL,
+                sent_at TEXT,
+                sent_to TEXT,
+                status TEXT DEFAULT 'pending'  -- pending, sent, failed
+            )
+            """
+        )
+
+        # Insertar datos iniciales de cuentas bancarias si no existen
+        if not conn.execute("SELECT COUNT(*) FROM bank_accounts").fetchone()[0]:
+            for account in BANK_ACCOUNTS:
+                conn.execute(
+                    """
+                    INSERT INTO bank_accounts (created_at, name, bank, account_type, account_number, rut, email, phone, active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (now_iso(), account["name"], account["bank"], account["account_type"],
+                     account["account_number"], account["rut"], account.get("email"),
+                     account.get("phone"), 1 if account.get("active", True) else 0)
+                )
+
+        # Insertar métodos de pago iniciales
+        if not conn.execute("SELECT COUNT(*) FROM payment_methods").fetchone()[0]:
+            for method in PAYMENT_METHODS:
+                conn.execute(
+                    """
+                    INSERT INTO payment_methods (created_at, name, active)
+                    VALUES (?, ?, ?)
+                    """,
+                    (now_iso(), method["name"], 1 if method.get("active", True) else 0)
+                )
+
 
 def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
@@ -275,6 +407,8 @@ def get_dashboard_state() -> dict[str, Any]:
         lead_count = conn.execute("SELECT COUNT(*) AS c FROM leads").fetchone()["c"]
         estimate_count = conn.execute("SELECT COUNT(*) AS c FROM estimates").fetchone()["c"]
         campaign_count = conn.execute("SELECT COUNT(*) AS c FROM email_campaigns WHERE status='sent'").fetchone()["c"]
+        invoice_count = conn.execute("SELECT COUNT(*) AS c FROM invoices").fetchone()["c"]
+        pending_invoices = conn.execute("SELECT COUNT(*) AS c FROM invoices WHERE status='pending'").fetchone()["c"]
 
     azure_ready = all(
         [
@@ -313,6 +447,8 @@ def get_dashboard_state() -> dict[str, Any]:
             "leads": lead_count,
             "estimates": estimate_count,
             "campaigns_sent": campaign_count,
+            "invoices": invoice_count,
+            "pending_invoices": pending_invoices,
         },
         "leads": leads,
         "estimates": estimates,
@@ -389,7 +525,6 @@ def estimate_cost(payload: dict[str, Any]) -> dict[str, Any]:
 
     use_case = next((case for case in USE_CASES if case["id"] == use_case_id), USE_CASES[0])
 
-    # Aproximación comercial: 900 tokens promedio por interacción y costo conservador proxy.
     avg_tokens = 900
     cost_per_1k_tokens = 0.004
     estimated_ai_cost = interactions * (avg_tokens / 1000) * cost_per_1k_tokens
@@ -464,21 +599,116 @@ def local_strategy_answer(question: str, channel: str) -> str:
     ).strip()
 
 
-def get_inventory_context() -> str:
-    """Obtiene un contexto de inventario para pasar al asistente."""
+def get_inventory_products() -> list[dict[str, Any]]:
+    """Obtiene los productos actuales del inventario como lista de dicts."""
     with db_connect() as conn:
-        products = rows_to_dicts(
-            conn.execute("SELECT code, name, quantity, price, description FROM inventory_products ORDER BY name").fetchall()
+        return rows_to_dicts(
+            conn.execute("SELECT id, code, name, quantity, price, description, category FROM inventory_products ORDER BY name").fetchall()
         )
 
+
+def format_inventory_context(products: list[dict[str, Any]]) -> str:
+    """Convierte la lista de productos en un bloque de texto para dar contexto al modelo."""
     if not products:
         return "El inventario está vacío."
 
     lines = ["INVENTARIO ACTUAL:\n"]
     for p in products:
         lines.append(f"- Código {p['code']}: {p['name']} (Stock: {p['quantity']} unidades, Precio: ${p['price'] or 'N/A'})")
-        if p['description']:
+        if p.get('description'):
             lines.append(f"  Descripción: {p['description']}")
+
+    return "\n".join(lines)
+
+
+def get_inventory_context() -> str:
+    """Obtiene un contexto de inventario para pasar al asistente."""
+    return format_inventory_context(get_inventory_products())
+
+
+_INVENTORY_STOPWORDS = {
+    "tienes", "tiene", "tienen", "hay", "tenemos", "tengo", "disponible", "disponibles",
+    "stock", "cuanto", "cuanta", "cuantos", "cuantas", "cuesta", "cuestan", "precio", "precios",
+    "costo", "costos", "valor", "de", "del", "el", "la", "los", "las", "un", "una", "unos", "unas",
+    "que", "cual", "cuales", "es", "son", "por", "favor", "porfavor", "como", "quiero", "necesito",
+    "busco", "sobre", "info", "informacion", "dame", "dime", "puedes", "podrias", "codigo", "code",
+    "referencia", "en", "con", "para", "y", "o", "me", "nos", "si", "no", "hola", "buenas",
+}
+
+
+def _normalize_text(text: str) -> str:
+    """Minúsculas, sin tildes y sin signos de puntuación, para comparar de forma tolerante."""
+    replacements = str.maketrans("áéíóúñü", "aeiounu")
+    cleaned = text.lower().translate(replacements)
+    for ch in "¿?¡!.,;:()[]{}\"'":
+        cleaned = cleaned.replace(ch, " ")
+    return cleaned
+
+
+def _extract_search_terms(question: str) -> list[str]:
+    words = _normalize_text(question).split()
+    return [w for w in words if w and w not in _INVENTORY_STOPWORDS]
+
+
+def _word_variants(word: str) -> set[str]:
+    """Genera variantes de un token (forma singular/plural simple) para comparar de forma tolerante."""
+    variants = {word}
+    for suffix in ("es", "s"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            variants.add(word[: -len(suffix)])
+    return variants
+
+
+def _term_matches(term: str, haystack_words: set[str]) -> bool:
+    """True si el término (o su forma singular/plural) coincide con alguna palabra COMPLETA
+    del producto. Se usa coincidencia por palabra (no subcadena) para poder distinguir
+    productos con nombres parecidos, por ejemplo 'Cinta Marca A' vs 'Cinta Marca B'."""
+    term_variants = _word_variants(term)
+    for word in haystack_words:
+        if term_variants & _word_variants(word):
+            return True
+    return False
+
+
+def _search_inventory_products(products: list[dict[str, Any]], terms: list[str]) -> list[dict[str, Any]]:
+    if not terms:
+        return []
+    matches = []
+    for p in products:
+        haystack_words = set(_normalize_text(f"{p['code']} {p['name']} {p.get('description') or ''}").split())
+        if all(_term_matches(term, haystack_words) for term in terms):
+            matches.append(p)
+    return matches
+
+
+def local_inventory_answer(question: str, products: list[dict[str, Any]], channel: str) -> str:
+    """Respuesta local simulada basada en inventario, con búsqueda real por producto."""
+    if not products:
+        return "Nuestro inventario está vacío por ahora. Agrega productos desde el panel de SmartStacks para poder responder consultas."
+
+    terms = _extract_search_terms(question)
+
+    if not terms:
+        return f"Claro, este es nuestro catálogo actual:\n\n{format_inventory_context(products)}\n\n¿Buscas algo en particular?"
+
+    matches = _search_inventory_products(products, terms)
+
+    if not matches:
+        catalog_names = ", ".join(p["name"] for p in products[:5])
+        if len(products) > 5:
+            catalog_names += f" y {len(products) - 5} productos más"
+        return (
+            f"No tenemos '{' '.join(terms)}' en nuestro inventario actual. "
+            f"Estos son los productos que sí tenemos disponibles: {catalog_names}."
+        )
+
+    lines = [f"Sí, tenemos {len(matches)} producto(s) que coinciden con '{' '.join(terms)}':\n"]
+    for p in matches:
+        stock_line = f"Stock: {p['quantity']} unidades" if p["quantity"] > 0 else "Sin stock por el momento"
+        price_line = f"Precio: ${p['price']}" if p.get("price") else "Precio: no definido"
+        lines.append(f"- {p['name']} (Código {p['code']}) — {stock_line}, {price_line}")
+        if p.get("description"):
+            lines.append(f"  {p['description']}")
 
     return "\n".join(lines)
 
@@ -491,8 +721,8 @@ def smartstacks_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
     if not question:
         return {"ok": False, "error": "Escribe una pregunta sobre el inventario."}
 
-    inventory_context = get_inventory_context()
-    answer, source = call_external_model_with_inventory(question, channel, inventory_context)
+    products = get_inventory_products()
+    answer, source = call_external_model_with_inventory(question, channel, products)
 
     with db_connect() as conn:
         conn.execute(
@@ -506,8 +736,9 @@ def smartstacks_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "answer": answer, "source": source}
 
 
-def call_external_model_with_inventory(question: str, channel: str, inventory_context: str) -> tuple[str, str]:
+def call_external_model_with_inventory(question: str, channel: str, products: list[dict[str, Any]]) -> tuple[str, str]:
     """Llama al modelo externo con contexto de inventario."""
+    inventory_context = format_inventory_context(products)
     litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
     litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
     azure_key = os.environ.get("AZURE_OPENAI_API_KEY")
@@ -541,24 +772,7 @@ Sé conciso, amable y profesional. Si algo no está en el inventario, indícalo 
         headers = {"api-key": azure_key, "Content-Type": "application/json"}
         return post_chat_completion(url, headers, payload), "azure_openai"
 
-    return local_inventory_answer(question, inventory_context, channel), "local"
-
-
-def local_inventory_answer(question: str, inventory_context: str, channel: str) -> str:
-    """Respuesta local simulada basada en inventario."""
-    q = question.lower()
-
-    # Búsquedas simples
-    if "hay" in q or "stock" in q or "disponible" in q or "tenemos" in q:
-        return f"Según nuestro inventario actual:\n\n{inventory_context}\n\n¿Hay algo específico que necesites?"
-
-    if "código" in q or "code" in q or "referencia" in q:
-        return f"Aquí están nuestros productos con sus códigos:\n\n{inventory_context}"
-
-    if "precio" in q or "costo" in q or "valor" in q:
-        return f"Te muestro nuestro catálogo con precios:\n\n{inventory_context}"
-
-    return f"Te ayudo consultando nuestro inventario:\n\n{inventory_context}\n\n¿Necesitas información sobre algún producto específico?"
+    return local_inventory_answer(question, products, channel), "local"
 
 
 def call_external_model(question: str, channel: str) -> tuple[str, str]:
@@ -920,6 +1134,647 @@ def send_single_email(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ============================================
+# FUNCIONES DE FACTURACIÓN
+# ============================================
+
+def generate_invoice_number() -> str:
+    """Genera un número de factura único."""
+    with db_connect() as conn:
+        count = conn.execute("SELECT COUNT(*) as c FROM invoices").fetchone()["c"]
+    return f"INV-{datetime.now().strftime('%Y%m')}-{count + 1:04d}"
+
+
+def create_invoice(payload: dict[str, Any]) -> dict[str, Any]:
+    """Crea una nueva factura a partir de los productos seleccionados."""
+    missing = validate_required(payload, ["customer_name", "customer_email", "products", "payment_method", "bank_account_id"])
+    if missing:
+        return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
+
+    try:
+        products = payload["products"]
+        if not isinstance(products, list) or not products:
+            return {"ok": False, "error": "Debe seleccionar al menos un producto"}
+
+        # Validar y calcular totales
+        subtotal = 0
+        product_details = []
+        with db_connect() as conn:
+            for item in products:
+                product_id = item.get("product_id")
+                quantity = int(item.get("quantity", 1))
+                if not product_id:
+                    return {"ok": False, "error": "Cada producto debe tener un ID"}
+
+                product = conn.execute(
+                    "SELECT id, code, name, price FROM inventory_products WHERE id = ?",
+                    (product_id,)
+                ).fetchone()
+
+                if not product:
+                    return {"ok": False, "error": f"Producto ID {product_id} no encontrado"}
+
+                if product["price"] is None:
+                    return {"ok": False, "error": f"El producto {product['name']} no tiene precio definido"}
+
+                # Verificar stock
+                if product["quantity"] < quantity:
+                    return {"ok": False, "error": f"Stock insuficiente para {product['name']}. Disponible: {product['quantity']}"}
+
+                unit_price = float(product["price"])
+                total_price = unit_price * quantity
+                subtotal += total_price
+
+                product_details.append({
+                    "product_id": product["id"],
+                    "code": product["code"],
+                    "name": product["name"],
+                    "quantity": quantity,
+                    "unit_price": unit_price,
+                    "total_price": total_price
+                })
+
+                # Actualizar stock
+                conn.execute(
+                    "UPDATE inventory_products SET quantity = quantity - ? WHERE id = ?",
+                    (quantity, product["id"])
+                )
+
+        tax_rate = 0.19  # 19% IVA para Chile
+        tax = subtotal * tax_rate
+        total = subtotal + tax
+
+        invoice_number = generate_invoice_number()
+        payment_method = str(payload["payment_method"])
+        bank_account_id = int(payload["bank_account_id"])
+
+        # Obtener cuenta bancaria seleccionada
+        bank_account = None
+        with db_connect() as conn:
+            bank_account = conn.execute(
+                "SELECT * FROM bank_accounts WHERE id = ? AND active = 1",
+                (bank_account_id,)
+            ).fetchone()
+
+        if not bank_account:
+            return {"ok": False, "error": "Cuenta bancaria no válida o inactiva"}
+
+        # Crear la factura
+        with db_connect() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO invoices (
+                    invoice_number, created_at, customer_name, customer_email, customer_phone,
+                    customer_rut, products, subtotal, tax, total, payment_method, bank_account,
+                    status, notification_sent
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    invoice_number,
+                    now_iso(),
+                    str(payload["customer_name"]).strip(),
+                    str(payload["customer_email"]).strip(),
+                    str(payload.get("customer_phone", "")).strip() or None,
+                    str(payload.get("customer_rut", "")).strip() or None,
+                    json.dumps(product_details, ensure_ascii=False),
+                    subtotal,
+                    tax,
+                    total,
+                    payment_method,
+                    json.dumps(dict(bank_account), ensure_ascii=False),
+                    "pending",
+                    0
+                )
+            )
+            invoice_id = cur.lastrowid
+
+        # Crear notificación para el administrador
+        create_invoice_notification(invoice_id, "pending", f"Nueva factura {invoice_number} creada")
+
+        # Notificar al cliente por email
+        send_invoice_email(invoice_id, payload["customer_email"])
+
+        return {
+            "ok": True,
+            "invoice_id": invoice_id,
+            "invoice_number": invoice_number,
+            "subtotal": subtotal,
+            "tax": tax,
+            "total": total,
+            "payment_method": payment_method,
+            "bank_account": dict(bank_account),
+            "message": f"Factura {invoice_number} creada exitosamente. Revisa tu correo para los datos de pago."
+        }
+
+    except ValueError as e:
+        return {"ok": False, "error": f"Error en los datos: {str(e)}"}
+    except Exception as e:
+        return {"ok": False, "error": f"Error al crear la factura: {str(e)}"}
+
+
+def send_invoice_email(invoice_id: int, recipient_email: str) -> None:
+    """Envía el correo con los datos de la factura."""
+    with db_connect() as conn:
+        invoice = conn.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
+        if not invoice:
+            return
+
+        bank_account = json.loads(invoice["bank_account"])
+        products = json.loads(invoice["products"])
+
+        # Generar el cuerpo del email
+        product_list = "\n".join([
+            f"- {p['name']} x{p['quantity']}: ${p['total_price']:.2f}"
+            for p in products
+        ])
+
+        body = f"""
+        Estimado/a {invoice['customer_name']},
+
+        Gracias por tu compra. Aquí están los detalles de tu factura:
+
+        Número de Factura: {invoice['invoice_number']}
+        Fecha: {invoice['created_at']}
+
+        Productos:
+        {product_list}
+
+        Subtotal: ${invoice['subtotal']:.2f}
+        IVA (19%): ${invoice['tax']:.2f}
+        TOTAL: ${invoice['total']:.2f}
+
+        Método de pago: {invoice['payment_method']}
+
+        Datos bancarios para transferencia:
+        Banco: {bank_account['bank']}
+        Tipo de Cuenta: {bank_account['account_type']}
+        Número de Cuenta: {bank_account['account_number']}
+        RUT: {bank_account['rut']}
+        Email: {bank_account.get('email', 'No especificado')}
+        Teléfono: {bank_account.get('phone', 'No especificado')}
+
+        Importante:
+        1. Realiza la transferencia por el monto total indicado.
+        2. Envía una captura de pantalla del comprobante de pago a {bank_account.get('email', SENDER_EMAIL)}.
+        3. Una vez verificado el pago, confirmaremos tu pedido.
+
+        Para cualquier consulta, responde a este correo.
+
+        Saludos cordiales,
+        {SENDER_NAME}
+        """
+
+        subject = f"Factura {invoice['invoice_number']} - Tu compra en {SENDER_NAME}"
+
+        success, message = send_email(recipient_email, subject, body)
+        if success:
+            with db_connect() as conn:
+                conn.execute(
+                    """
+                    UPDATE invoices SET notification_sent = 1
+                    WHERE id = ?
+                    """,
+                    (invoice_id,)
+                )
+
+
+def create_invoice_notification(invoice_id: int, notification_type: str, message: str) -> None:
+    """Crea una notificación para el administrador sobre una factura."""
+    with db_connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO invoice_notifications (created_at, invoice_id, type, message, status)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (now_iso(), invoice_id, notification_type, message, "pending")
+        )
+
+
+def get_invoices() -> dict[str, Any]:
+    """Obtiene todas las facturas."""
+    with db_connect() as conn:
+        invoices = rows_to_dicts(
+            conn.execute("SELECT * FROM invoices ORDER BY created_at DESC").fetchall()
+        )
+        # Parsear JSON fields
+        for invoice in invoices:
+            if invoice.get("products"):
+                try:
+                    invoice["products"] = json.loads(invoice["products"])
+                except:
+                    pass
+            if invoice.get("bank_account"):
+                try:
+                    invoice["bank_account"] = json.loads(invoice["bank_account"])
+                except:
+                    pass
+
+    return {"ok": True, "invoices": invoices}
+
+
+def get_invoice(invoice_id: int) -> dict[str, Any]:
+    """Obtiene una factura específica."""
+    with db_connect() as conn:
+        invoice = conn.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
+        if not invoice:
+            return {"ok": False, "error": "Factura no encontrada"}
+
+        invoice_dict = dict(invoice)
+        if invoice_dict.get("products"):
+            try:
+                invoice_dict["products"] = json.loads(invoice_dict["products"])
+            except:
+                pass
+        if invoice_dict.get("bank_account"):
+            try:
+                invoice_dict["bank_account"] = json.loads(invoice_dict["bank_account"])
+            except:
+                pass
+
+    return {"ok": True, "invoice": invoice_dict}
+
+
+def update_invoice_status(payload: dict[str, Any]) -> dict[str, Any]:
+    """Actualiza el estado de una factura."""
+    missing = validate_required(payload, ["invoice_id", "status"])
+    if missing:
+        return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
+
+    invoice_id = int(payload["invoice_id"])
+    status = str(payload["status"]).lower()
+    valid_statuses = ["pending", "paid", "cancelled", "verified"]
+
+    if status not in valid_statuses:
+        return {"ok": False, "error": f"Estado inválido. Debe ser: {', '.join(valid_statuses)}"}
+
+    with db_connect() as conn:
+        invoice = conn.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
+        if not invoice:
+            return {"ok": False, "error": "Factura no encontrada"}
+
+        conn.execute(
+            """
+            UPDATE invoices SET status = ?, verified_at = ?
+            WHERE id = ?
+            """,
+            (status, now_iso() if status == "verified" else None, invoice_id)
+        )
+
+        # Crear notificación
+        message = f"Factura {invoice['invoice_number']} cambiada a estado: {status}"
+        create_invoice_notification(invoice_id, status, message)
+
+        # Si se verificó, notificar al admin
+        if status == "verified":
+            verified_by = payload.get("verified_by", "Sistema")
+            conn.execute(
+                """
+                UPDATE invoices SET verified_by = ?
+                WHERE id = ?
+                """,
+                (verified_by, invoice_id)
+            )
+            create_invoice_notification(invoice_id, "verified",
+                                       f"Factura {invoice['invoice_number']} verificada por {verified_by}")
+
+    return {"ok": True, "message": f"Factura actualizada a estado: {status}"}
+
+
+def upload_payment_proof(payload: dict[str, Any]) -> dict[str, Any]:
+    """Registra que el cliente ha enviado comprobante de pago."""
+    missing = validate_required(payload, ["invoice_id", "proof_reference"])
+    if missing:
+        return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
+
+    invoice_id = int(payload["invoice_id"])
+    proof_reference = str(payload["proof_reference"]).strip()
+
+    with db_connect() as conn:
+        invoice = conn.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
+        if not invoice:
+            return {"ok": False, "error": "Factura no encontrada"}
+
+        conn.execute(
+            """
+            UPDATE invoices SET payment_proof = ?, status = 'pending_verification'
+            WHERE id = ?
+            """,
+            (proof_reference, invoice_id)
+        )
+
+        # Notificar al admin
+        create_invoice_notification(
+            invoice_id,
+            "payment_received",
+            f"Comprobante de pago recibido para factura {invoice['invoice_number']}: {proof_reference}"
+        )
+
+    return {
+        "ok": True,
+        "message": "Comprobante registrado. Un administrador verificará el pago pronto."
+    }
+
+
+def get_bank_accounts() -> dict[str, Any]:
+    """Obtiene todas las cuentas bancarias activas."""
+    with db_connect() as conn:
+        accounts = rows_to_dicts(
+            conn.execute("SELECT * FROM bank_accounts WHERE active = 1 ORDER BY name").fetchall()
+        )
+    return {"ok": True, "bank_accounts": accounts}
+
+
+def update_bank_account(payload: dict[str, Any]) -> dict[str, Any]:
+    """Actualiza o desactiva una cuenta bancaria."""
+    missing = validate_required(payload, ["account_id"])
+    if missing:
+        return {"ok": False, "error": "Falta el ID de la cuenta"}
+
+    account_id = int(payload["account_id"])
+    active = payload.get("active")
+
+    updates = []
+    values = []
+
+    if "active" in payload:
+        updates.append("active = ?")
+        values.append(1 if payload["active"] else 0)
+
+    if "name" in payload:
+        updates.append("name = ?")
+        values.append(str(payload["name"]).strip())
+
+    if "bank" in payload:
+        updates.append("bank = ?")
+        values.append(str(payload["bank"]).strip())
+
+    if not updates:
+        return {"ok": False, "error": "No hay campos para actualizar"}
+
+    values.append(account_id)
+
+    with db_connect() as conn:
+        account = conn.execute("SELECT * FROM bank_accounts WHERE id = ?", (account_id,)).fetchone()
+        if not account:
+            return {"ok": False, "error": "Cuenta no encontrada"}
+
+        conn.execute(f"UPDATE bank_accounts SET {', '.join(updates)} WHERE id = ?", values)
+
+    return {"ok": True, "message": "Cuenta bancaria actualizada correctamente"}
+
+
+def get_invoice_notifications() -> dict[str, Any]:
+    """Obtiene notificaciones pendientes de facturación."""
+    with db_connect() as conn:
+        notifications = rows_to_dicts(
+            conn.execute(
+                """
+                SELECT n.*, i.invoice_number, i.customer_name
+                FROM invoice_notifications n
+                LEFT JOIN invoices i ON n.invoice_id = i.id
+                WHERE n.status = 'pending'
+                ORDER BY n.created_at DESC
+                """
+            ).fetchall()
+        )
+
+    return {"ok": True, "notifications": notifications}
+
+
+def mark_notification_sent(notification_id: int) -> dict[str, Any]:
+    """Marca una notificación como enviada."""
+    with db_connect() as conn:
+        conn.execute(
+            """
+            UPDATE invoice_notifications SET status = 'sent', sent_at = ?
+            WHERE id = ?
+            """,
+            (now_iso(), notification_id)
+        )
+
+    return {"ok": True, "message": "Notificación marcada como enviada"}
+
+
+def get_invoice_assistant_context() -> str:
+    """Obtiene contexto de facturación para el asistente."""
+    with db_connect() as conn:
+        pending = conn.execute(
+            "SELECT COUNT(*) as c FROM invoices WHERE status = 'pending'"
+        ).fetchone()["c"]
+
+        recent = rows_to_dicts(
+            conn.execute(
+                "SELECT invoice_number, customer_name, total, status FROM invoices ORDER BY created_at DESC LIMIT 5"
+            ).fetchall()
+        )
+
+    context = f"""
+    SISTEMA DE FACTURACIÓN:
+    - Facturas pendientes: {pending}
+    - Últimas facturas: {json.dumps(recent, ensure_ascii=False, indent=2)}
+
+    Para crear una factura, el cliente debe proporcionar:
+    - Nombre y email del cliente
+    - Productos a comprar (IDs o códigos del inventario)
+    - Método de pago (transferencia, tarjeta, etc.)
+    - Datos bancarios para la transferencia
+
+    Proceso:
+    1. Crear factura con los productos seleccionados
+    2. Enviar email al cliente con los datos de pago
+    3. Cliente realiza transferencia y envía comprobante
+    4. Administrador verifica pago y actualiza estado de la factura
+    """
+
+    return context
+
+
+# ============================================
+# FUNCIONES DEL ASISTENTE DE FACTURACIÓN
+# ============================================
+
+def invoice_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
+    """Asistente especializado en facturación."""
+    question = str(payload.get("question", "")).strip()
+    channel = str(payload.get("channel", "web")).strip() or "web"
+
+    if not question:
+        return {"ok": False, "error": "Escribe una pregunta sobre facturación."}
+
+    # Intentar detectar si es una solicitud de compra
+    q_lower = question.lower()
+    if any(word in q_lower for word in ["comprar", "quiero", "necesito", "cotizar", "factura", "boleta"]):
+        return process_purchase_request(question, channel)
+
+    # Si no es una solicitud de compra, usar el asistente general
+    answer, source = call_external_model_with_invoice_context(question, channel)
+    return {"ok": True, "answer": answer, "source": source}
+
+
+def call_external_model_with_invoice_context(question: str, channel: str) -> tuple[str, str]:
+    """Llama al modelo con contexto de facturación."""
+    context = get_invoice_assistant_context()
+    litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
+    litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
+    azure_key = os.environ.get("AZURE_OPENAI_API_KEY")
+    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    azure_deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
+    azure_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+
+    system_prompt = f"""Eres un asistente de facturación para Sabrina AI Lab.
+Responde preguntas sobre facturación, pagos y estado de órdenes.
+
+CONTEXTO ACTUAL:
+{context}
+
+Instrucciones:
+1. Sé conciso y profesional
+2. Si te preguntan por el estado de una factura, pide el número de factura
+3. Si quieren comprar, guía el proceso paso a paso
+4. Recuerda que deben enviar comprobante de pago
+5. Mantén un tono amable pero formal"""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Canal: {channel}\nConsulta: {question}"},
+    ]
+
+    if litellm_base:
+        url = f"{litellm_base}/chat/completions"
+        payload = {"model": os.environ.get("LITELLM_MODEL", "gpt-4o-mini"), "messages": messages}
+        headers = {"Authorization": f"Bearer {litellm_key}", "Content-Type": "application/json"}
+        return post_chat_completion(url, headers, payload), "litellm"
+
+    if azure_key and azure_endpoint and azure_deployment:
+        url = (
+            f"{azure_endpoint}/openai/deployments/{azure_deployment}/chat/completions"
+            f"?api-version={azure_version}"
+        )
+        payload = {"messages": messages, "temperature": 0.4, "max_tokens": 650}
+        headers = {"api-key": azure_key, "Content-Type": "application/json"}
+        return post_chat_completion(url, headers, payload), "azure_openai"
+
+    return local_invoice_answer(question), "local"
+
+
+def local_invoice_answer(question: str) -> str:
+    """Respuesta local para facturación."""
+    q_lower = question.lower()
+
+    if "estado" in q_lower or "factura" in q_lower:
+        return """
+        Para consultar el estado de una factura, necesito el número de factura.
+        Puedes encontrarlo en el correo que enviamos o en tu perfil de cliente.
+        Formato: INV-2024MM-XXXX
+
+        Una vez que tengas el número, puedo verificarlo en el sistema.
+        """
+
+    elif "pago" in q_lower or "transferencia" in q_lower:
+        return """
+        Los datos bancarios para realizar tu pago son:
+        - Banco: Banco Nacional
+        - Cuenta Corriente: 1234567890
+        - RUT: 12.345.678-9
+        - Email: pagos@tunegocio.cl
+
+        Importante: 
+        1. Realiza la transferencia por el monto exacto indicado en tu factura
+        2. Incluye tu número de factura en la descripción
+        3. Envía el comprobante de pago a pagos@tunegocio.cl
+        """
+
+    else:
+        return """
+        Soy el asistente de facturación de Sabrina AI Lab.
+
+        ¿En qué puedo ayudarte?
+        - Consultar el estado de una factura
+        - Solicitar datos de pago
+        - Reportar un comprobante de pago
+        - Hacer una cotización de productos
+
+        Para una cotización, indícame qué productos te interesan y te prepararé una cotización formal.
+        """
+
+
+def process_purchase_request(question: str, channel: str) -> dict[str, Any]:
+    """Procesa una solicitud de compra del cliente."""
+    products = get_inventory_products()
+
+    if not products:
+        return {
+            "ok": True,
+            "answer": "Lo siento, actualmente no tenemos productos disponibles en el inventario. Por favor, contacta a nuestro equipo de ventas directamente.",
+            "source": "local",
+            "needs_verification": False
+        }
+
+    # Intentar extraer productos de la pregunta usando búsqueda simple
+    requested_products = []
+    q_lower = question.lower()
+
+    for p in products:
+        if p["name"].lower() in q_lower or p["code"].lower() in q_lower:
+            requested_products.append(p)
+
+    if not requested_products:
+        product_list = "\n".join([f"- {p['name']} (Código: {p['code']}, Stock: {p['quantity']})" for p in products[:10]])
+        if len(products) > 10:
+            product_list += f"\n- ... y {len(products) - 10} productos más"
+
+        return {
+            "ok": True,
+            "answer": f"""
+            No encontré productos específicos en tu mensaje. Estos son los productos disponibles:
+
+            {product_list}
+
+            ¿Cuál te gustaría comprar? Indícame el nombre o código del producto y la cantidad.
+            """.strip(),
+            "source": "local",
+            "needs_verification": False
+        }
+
+    # Crear una cotización rápida
+    subtotal = sum(p["price"] * 1 for p in requested_products if p.get("price"))
+    tax = subtotal * 0.19
+    total = subtotal + tax
+
+    product_details = "\n".join([f"- {p['name']} (Código: {p['code']}) - ${p['price']:.2f} c/u" for p in requested_products])
+
+    return {
+        "ok": True,
+        "answer": f"""
+        ¡Excelente! He identificado estos productos en tu consulta:
+
+        {product_details}
+
+        Resumen de la cotización:
+        Subtotal: ${subtotal:.2f}
+        IVA (19%): ${tax:.2f}
+        Total: ${total:.2f}
+
+        Para proceder con la compra, por favor:
+        1. Confirma que estos productos son los que deseas
+        2. Indica las cantidades para cada producto
+        3. Proporciona tu nombre completo y email
+
+        Una vez que confirmes, generaré tu factura formal con los datos bancarios para realizar el pago.
+        """.strip(),
+        "source": "local",
+        "needs_verification": True,
+        "subtotal": subtotal,
+        "tax": tax,
+        "total": total,
+        "products": requested_products
+    }
+
+
+# ============================================
+# RENDER HTML
+# ============================================
+
 def render_index() -> str:
     state_json = json.dumps(get_dashboard_state(), ensure_ascii=False)
     return f"""<!doctype html>
@@ -1013,6 +1868,17 @@ def render_index() -> str:
     .checkbox-group {{ display:flex; gap: 8px; flex-wrap:wrap; margin: 8px 0; }}
     .checkbox-group label {{ display:flex; align-items:center; gap: 6px; margin: 0; font-weight: normal; color: var(--muted); }}
     .checkbox-group input[type="checkbox"] {{ width: auto; }}
+    .status-badge {{
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }}
+    .status-pending {{ background: rgba(255,204,102,.15); color: var(--warn); }}
+    .status-paid {{ background: rgba(51,214,166,.15); color: var(--brand2); }}
+    .status-cancelled {{ background: rgba(255,107,122,.15); color: var(--danger); }}
+    .status-verified {{ background: rgba(155,140,255,.15); color: var(--brand); }}
     @media (max-width: 850px) {{
       .hero, .grid.two {{ grid-template-columns: 1fr; }}
       .navlinks {{ display:none; }}
@@ -1030,6 +1896,7 @@ def render_index() -> str:
           <a onclick="showSection('estimator')">Calculadora</a>
           <a onclick="showSection('assistant')">Asistente</a>
           <a onclick="showSection('smartstacks')">SmartStacks</a>
+          <a onclick="showSection('invoicing')">Facturación</a>
           <a onclick="showSection('campaigns')">Campañas</a>
         </div>
       </nav>
@@ -1043,7 +1910,7 @@ def render_index() -> str:
           <span class="eyebrow">✨ SISTEMA INTEGRAL</span>
           <h1>Sabrina AI Lab</h1>
           <p>
-            Gestión integral de leads, inventario y asistentes de IA para comercios.
+            Gestión integral de leads, inventario, facturación y asistentes de IA para comercios.
             Incluye automación de email, inventario en tiempo real y consultor estratégico.
           </p>
         </div>
@@ -1187,6 +2054,70 @@ def render_index() -> str:
       </div>
     </section>
 
+    <section id="invoicing">
+      <h2>🧾 Facturación y Pagos</h2>
+      
+      <div class="grid" style="margin-bottom: 24px;">
+        <div class="card">
+          <h3>📱 Asistente de Facturación</h3>
+          <div id="invoiceAssistantHistory" style="overflow:auto; max-height: 250px; margin-bottom: 14px;"></div>
+          <form id="invoiceAssistantForm" class="formgrid">
+            <div class="full"><label>Tu consulta sobre facturación</label>
+              <textarea id="invoiceQuestion" name="question" placeholder="Ej: Quiero comprar 2 martillos y 1 serrucho. ¿Cómo hago?" required></textarea>
+            </div>
+            <div class="full"><button type="submit">Consultar</button></div>
+          </form>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <h3>📋 Crear Factura</h3>
+          <form id="invoiceForm" class="formgrid">
+            <div class="full"><label>Nombre del Cliente</label><input id="invoiceCustomerName" name="customer_name" required></div>
+            <div class="full"><label>Email del Cliente</label><input id="invoiceCustomerEmail" name="customer_email" type="email" required></div>
+            <div><label>Teléfono</label><input id="invoiceCustomerPhone" name="customer_phone"></div>
+            <div><label>RUT</label><input id="invoiceCustomerRut" name="customer_rut"></div>
+            <div class="full"><label>Seleccionar Productos</label>
+              <div id="invoiceProductSelection" style="max-height: 200px; overflow-y: auto; background: rgba(0,0,0,.2); border-radius: 12px; padding: 12px;"></div>
+            </div>
+            <div class="full"><label>Método de Pago</label>
+              <select id="invoicePaymentMethod" name="payment_method">
+                <option value="transferencia">Transferencia Bancaria</option>
+                <option value="tarjeta">Tarjeta de Crédito/Débito</option>
+              </select>
+            </div>
+            <div class="full"><label>Cuenta Bancaria</label>
+              <select id="invoiceBankAccount" name="bank_account_id"></select>
+            </div>
+            <div class="full"><button type="submit">Crear Factura</button></div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>📄 Facturas Recientes</h3>
+          <div style="overflow:auto; max-height: 500px;">
+            <table>
+              <thead>
+                <tr><th>N°</th><th>Cliente</th><th>Total</th><th>Estado</th><th>Acción</th></tr>
+              </thead>
+              <tbody id="invoiceRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top: 24px;">
+        <div class="card">
+          <h3>🏦 Configuración de Cuentas Bancarias</h3>
+          <div id="bankAccountsList"></div>
+          <div style="margin-top: 14px; display: flex; gap: 8px;">
+            <button onclick="refreshBankAccounts()" class="secondary">🔄 Actualizar</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="campaigns">
       <h2>📧 Campañas de Email</h2>
       <div class="grid two">
@@ -1226,6 +2157,7 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
 <script>
 const state = {state_json};
 let smartstacksState = {{}};
+let invoiceAssistantHistory = [];
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -1243,80 +2175,124 @@ const toast = (msg) => {{
 function showSection(id) {{
   $$('section').forEach(s => s.classList.remove('active'));
   $$('.navlinks a').forEach(a => a.classList.remove('active'));
-  $(`#${{id}}`).classList.add('active');
-  event.target.classList.add('active');
+  const section = $(`#${{id}}`);
+  if (section) section.classList.add('active');
+  if (event && event.target) event.target.classList.add('active');
+  
+  if (id === 'invoicing') {{
+    refreshInvoices();
+    refreshBankAccounts();
+  }}
 }}
 
 function renderState() {{
-  $('#modeStatus').textContent = state.integrations.email_ready ? 
-    '✓ Email configurado' : 
-    '⚠ Email no configurado';
-    
-  $('#leadRows').innerHTML = state.leads.length ? state.leads.map(l => `
-    <tr>
-      <td>${{new Date(l.created_at).toLocaleString()}}</td>
-      <td><strong>${{l.business}}</strong></td>
-      <td>${{l.email}}</td>
-      <td>${{l.use_case}}</td>
-    </tr>
-  `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin leads registrados</td></tr>';
+  const modeStatus = $('#modeStatus');
+  if (modeStatus) {{
+    modeStatus.textContent = state.integrations.email_ready ? 
+      '✓ Email configurado' : 
+      '⚠ Email no configurado';
+  }}
   
-  $('#leadCheckboxes').innerHTML = state.leads.length ? state.leads.map(l => `
-    <label><input type="checkbox" class="lead-checkbox" value="${{l.email}}"> <strong>${{l.business}}</strong> (${{l.email}})</label>
-  `).join('<br>') : '<p style="color:var(--muted);">Registra leads primero</p>';
+  const leadRows = $('#leadRows');
+  if (leadRows) {{
+    leadRows.innerHTML = state.leads.length ? state.leads.map(l => `
+      <tr>
+        <td>${{new Date(l.created_at).toLocaleString()}}</td>
+        <td><strong>${{l.business}}</strong></td>
+        <td>${{l.email}}</td>
+        <td>${{l.use_case}}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin leads registrados</td></tr>';
+  }}
   
-  $('#singleLeadSelect').innerHTML = state.leads.length ? state.leads.map(l => `
-    <option value="${{l.id}}">${{l.business}} - ${{l.name}}</option>
-  `).join('') : '<option>Sin leads</option>';
+  const leadCheckboxes = $('#leadCheckboxes');
+  if (leadCheckboxes) {{
+    leadCheckboxes.innerHTML = state.leads.length ? state.leads.map(l => `
+      <label><input type="checkbox" class="lead-checkbox" value="${{l.email}}"> <strong>${{l.business}}</strong> (${{l.email}})</label>
+    `).join('<br>') : '<p style="color:var(--muted);">Registra leads primero</p>';
+  }}
+  
+  const singleLeadSelect = $('#singleLeadSelect');
+  if (singleLeadSelect) {{
+    singleLeadSelect.innerHTML = state.leads.length ? state.leads.map(l => `
+      <option value="${{l.id}}">${{l.business}} - ${{l.name}}</option>
+    `).join('') : '<option>Sin leads</option>';
+  }}
 
-  $('#estimateRows').innerHTML = state.estimates.length ? state.estimates.map(e => `
-    <tr>
-      <td>${{e.use_case}}</td>
-      <td>${{e.interactions}}</td>
-      <td>$${{e.monthly_value}}</td>
-      <td>$${{e.suggested_price}}</td>
-    </tr>
-  `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin cálculos aún</td></tr>';
+  const estimateRows = $('#estimateRows');
+  if (estimateRows) {{
+    estimateRows.innerHTML = state.estimates.length ? state.estimates.map(e => `
+      <tr>
+        <td>${{e.use_case}}</td>
+        <td>${{e.interactions}}</td>
+        <td>$${{e.monthly_value}}</td>
+        <td>$${{e.suggested_price}}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin cálculos aún</td></tr>';
+  }}
 
-  $('#assistantHistory').innerHTML = state.assistant_events.length ? state.assistant_events.slice().reverse().map(ev => `
-    <div class="conversation user"><strong>Tú (${{ev.channel}}):</strong><p>${{ev.question}}</p></div>
-    <div class="conversation"><strong>Asistente · ${{ev.source}}:</strong><p>${{ev.answer.replace(/\\n/g, '<br>')}}</p></div>
-  `).join('') : '<p class="muted">Sin consultas aún.</p>';
+  const assistantHistory = $('#assistantHistory');
+  if (assistantHistory) {{
+    assistantHistory.innerHTML = state.assistant_events.length ? state.assistant_events.slice().reverse().map(ev => `
+      <div class="conversation user"><strong>Tú (${{ev.channel}}):</strong><p>${{ev.question}}</p></div>
+      <div class="conversation"><strong>Asistente · ${{ev.source}}:</strong><p>${{ev.answer.replace(/\\n/g, '<br>')}}</p></div>
+    `).join('') : '<p class="muted">Sin consultas aún.</p>';
+  }}
 }}
 
 function renderSmartStacks() {{
-  $('#productCount').textContent = smartstacksState.metrics.total_products;
-  $('#totalStock').textContent = smartstacksState.metrics.total_stock;
+  const productCount = $('#productCount');
+  const totalStock = $('#totalStock');
+  if (productCount) productCount.textContent = smartstacksState.metrics.total_products;
+  if (totalStock) totalStock.textContent = smartstacksState.metrics.total_stock;
   
-  $('#productRows').innerHTML = smartstacksState.products.length ? smartstacksState.products.map(p => `
-    <tr>
-      <td><strong>${{p.code}}</strong></td>
-      <td>${{p.name}}</td>
-      <td>${{p.quantity}}</td>
-      <td>${{p.price ? '$' + p.price : 'N/A'}}</td>
-      <td><button class="secondary" onclick="deleteProduct(${{p.id}})" style="padding: 6px 8px; font-size: 12px;">Eliminar</button></td>
-    </tr>
-  `).join('') : '<tr><td colspan="5" style="text-align:center;">Sin productos</td></tr>';
+  const productRows = $('#productRows');
+  if (productRows) {{
+    productRows.innerHTML = smartstacksState.products.length ? smartstacksState.products.map(p => `
+      <tr>
+        <td><strong>${{p.code}}</strong></td>
+        <td>${{p.name}}</td>
+        <td>${{p.quantity}}</td>
+        <td>${{p.price ? '$' + p.price : 'N/A'}}</td>
+        <td><button class="secondary" onclick="deleteProduct(${{p.id}})" style="padding: 6px 8px; font-size: 12px;">Eliminar</button></td>
+      </tr>
+    `).join('') : '<tr><td colspan="5" style="text-align:center;">Sin productos</td></tr>';
+  }}
   
-  $('#conversationHistory').innerHTML = smartstacksState.conversations.length ? smartstacksState.conversations.reverse().map((c, i) => `
-    <div class="conversation ${{i % 2 === 0 ? 'user' : 'assistant'}}">
-      <strong>${{i % 2 === 0 ? 'Tú' : 'Asistente'}}:</strong>
-      <p>${{i % 2 === 0 ? c.question : c.answer}}</p>
-    </div>
-  `).join('') : '<p style="color: var(--muted); text-align: center;">Sin conversaciones aún</p>';
+  const conversationHistory = $('#conversationHistory');
+  if (conversationHistory) {{
+    conversationHistory.innerHTML = smartstacksState.conversations.length ? smartstacksState.conversations.slice().reverse().map(c => `
+      <div class="conversation user">
+        <strong>Tú (${{c.channel}}):</strong>
+        <p>${{c.question}}</p>
+      </div>
+      <div class="conversation">
+        <strong>Asistente:</strong>
+        <p>${{(c.answer || '').replace(/\\n/g, '<br>')}}</p>
+      </div>
+    `).join('') : '<p style="color: var(--muted); text-align: center;">Sin conversaciones aún</p>';
+  }}
 }}
 
 async function refresh() {{
-  const res = await fetch('/api/state');
-  const newState = await res.json();
-  Object.assign(state, newState);
-  renderState();
+  try {{
+    const res = await fetch('/api/state');
+    const newState = await res.json();
+    Object.assign(state, newState);
+    renderState();
+  }} catch (e) {{
+    console.error('Error refreshing state:', e);
+  }}
 }}
 
 async function refreshSmartStacks() {{
-  const res = await fetch('/api/smartstacks/state');
-  smartstacksState = await res.json();
-  renderSmartStacks();
+  try {{
+    const res = await fetch('/api/smartstacks/state');
+    smartstacksState = await res.json();
+    renderSmartStacks();
+  }} catch (e) {{
+    console.error('Error refreshing smartstacks:', e);
+  }}
 }}
 
 function exportLeadsCSV() {{ window.location.href = '/api/leads/export/csv'; toast('Descargando CSV...'); }}
@@ -1331,119 +2307,358 @@ async function deleteProduct(id) {{
   refreshSmartStacks();
 }}
 
-$('#leadForm').addEventListener('submit', async (e) => {{
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const out = await api('/api/leads', Object.fromEntries(data));
-  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-  toast(out.message);
-  e.target.reset();
-  refresh();
-}});
+// ============================================
+// FUNCIONES DE FACTURACIÓN
+// ============================================
 
-$('#estimateForm').addEventListener('submit', async (e) => {{
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const payload = Object.fromEntries(data);
-  payload.interactions = parseInt(payload.interactions);
-  payload.minutes_saved = parseInt(payload.minutes_saved);
-  payload.hourly_cost = parseFloat(payload.hourly_cost);
-  const out = await api('/api/estimate', payload);
-  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-  $('#estimateResult').innerHTML = `
-    <p><strong>Caso:</strong> ${{out.use_case}}</p>
-    <p><strong>Horas humanas ahorradas/mes:</strong> ${{out.human_hours_saved}}</p>
-    <p><strong>Valor mensual generado:</strong> $${{out.monthly_value}}</p>
-    <p><strong>Costo estimado de IA:</strong> $${{out.estimated_ai_cost}}</p>
-    <p><strong>Precio mensual sugerido:</strong> <span class="metric">$${{out.suggested_price}}</span></p>
-    <p><strong>Setup sugerido:</strong> $${{out.setup}}</p>
-    <p class="muted">Margen aproximado: $${{out.margin_hint}}</p>
-  `;
-  toast('Estimación calculada');
-  refresh();
-}});
-
-$('#assistantForm').addEventListener('submit', async (e) => {{
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const out = await api('/api/assistant', Object.fromEntries(data));
-  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-  toast('Respuesta recibida (' + out.source + ')');
-  e.target.reset();
-  refresh();
-}});
-
-$('#productForm').addEventListener('submit', async (e) => {{
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const payload = Object.fromEntries(data);
-  payload.quantity = parseInt(payload.quantity);
-  if (payload.price) payload.price = parseFloat(payload.price);
-  const out = await api('/api/inventory/product/add', payload);
-  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-  toast(out.message);
-  e.target.reset();
-  refreshSmartStacks();
-}});
-
-$('#smartstacksForm').addEventListener('submit', async (e) => {{
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const out = await api('/api/smartstacks/assistant', Object.fromEntries(data));
-  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-  toast('Respuesta recibida');
-  e.target.reset();
-  refreshSmartStacks();
-}});
-
-$('#emailForm').addEventListener('submit', async (e) => {{
-  e.preventDefault();
-  const emails = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => cb.value);
-  if (!emails.length) {{ toast('Selecciona al menos un lead'); return; }}
-  
-  const subject = $('#emailSubject').value;
-  const body = $('#emailBody').value;
-  
-  const out = await api('/api/email/campaign/create', {{
-    subject: subject,
-    body: body,
-    recipient_emails: emails
-  }});
-  
-  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-  
-  if (confirm(`Campaña creada para ${{emails.length}} contactos. ¿Enviar ahora?`)) {{
-    const sent = await api(`/api/email/campaign/${{out.campaign_id}}/send`, {{}});
-    if (!sent.ok) {{ toast('Error: ' + sent.error); return; }}
-    toast(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos`);
+async function refreshInvoices() {{
+  try {{
+    const res = await fetch('/api/invoices');
+    const data = await res.json();
+    if (!data.ok) {{ toast('Error: ' + data.error); return; }}
+    
+    const invoiceRows = $('#invoiceRows');
+    if (invoiceRows) {{
+      invoiceRows.innerHTML = data.invoices.length ? data.invoices.map(inv => `
+        <tr>
+          <td><strong>${{inv.invoice_number}}</strong></td>
+          <td>${{inv.customer_name}}</td>
+          <td>$${{inv.total.toFixed(2)}}</td>
+          <td><span class="status-badge status-${{inv.status}}">${{inv.status}}</span></td>
+          <td>
+            <button onclick="updateInvoiceStatus(${{inv.id}}, 'verified')" class="secondary" style="padding: 4px 8px; font-size: 11px;">✓ Verificar</button>
+            <button onclick="updateInvoiceStatus(${{inv.id}}, 'cancelled')" class="secondary" style="padding: 4px 8px; font-size: 11px;">✗ Cancelar</button>
+          </td>
+        </tr>
+      `).join('') : '<tr><td colspan="5" style="text-align:center;">Sin facturas</td></tr>';
+    }}
+  }} catch (e) {{
+    console.error('Error refreshing invoices:', e);
   }}
-  
-  e.target.reset();
-  refresh();
-}});
+}}
 
-$('#singleEmailForm').addEventListener('submit', async (e) => {{
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const out = await api('/api/email/send', {{
-    lead_id: parseInt(data.get('lead_id')),
-    subject: data.get('subject'),
-    body: data.get('body')
+async function refreshBankAccounts() {{
+  try {{
+    const res = await fetch('/api/bank-accounts');
+    const data = await res.json();
+    if (!data.ok) {{ toast('Error: ' + data.error); return; }}
+    
+    const select = $('#invoiceBankAccount');
+    if (select) {{
+      select.innerHTML = data.bank_accounts.map(acc => `
+        <option value="${{acc.id}}">${{acc.name}} - ${{acc.bank}} - ${{acc.account_number}}</option>
+      `).join('');
+    }}
+    
+    const bankAccountsList = $('#bankAccountsList');
+    if (bankAccountsList) {{
+      bankAccountsList.innerHTML = data.bank_accounts.map(acc => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid var(--line);">
+          <div>
+            <strong>${{acc.name}}</strong>
+            <span style="color: var(--muted); font-size: 12px;">${{acc.bank}} - ${{acc.account_number}}</span>
+          </div>
+          <div>
+            <span style="color: var(--brand2); font-size: 12px;">✓ Activa</span>
+            <button onclick="toggleBankAccount(${{acc.id}})" class="secondary" style="padding: 4px 8px; font-size: 11px;">Desactivar</button>
+          </div>
+        </div>
+      `).join('');
+    }}
+  }} catch (e) {{
+    console.error('Error refreshing bank accounts:', e);
+  }}
+}}
+
+async function toggleBankAccount(accountId) {{
+  if (!confirm('¿Desactivar esta cuenta bancaria?')) return;
+  const result = await api('/api/bank-account/update', {{
+    account_id: accountId,
+    active: 0
   }});
+  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
+  toast('Cuenta desactivada');
+  refreshBankAccounts();
+}}
+
+async function updateInvoiceStatus(invoiceId, status) {{
+  if (!confirm(`¿Cambiar estado de factura a "${status}"?`)) return;
+  const result = await api('/api/invoice/status', {{
+    invoice_id: invoiceId,
+    status: status,
+    verified_by: 'Admin Web'
+  }});
+  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
+  toast(result.message);
+  refreshInvoices();
+}}
+
+async function loadProductsForInvoice() {{
+  try {{
+    const res = await fetch('/api/smartstacks/state');
+    const data = await res.json();
+    const container = $('#invoiceProductSelection');
+    if (!container) return;
+    
+    if (!data.products || !data.products.length) {{
+      container.innerHTML = '<p style="color: var(--muted);">No hay productos disponibles en el inventario.</p>';
+      return;
+    }}
+    
+    container.innerHTML = data.products.map(p => `
+      <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line);">
+        <input type="checkbox" class="invoice-product-checkbox" data-id="${{p.id}}" data-price="${{p.price || 0}}" data-name="${{p.name}}">
+        <span><strong>${{p.code}}</strong> - ${{p.name}}</span>
+        <span style="color: var(--muted); font-size: 12px;">Stock: ${{p.quantity}}</span>
+        <span style="color: var(--brand2);">$${{p.price || 0}}</span>
+        <input type="number" class="invoice-product-qty" data-id="${{p.id}}" value="1" min="1" max="${{p.quantity}}" style="width: 60px; padding: 4px;">
+      </div>
+    `).join('');
+  }} catch (e) {{
+    console.error('Error loading products:', e);
+  }}
+}}
+
+// ============================================
+// EVENT HANDLERS
+// ============================================
+
+const leadForm = $('#leadForm');
+if (leadForm) {{
+  leadForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/leads', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast(out.message);
+    e.target.reset();
+    refresh();
+  }});
+}}
+
+const estimateForm = $('#estimateForm');
+if (estimateForm) {{
+  estimateForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const payload = Object.fromEntries(data);
+    payload.interactions = parseInt(payload.interactions);
+    payload.minutes_saved = parseInt(payload.minutes_saved);
+    payload.hourly_cost = parseFloat(payload.hourly_cost);
+    const out = await api('/api/estimate', payload);
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    const estimateResult = $('#estimateResult');
+    if (estimateResult) {{
+      estimateResult.innerHTML = `
+        <p><strong>Caso:</strong> ${{out.use_case}}</p>
+        <p><strong>Horas humanas ahorradas/mes:</strong> ${{out.human_hours_saved}}</p>
+        <p><strong>Valor mensual generado:</strong> $${{out.monthly_value}}</p>
+        <p><strong>Costo estimado de IA:</strong> $${{out.estimated_ai_cost}}</p>
+        <p><strong>Precio mensual sugerido:</strong> <span class="metric">$${{out.suggested_price}}</span></p>
+        <p><strong>Setup sugerido:</strong> $${{out.setup}}</p>
+        <p class="muted">Margen aproximado: $${{out.margin_hint}}</p>
+      `;
+    }}
+    toast('Estimación calculada');
+    refresh();
+  }});
+}}
+
+const assistantForm = $('#assistantForm');
+if (assistantForm) {{
+  assistantForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/assistant', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast('Respuesta recibida (' + out.source + ')');
+    e.target.reset();
+    refresh();
+  }});
+}}
+
+const productForm = $('#productForm');
+if (productForm) {{
+  productForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const payload = Object.fromEntries(data);
+    payload.quantity = parseInt(payload.quantity);
+    if (payload.price) payload.price = parseFloat(payload.price);
+    const out = await api('/api/inventory/product/add', payload);
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast(out.message);
+    e.target.reset();
+    refreshSmartStacks();
+  }});
+}}
+
+const smartstacksForm = $('#smartstacksForm');
+if (smartstacksForm) {{
+  smartstacksForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/smartstacks/assistant', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast('Respuesta recibida');
+    e.target.reset();
+    refreshSmartStacks();
+  }});
+}}
+
+// Facturación - Asistente
+const invoiceAssistantForm = $('#invoiceAssistantForm');
+if (invoiceAssistantForm) {{
+  invoiceAssistantForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const question = data.get('question');
+    
+    if (!question) {{ toast('Escribe una consulta'); return; }}
+    
+    invoiceAssistantHistory.push({{role: 'user', content: question}});
+    renderInvoiceAssistantHistory();
+    
+    const out = await api('/api/invoice/assistant', {{question: question, channel: 'web'}});
+    
+    if (!out.ok) {{
+      toast('Error: ' + out.error);
+      return;
+    }}
+    
+    invoiceAssistantHistory.push({{role: 'assistant', content: out.answer, source: out.source}});
+    renderInvoiceAssistantHistory();
+    
+    toast('Respuesta recibida');
+    e.target.reset();
+  }});
+}}
+
+function renderInvoiceAssistantHistory() {{
+  const container = $('#invoiceAssistantHistory');
+  if (!container) return;
   
-  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-  toast(out.message);
-  e.target.reset();
-  refresh();
-}});
+  container.innerHTML = invoiceAssistantHistory.map(msg => {{
+    const roleLabel = msg.role === 'user' ? 'Tú' : 'Asistente';
+    const sourceLabel = msg.source ? ' · ' + msg.source : '';
+    const userClass = msg.role === 'user' ? 'user' : '';
+    return `
+      <div class="conversation ${{userClass}}">
+        <strong>${{roleLabel}}${{sourceLabel}}:</strong>
+        <p>${{(msg.content || '').replace(/\\n/g, '<br>')}}</p>
+      </div>
+    `;
+  }}).join('') || '<p class="muted">Inicia una conversación sobre facturación.</p>';
+  
+  container.scrollTop = container.scrollHeight;
+}}
+
+// Facturación - Crear factura
+const invoiceForm = $('#invoiceForm');
+if (invoiceForm) {{
+  invoiceForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    
+    const selectedProducts = [];
+    document.querySelectorAll('.invoice-product-checkbox:checked').forEach(cb => {{
+      const id = parseInt(cb.dataset.id);
+      const qtyInput = document.querySelector(`.invoice-product-qty[data-id="${{id}}"]`);
+      const quantity = parseInt(qtyInput ? qtyInput.value : 1);
+      selectedProducts.push({{product_id: id, quantity: quantity}});
+    }});
+    
+    if (!selectedProducts.length) {{
+      toast('Selecciona al menos un producto');
+      return;
+    }}
+    
+    const data = {{
+      customer_name: $('#invoiceCustomerName').value,
+      customer_email: $('#invoiceCustomerEmail').value,
+      customer_phone: $('#invoiceCustomerPhone').value,
+      customer_rut: $('#invoiceCustomerRut').value,
+      products: selectedProducts,
+      payment_method: $('#invoicePaymentMethod').value,
+      bank_account_id: parseInt($('#invoiceBankAccount').value)
+    }};
+    
+    const out = await api('/api/invoice/create', data);
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    
+    toast(out.message);
+    invoiceForm.reset();
+    refreshInvoices();
+    refreshSmartStacks();
+  }});
+}}
+
+// Email campaigns
+const emailForm = $('#emailForm');
+if (emailForm) {{
+  emailForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const emails = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => cb.value);
+    if (!emails.length) {{ toast('Selecciona al menos un lead'); return; }}
+    
+    const subject = $('#emailSubject').value;
+    const body = $('#emailBody').value;
+    
+    const out = await api('/api/email/campaign/create', {{
+      subject: subject,
+      body: body,
+      recipient_emails: emails
+    }});
+    
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    
+    if (confirm(`Campaña creada para ${{emails.length}} contactos. ¿Enviar ahora?`)) {{
+      const sent = await api(`/api/email/campaign/${{out.campaign_id}}/send`, {{}});
+      if (!sent.ok) {{ toast('Error: ' + sent.error); return; }}
+      toast(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos`);
+    }}
+    
+    emailForm.reset();
+    refresh();
+  }});
+}}
+
+const singleEmailForm = $('#singleEmailForm');
+if (singleEmailForm) {{
+  singleEmailForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/email/send', {{
+      lead_id: parseInt(data.get('lead_id')),
+      subject: data.get('subject'),
+      body: data.get('body')
+    }});
+    
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast(out.message);
+    singleEmailForm.reset();
+    refresh();
+  }});
+}}
+
+// ============================================
+// INICIALIZACIÓN
+// ============================================
 
 renderState();
 refreshSmartStacks();
-setInterval(refreshSmartStacks, 5000);
+refreshBankAccounts();
+loadProductsForInvoice();
+
+setInterval(refreshSmartStacks, 30000);
+setInterval(refreshInvoices, 30000);
 </script>
 </body>
 </html>"""
 
+
+# ============================================
+# SERVIDOR HTTP
+# ============================================
 
 class SabrinaHandler(BaseHTTPRequestHandler):
     server_version = "SabrinaAILab/1.0"
@@ -1474,6 +2689,15 @@ class SabrinaHandler(BaseHTTPRequestHandler):
             csv_data = export_inventory_csv()
             file_response(self, csv_data, "inventory.csv", "text/csv")
             return
+        if parsed.path == "/api/invoices":
+            json_response(self, get_invoices())
+            return
+        if parsed.path == "/api/bank-accounts":
+            json_response(self, get_bank_accounts())
+            return
+        if parsed.path == "/api/notifications":
+            json_response(self, get_invoice_notifications())
+            return
         if parsed.path == "/health":
             json_response(self, {"ok": True, "time": now_iso()})
             return
@@ -1483,6 +2707,8 @@ class SabrinaHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         try:
             payload = read_json(self)
+            
+            # Rutas existentes
             if parsed.path == "/api/leads":
                 result = create_lead(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
@@ -1527,6 +2753,37 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 result = send_single_email(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
+            
+            # Nuevas rutas de facturación
+            if parsed.path == "/api/invoice/create":
+                result = create_invoice(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/invoice/status":
+                result = update_invoice_status(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/invoice/proof":
+                result = upload_payment_proof(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/bank-account/update":
+                result = update_bank_account(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/invoice/assistant":
+                result = invoice_assistant_reply(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/notification/mark":
+                notification_id = payload.get("notification_id")
+                if notification_id:
+                    result = mark_notification_sent(int(notification_id))
+                    json_response(self, result, 200 if result.get("ok") else 400)
+                else:
+                    json_response(self, {"ok": False, "error": "Falta notification_id"}, 400)
+                return
+                
             json_response(self, {"ok": False, "error": "Ruta no encontrada"}, HTTPStatus.NOT_FOUND)
         except json.JSONDecodeError:
             json_response(self, {"ok": False, "error": "JSON inválido"}, HTTPStatus.BAD_REQUEST)
@@ -1539,6 +2796,7 @@ def main() -> None:
     server = ThreadingHTTPServer((HOST, PORT), SabrinaHandler)
     print(f"Sabrina AI Lab listo en http://{HOST}:{PORT}")
     print(f"Base de datos: {DB_PATH}")
+    print(f"Cuentas bancarias configuradas: {len(BANK_ACCOUNTS)}")
     print("Ctrl+C para detener.")
     try:
         server.serve_forever()
@@ -1547,9 +2805,6 @@ def main() -> None:
     finally:
         server.server_close()
 
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
