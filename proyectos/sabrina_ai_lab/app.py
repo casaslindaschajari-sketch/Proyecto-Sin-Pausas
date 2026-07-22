@@ -2528,7 +2528,7 @@ if (emailForm) {{
       const sent = await api(`/api/email/campaign/${{out.campaign_id}}/send`, {{}});
       if (!sent.ok) {{ toast('Error: ' + sent.error); return; }}
       if (sent.failed > 0 && sent.errors && sent.errors.length) {{
-        alert(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos.\n\nDetalle de fallos:\n` + sent.errors.join('\n'));
+        alert(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos.\\n\\nDetalle de fallos:\\n` + sent.errors.join('\\n'));
       }} else {{
         toast(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos`);
       }}
