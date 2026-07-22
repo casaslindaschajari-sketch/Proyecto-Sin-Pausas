@@ -681,6 +681,7 @@ def _search_inventory_products(products: list[dict[str, Any]], terms: list[str])
     return matches
 
 
+
 def local_inventory_answer(question: str, products: list[dict[str, Any]], channel: str) -> str:
     """Respuesta local simulada basada en inventario, con búsqueda real por producto."""
     if not products:
@@ -1012,10 +1013,15 @@ def send_email(recipient: str, subject: str, body: str) -> tuple[bool, str]:
 
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(msg)
+        if SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
 
         return True, "Correo enviado"
     except Exception as e:
@@ -1069,7 +1075,11 @@ def send_email_campaign(campaign_id: int) -> dict[str, Any]:
         errors = []
 
         for email in recipient_emails:
-            success, msg = send_email(email, campaign["subject"], campaign["body"])
+            lead = conn.execute("SELECT name FROM leads WHERE email = ? ORDER BY id DESC LIMIT 1", (email,)).fetchone()
+            recipient_name = lead["name"] if lead else email
+            personalized_body = campaign["body"].replace("{name}", recipient_name).replace("{email}", email)
+
+            success, msg = send_email(email, campaign["subject"], personalized_body)
             if success:
                 sent_count += 1
             else:
@@ -2517,7 +2527,11 @@ if (emailForm) {{
     if (confirm(`Campaña creada para ${{emails.length}} contactos. ¿Enviar ahora?`)) {{
       const sent = await api(`/api/email/campaign/${{out.campaign_id}}/send`, {{}});
       if (!sent.ok) {{ toast('Error: ' + sent.error); return; }}
-      toast(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos`);
+      if (sent.failed > 0 && sent.errors && sent.errors.length) {{
+        alert(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos.\n\nDetalle de fallos:\n` + sent.errors.join('\n'));
+      }} else {{
+        toast(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos`);
+      }}
     }}
     
     emailForm.reset();
