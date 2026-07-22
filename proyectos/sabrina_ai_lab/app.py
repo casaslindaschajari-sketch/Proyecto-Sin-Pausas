@@ -1869,12 +1869,11 @@ def render_index() -> str:
         <div class="brand"><div class="logo">✦</div><span>Sabrina AI Lab</span></div>
         <div class="navlinks">
           <a onclick="showSection('dashboard')" class="active">Dashboard</a>
-          <a onclick="showSection('leads')">Leads</a>
+          <a onclick="showSection('leads')">Leads y Campañas</a>
           <a onclick="showSection('estimator')">Calculadora</a>
           <a onclick="showSection('assistant')">Asistente</a>
           <a onclick="showSection('smartstacks')">SmartStacks</a>
           <a onclick="showSection('invoicing')">Facturación</a>
-          <a onclick="showSection('campaigns')">Campañas</a>
         </div>
       </nav>
     </header>
@@ -1902,7 +1901,9 @@ def render_index() -> str:
       </section>
 
       <section id="leads">
-        <h2>📋 Gestión de Leads</h2>
+        <h2>📋 Leads y Campañas</h2>
+
+        <h3 style="margin-top:0; color: var(--muted); font-weight:600; font-size:13px; letter-spacing:.04em; text-transform:uppercase;">1. Registro de leads</h3>
         <div class="grid two">
           <div class="card">
             <h3>Últimas oportunidades</h3>
@@ -1924,6 +1925,30 @@ def render_index() -> str:
               <div class="full"><label>Presupuesto</label><input name="budget" required></div>
               <div class="full"><label>Dolor</label><textarea name="pain" required></textarea></div>
               <div class="full"><button type="submit">Guardar lead</button></div>
+            </form>
+          </div>
+        </div>
+
+        <h3 style="margin-top:32px; color: var(--muted); font-weight:600; font-size:13px; letter-spacing:.04em; text-transform:uppercase;">2. Envío de campañas</h3>
+        <div class="grid two">
+          <div class="card">
+            <h3>Email masivo (múltiples leads)</h3>
+            <form id="emailForm" class="formgrid">
+              <div class="full"><label for="emailSubject">Asunto</label><input id="emailSubject" name="subject" required></div>
+              <div class="full"><label for="emailBody">Cuerpo (usa {{name}} y {{email}})</label><textarea id="emailBody" name="body" required>Hola {{name}},
+
+Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</textarea></div>
+              <div class="full"><label>Selecciona leads:</label><div id="leadCheckboxes"></div></div>
+              <div class="full"><button type="submit">Enviar campaña</button></div>
+            </form>
+          </div>
+          <div class="card">
+            <h3>Email individual (un lead)</h3>
+            <form id="singleEmailForm" class="formgrid">
+              <div class="full"><label for="singleLeadSelect">Lead</label><select id="singleLeadSelect" name="lead_id" required></select></div>
+              <div class="full"><label for="singleEmailSubject">Asunto</label><input id="singleEmailSubject" name="subject" required></div>
+              <div class="full"><label for="singleEmailBody">Mensaje</label><textarea id="singleEmailBody" name="body" required>Hola {{name}}...</textarea></div>
+              <div class="full"><button type="submit">Enviar email</button></div>
             </form>
           </div>
         </div>
@@ -2074,31 +2099,6 @@ def render_index() -> str:
         </div>
       </section>
 
-      <section id="campaigns">
-        <h2>📧 Campañas de Email</h2>
-        <div class="grid two">
-          <div class="card">
-            <h3>Email masivo (múltiples leads)</h3>
-            <form id="emailForm" class="formgrid">
-              <div class="full"><label for="emailSubject">Asunto</label><input id="emailSubject" name="subject" required></div>
-              <div class="full"><label for="emailBody">Cuerpo (usa {{name}} y {{email}})</label><textarea id="emailBody" name="body" required>Hola {{name}},
-
-Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</textarea></div>
-              <div class="full"><label>Selecciona leads:</label><div id="leadCheckboxes"></div></div>
-              <div class="full"><button type="submit">Enviar campaña</button></div>
-            </form>
-          </div>
-          <div class="card">
-            <h3>Email individual (un lead)</h3>
-            <form id="singleEmailForm" class="formgrid">
-              <div class="full"><label for="singleLeadSelect">Lead</label><select id="singleLeadSelect" name="lead_id" required></select></div>
-              <div class="full"><label for="singleEmailSubject">Asunto</label><input id="singleEmailSubject" name="subject" required></div>
-              <div class="full"><label for="singleEmailBody">Mensaje</label><textarea id="singleEmailBody" name="body" required>Hola {{name}}...</textarea></div>
-              <div class="full"><button type="submit">Enviar email</button></div>
-            </form>
-          </div>
-        </div>
-      </section>
     </main>
 
     <footer>
@@ -2705,6 +2705,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
