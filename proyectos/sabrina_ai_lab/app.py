@@ -23,6 +23,7 @@ import csv
 import io
 import json
 import os
+import re
 import shutil
 import sqlite3
 import smtplib
@@ -911,24 +912,109 @@ def estimate_tokens(text: str) -> int:
     return max(1, round(len(text) / 4))
 
 
-def local_channel_answer(message: str, channel: str) -> str:
-    """Respuesta empática simulada cuando no hay LiteLLM/Azure configurado."""
-    normalized = _normalize_text(message)
-    if any(w in normalized for w in ("reclamo", "queja", "problema", "no funciona", "mal", "urgente")):
-        opening = "Lamento mucho el inconveniente, entiendo la molestia."
-        closing = "Vamos a resolverlo lo antes posible; un miembro de nuestro equipo dará seguimiento a tu caso."
-    elif any(w in normalized for w in ("gracias", "excelente", "genial", "buen")):
-        opening = "¡Gracias por tu mensaje, nos alegra mucho leerte!"
-        closing = "Cualquier otra cosa que necesites, aquí estamos."
-    elif any(w in normalized for w in ("precio", "costo", "cuanto", "comprar", "cotizacion")):
-        opening = "Con gusto te ayudo con esa información."
-        closing = "Si quieres, te puedo enviar una cotización detallada por este mismo canal."
-    else:
-        opening = "Gracias por escribirnos."
-        closing = "Cuéntame un poco más para poder ayudarte de la mejor forma."
+_SPANISH_NUMBER_WORDS = {
+    "un": 1, "uno": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5,
+    "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10, "once": 11,
+    "doce": 12, "quince": 15, "veinte": 20, "veinticinco": 25, "treinta": 30,
+    "cuarenta": 40, "cincuenta": 50, "sesenta": 60, "setenta": 70, "ochenta": 80,
+    "noventa": 90, "cien": 100, "cientos": 100, "doscientos": 200, "trescientos": 300,
+    "quinientos": 500, "mil": 1000,
+}
 
+
+def _extract_mentioned_quantity(normalized_text: str) -> str | None:
+    """Busca la mayor cantidad mencionada en el mensaje (dígitos o número escrito en español).
+
+    Se toma el número más grande entre todas las coincidencias (en vez del primero) porque
+    palabras como 'una' (de 'una empresa') no deben ganarle a la cifra de negocio real,
+    por ejemplo 'cien' en 'realizamos cien envíos diarios'.
+    """
+    candidates = [int(n) for n in re.findall(r"\b(\d{1,6})\b", normalized_text)]
+    for word, value in _SPANISH_NUMBER_WORDS.items():
+        if re.search(rf"\b{word}\b", normalized_text):
+            candidates.append(value)
+    return str(max(candidates)) if candidates else None
+
+
+# Intenciones ordenadas por prioridad: la primera que coincida gana.
+_CHANNEL_INTENTS = [
+    (
+        "urgente",
+        ("reclamo", "queja", "problema", "no funciona", "esta mal", "urgente", "emergencia", "no llego", "no llega", "roto", "cancelar mi pedido"),
+        "Lamento mucho el inconveniente, entiendo la molestia.",
+        "Vamos a resolverlo lo antes posible; un miembro de nuestro equipo dará seguimiento a tu caso hoy mismo.",
+    ),
+    (
+        "logistica",
+        ("envio", "envios", "despacho", "despachos", "logistica", "reparto", "repartos", "pedido", "pedidos", "tracking", "seguimiento de pedido", "distribucion", "delivery"),
+        None,  # se arma dinámicamente más abajo
+        None,
+    ),
+    (
+        "agendar",
+        ("agendar", "cita", "reunion", "llamada", "disponibilidad", "horario", "agenda"),
+        "Con gusto coordinamos un espacio para conversarlo con calma.",
+        "Cuéntame qué día y horario te acomoda y te confirmamos la cita; también puedes escribirnos por este mismo canal.",
+    ),
+    (
+        "precio",
+        ("precio", "costo", "cuanto cuesta", "cuanto sale", "comprar", "cotizacion", "presupuesto", "planes", "mensualidad"),
+        "Con gusto te ayudo con esa información.",
+        "Te puedo enviar una cotización detallada por este mismo canal; solo cuéntame el volumen aproximado que manejas para ajustarla a tu caso.",
+    ),
+    (
+        "agradecimiento",
+        ("gracias", "excelente", "genial", "muy bien", "buen servicio", "perfecto"),
+        "¡Gracias a ti por tu mensaje, nos alegra mucho leerte!",
+        "Cualquier otra cosa que necesites, aquí estamos.",
+    ),
+    (
+        "saludo",
+        ("hola", "buenas", "buenos dias", "buenas tardes", "buenas noches", "que tal"),
+        "¡Hola! Un gusto saludarte.",
+        "Cuéntame en qué te podemos ayudar hoy.",
+    ),
+]
+
+
+def local_channel_answer(message: str, channel: str) -> str:
+    """Respuesta empática simulada cuando no hay LiteLLM/Azure configurado.
+
+    A diferencia de una versión anterior más simple, esta detecta un conjunto amplio
+    de intenciones (reclamos, logística/automatización, agendar, precio, agradecimiento,
+    saludo) y, si no reconoce ninguna, arma una respuesta que sí hace referencia concreta
+    a lo que la persona escribió en vez de una plantilla genérica repetida.
+    """
+    normalized = _normalize_text(message)
     tone = CHANNEL_TONE_HINTS.get(channel.lower(), "cercano y profesional")
-    return f"{opening} (tono {tone})\n\n{closing}"
+
+    for intent, keywords, opening, closing in _CHANNEL_INTENTS:
+        if not any(kw in normalized for kw in keywords):
+            continue
+
+        if intent == "logistica":
+            qty = _extract_mentioned_quantity(normalized)
+            volume_line = f" con un volumen como el tuyo (~{qty} al día)" if qty else ""
+            opening = f"Sí, esto se puede automatizar{volume_line}."
+            closing = (
+                "Con nuestra Automatización Empática Multicanal centralizamos WhatsApp, redes y correo en un solo panel, "
+                "generamos actualizaciones automáticas de estado de envío para tus clientes y solo escalamos a una persona "
+                "cuando el caso realmente lo requiere. El siguiente paso natural sería agendar una llamada de 15 minutos "
+                "para revisar tus canales actuales y armar una propuesta con precio ajustado a tu volumen."
+            )
+
+        return f"{opening} (tono {tone})\n\n{closing}"
+
+    # Fallback: sin coincidencias claras, pero evitamos la respuesta genérica muerta.
+    # Referenciamos lo que la persona escribió para demostrar que sí se leyó el mensaje.
+    trimmed = message.strip()
+    excerpt = trimmed if len(trimmed) <= 140 else trimmed[:137].rstrip() + "..."
+    return (
+        f"Gracias por escribirnos. (tono {tone})\n\n"
+        f'Anoté lo que nos compartes: "{excerpt}". Para darte una respuesta precisa, '
+        "¿me confirmas si esto es una consulta comercial, un tema de soporte, o quieres agendar una llamada? "
+        "Con esa info te conecto con la persona indicada de inmediato."
+    )
 
 
 def call_external_model_channel(message: str, channel: str) -> tuple[str, str]:
@@ -3647,4 +3733,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
