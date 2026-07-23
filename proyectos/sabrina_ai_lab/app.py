@@ -256,6 +256,53 @@ def init_db() -> None:
             """
         )
 
+        # NUEVA TABLA · SERVICIO 2: Automatización Empática Multicanal (Middleware LiteLLM)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS channel_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                channel TEXT NOT NULL,
+                customer_message TEXT NOT NULL,
+                reply TEXT NOT NULL,
+                source TEXT NOT NULL,
+                tokens_estimated INTEGER NOT NULL DEFAULT 0,
+                cost_estimated REAL NOT NULL DEFAULT 0
+            )
+            """
+        )
+
+        # NUEVAS TABLAS · SERVICIO 3: Digitalización IA Llave en Mano
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS email_classifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                sender TEXT,
+                subject TEXT NOT NULL,
+                body TEXT NOT NULL,
+                category TEXT NOT NULL,
+                priority TEXT NOT NULL,
+                suggested_action TEXT NOT NULL,
+                source TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS appointments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                client_name TEXT NOT NULL,
+                contact TEXT NOT NULL,
+                appointment_date TEXT NOT NULL,
+                appointment_time TEXT NOT NULL,
+                notes TEXT,
+                status TEXT NOT NULL DEFAULT 'confirmada'
+            )
+            """
+        )
+
         # NUEVAS TABLAS PARA FACTURACIÓN
         conn.execute(
             """
@@ -846,7 +893,325 @@ def assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "answer": answer, "source": source}
 
 
-def add_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
+# ============================================
+# SERVICIO 2 · AUTOMATIZACIÓN EMPÁTICA MULTICANAL (LiteLLM Middleware)
+# ============================================
+
+CHANNEL_COST_PER_1K_TOKENS = float(os.environ.get("CHANNEL_COST_PER_1K_TOKENS", "0.002"))
+CHANNEL_TONE_HINTS = {
+    "whatsapp": "cercano, breve y directo, como un mensaje de chat",
+    "instagram": "casual, amigable y con emojis moderados",
+    "email": "formal, bien estructurado y completo",
+    "web": "claro, profesional y directo",
+}
+
+
+def estimate_tokens(text: str) -> int:
+    """Estimación simple de tokens (~4 caracteres por token) para mostrar control de costos."""
+    return max(1, round(len(text) / 4))
+
+
+def local_channel_answer(message: str, channel: str) -> str:
+    """Respuesta empática simulada cuando no hay LiteLLM/Azure configurado."""
+    normalized = _normalize_text(message)
+    if any(w in normalized for w in ("reclamo", "queja", "problema", "no funciona", "mal", "urgente")):
+        opening = "Lamento mucho el inconveniente, entiendo la molestia."
+        closing = "Vamos a resolverlo lo antes posible; un miembro de nuestro equipo dará seguimiento a tu caso."
+    elif any(w in normalized for w in ("gracias", "excelente", "genial", "buen")):
+        opening = "¡Gracias por tu mensaje, nos alegra mucho leerte!"
+        closing = "Cualquier otra cosa que necesites, aquí estamos."
+    elif any(w in normalized for w in ("precio", "costo", "cuanto", "comprar", "cotizacion")):
+        opening = "Con gusto te ayudo con esa información."
+        closing = "Si quieres, te puedo enviar una cotización detallada por este mismo canal."
+    else:
+        opening = "Gracias por escribirnos."
+        closing = "Cuéntame un poco más para poder ayudarte de la mejor forma."
+
+    tone = CHANNEL_TONE_HINTS.get(channel.lower(), "cercano y profesional")
+    return f"{opening} (tono {tone})\n\n{closing}"
+
+
+def call_external_model_channel(message: str, channel: str) -> tuple[str, str]:
+    """Llama al modelo externo (LiteLLM/Azure) con un prompt de atención al cliente multicanal."""
+    litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
+    litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
+    azure_key = os.environ.get("AZURE_OPENAI_API_KEY")
+    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    azure_deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
+    azure_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+
+    tone = CHANNEL_TONE_HINTS.get(channel.lower(), "cercano y profesional")
+    system_prompt = (
+        "Eres un agente de atención al cliente empático que centraliza respuestas para varios canales. "
+        f"Responde en español, con un tono {tone}. Sé breve, humano y resolutivo. "
+        "No inventes datos concretos de precios o stock si no los tienes; ofrece dar seguimiento."
+    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Canal: {channel}\nMensaje del cliente: {message}"},
+    ]
+
+    if litellm_base:
+        url = f"{litellm_base}/chat/completions"
+        payload = {"model": os.environ.get("LITELLM_MODEL", "gpt-4o-mini"), "messages": messages}
+        headers = {"Authorization": f"Bearer {litellm_key}", "Content-Type": "application/json"}
+        return post_chat_completion(url, headers, payload), "litellm"
+
+    if azure_key and azure_endpoint and azure_deployment:
+        url = (
+            f"{azure_endpoint}/openai/deployments/{azure_deployment}/chat/completions"
+            f"?api-version={azure_version}"
+        )
+        payload = {"messages": messages, "temperature": 0.5, "max_tokens": 400}
+        headers = {"api-key": azure_key, "Content-Type": "application/json"}
+        return post_chat_completion(url, headers, payload), "azure_openai"
+
+    return local_channel_answer(message, channel), "local"
+
+
+def channel_reply(payload: dict[str, Any]) -> dict[str, Any]:
+    """Responde un mensaje entrante de cualquier canal y registra el costo estimado en tokens."""
+    channel = str(payload.get("channel", "web")).strip() or "web"
+    message = str(payload.get("message", "")).strip()
+    if not message:
+        return {"ok": False, "error": "Escribe el mensaje del cliente."}
+
+    answer, source = call_external_model_channel(message, channel)
+    tokens_estimated = estimate_tokens(message) + estimate_tokens(answer)
+    cost_estimated = round((tokens_estimated / 1000) * CHANNEL_COST_PER_1K_TOKENS, 5)
+
+    with db_connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO channel_messages (created_at, channel, customer_message, reply, source, tokens_estimated, cost_estimated)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (now_iso(), channel, message, answer, source, tokens_estimated, cost_estimated),
+        )
+
+    return {
+        "ok": True,
+        "answer": answer,
+        "source": source,
+        "tokens_estimated": tokens_estimated,
+        "cost_estimated": cost_estimated,
+    }
+
+
+def get_middleware_state() -> dict[str, Any]:
+    with db_connect() as conn:
+        messages = rows_to_dicts(
+            conn.execute("SELECT * FROM channel_messages ORDER BY id DESC LIMIT 20").fetchall()
+        )
+        totals = conn.execute(
+            "SELECT COUNT(*) AS c, COALESCE(SUM(cost_estimated), 0) AS cost FROM channel_messages"
+        ).fetchone()
+        by_channel = rows_to_dicts(
+            conn.execute(
+                """
+                SELECT channel, COUNT(*) AS total, COALESCE(SUM(cost_estimated), 0) AS cost
+                FROM channel_messages GROUP BY channel ORDER BY total DESC
+                """
+            ).fetchall()
+        )
+
+    return {
+        "messages": messages,
+        "total_messages": totals["c"],
+        "total_cost": round(totals["cost"], 5),
+        "by_channel": by_channel,
+    }
+
+
+# ============================================
+# SERVICIO 3 · DIGITALIZACIÓN IA LLAVE EN MANO
+# (filtrado automático de correos + gestión de agendas)
+# ============================================
+
+_EMAIL_CATEGORY_RULES = [
+    ("urgente", ("urgente", "inmediato", "reclamo", "queja", "no funciona", "roto", "emergencia", "ayuda urgente")),
+    ("ventas", ("cotizacion", "precio", "comprar", "presupuesto", "interesado", "contratar", "producto", "servicio")),
+    ("administrativo", ("factura", "pago", "recibo", "boleta", "rut", "contrato", "documento")),
+    ("spam", ("promocion", "descuento exclusivo", "gana dinero", "premio", "haz click", "gratis", "suscribete")),
+]
+
+_EMAIL_SUGGESTED_ACTIONS = {
+    "urgente": "Responder en menos de 1 hora. Escalar a soporte humano si es un reclamo grave.",
+    "ventas": "Enviar cotización o agendar una llamada comercial en las próximas 24 horas.",
+    "administrativo": "Derivar al área de facturación/contabilidad para su gestión.",
+    "spam": "Archivar o mover a spam. No requiere respuesta.",
+    "general": "Responder con información estándar o agendar un seguimiento.",
+}
+
+_EMAIL_PRIORITY_BY_CATEGORY = {
+    "urgente": "alta",
+    "ventas": "media",
+    "administrativo": "media",
+    "spam": "baja",
+    "general": "baja",
+}
+
+
+def classify_email_local(subject: str, body: str) -> tuple[str, str, str]:
+    """Clasificación local basada en reglas: categoría, prioridad y acción sugerida."""
+    text = _normalize_text(f"{subject} {body}")
+    category = "general"
+    for cat, keywords in _EMAIL_CATEGORY_RULES:
+        if any(_normalize_text(kw) in text for kw in keywords):
+            category = cat
+            break
+
+    priority = _EMAIL_PRIORITY_BY_CATEGORY.get(category, "baja")
+    action = _EMAIL_SUGGESTED_ACTIONS.get(category, _EMAIL_SUGGESTED_ACTIONS["general"])
+    return category, priority, action
+
+
+def call_external_email_action(category: str, subject: str, body: str) -> tuple[str, str]:
+    """Pide al modelo externo (si está configurado) una acción sugerida más específica."""
+    litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
+    litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
+    azure_key = os.environ.get("AZURE_OPENAI_API_KEY")
+    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    azure_deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
+    azure_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+
+    default_action = _EMAIL_SUGGESTED_ACTIONS.get(category, _EMAIL_SUGGESTED_ACTIONS["general"])
+    if not litellm_base and not (azure_key and azure_endpoint and azure_deployment):
+        return default_action, "local"
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Eres un asistente que filtra correos entrantes de una empresa. "
+                f"Este correo ya fue clasificado como categoría '{category}'. "
+                "En máximo 2 frases, en español, sugiere la acción concreta a seguir."
+            ),
+        },
+        {"role": "user", "content": f"Asunto: {subject}\nCuerpo: {body}"},
+    ]
+
+    if litellm_base:
+        url = f"{litellm_base}/chat/completions"
+        payload = {"model": os.environ.get("LITELLM_MODEL", "gpt-4o-mini"), "messages": messages}
+        headers = {"Authorization": f"Bearer {litellm_key}", "Content-Type": "application/json"}
+        return post_chat_completion(url, headers, payload), "litellm"
+
+    url = (
+        f"{azure_endpoint}/openai/deployments/{azure_deployment}/chat/completions"
+        f"?api-version={azure_version}"
+    )
+    payload = {"messages": messages, "temperature": 0.3, "max_tokens": 150}
+    headers = {"api-key": azure_key, "Content-Type": "application/json"}
+    return post_chat_completion(url, headers, payload), "azure_openai"
+
+
+def classify_email(payload: dict[str, Any]) -> dict[str, Any]:
+    subject = str(payload.get("subject", "")).strip()
+    body = str(payload.get("body", "")).strip()
+    sender = str(payload.get("sender", "")).strip()
+
+    if not subject and not body:
+        return {"ok": False, "error": "Escribe al menos el asunto o el cuerpo del correo."}
+
+    category, priority, local_action = classify_email_local(subject, body)
+    action, source = call_external_email_action(category, subject, body)
+    if not action:
+        action = local_action
+
+    with db_connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO email_classifications (created_at, sender, subject, body, category, priority, suggested_action, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (now_iso(), sender, subject, body, category, priority, action, source),
+        )
+
+    return {
+        "ok": True,
+        "category": category,
+        "priority": priority,
+        "suggested_action": action,
+        "source": source,
+    }
+
+
+def create_appointment(payload: dict[str, Any]) -> dict[str, Any]:
+    client_name = str(payload.get("client_name", "")).strip()
+    contact = str(payload.get("contact", "")).strip()
+    appointment_date = str(payload.get("appointment_date", "")).strip()
+    appointment_time = str(payload.get("appointment_time", "")).strip()
+    notes = str(payload.get("notes", "")).strip()
+
+    if not client_name or not contact or not appointment_date or not appointment_time:
+        return {"ok": False, "error": "Completa nombre, contacto, fecha y hora."}
+
+    try:
+        datetime.strptime(appointment_date, "%Y-%m-%d")
+        datetime.strptime(appointment_time, "%H:%M")
+    except ValueError:
+        return {"ok": False, "error": "Fecha u hora inválida. Usa formato AAAA-MM-DD y HH:MM."}
+
+    with db_connect() as conn:
+        conflict = conn.execute(
+            """
+            SELECT id FROM appointments
+            WHERE appointment_date = ? AND appointment_time = ? AND status != 'cancelada'
+            """,
+            (appointment_date, appointment_time),
+        ).fetchone()
+        if conflict:
+            return {"ok": False, "error": "Ya existe una cita agendada en esa fecha y hora."}
+
+        cursor = conn.execute(
+            """
+            INSERT INTO appointments (created_at, client_name, contact, appointment_date, appointment_time, notes, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'confirmada')
+            """,
+            (now_iso(), client_name, contact, appointment_date, appointment_time, notes),
+        )
+        appointment_id = cursor.lastrowid
+
+    return {
+        "ok": True,
+        "appointment_id": appointment_id,
+        "message": f"Cita confirmada para {client_name} el {appointment_date} a las {appointment_time}.",
+    }
+
+
+def cancel_appointment(payload: dict[str, Any]) -> dict[str, Any]:
+    appointment_id = payload.get("appointment_id")
+    if not appointment_id:
+        return {"ok": False, "error": "Falta appointment_id."}
+
+    with db_connect() as conn:
+        conn.execute("UPDATE appointments SET status = 'cancelada' WHERE id = ?", (int(appointment_id),))
+
+    return {"ok": True, "message": "Cita cancelada."}
+
+
+def get_consulting_state() -> dict[str, Any]:
+    with db_connect() as conn:
+        emails = rows_to_dicts(
+            conn.execute("SELECT * FROM email_classifications ORDER BY id DESC LIMIT 20").fetchall()
+        )
+        appointments = rows_to_dicts(
+            conn.execute(
+                "SELECT * FROM appointments ORDER BY appointment_date, appointment_time LIMIT 50"
+            ).fetchall()
+        )
+        email_count = conn.execute("SELECT COUNT(*) AS c FROM email_classifications").fetchone()["c"]
+        upcoming_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM appointments WHERE status = 'confirmada'"
+        ).fetchone()["c"]
+
+    return {
+        "emails": emails,
+        "appointments": appointments,
+        "email_count": email_count,
+        "upcoming_count": upcoming_count,
+    }
     """Agrega un producto al inventario."""
     missing = validate_required(payload, ["code", "name", "quantity"])
     if missing:
@@ -1915,6 +2280,16 @@ def render_index() -> str:
     .status-paid {{ background: rgba(51,214,166,.15); color: var(--brand2); }}
     .status-cancelled {{ background: rgba(255,107,122,.15); color: var(--danger); }}
     .status-verified {{ background: rgba(155,140,255,.15); color: var(--brand); }}
+    .status-confirmada {{ background: rgba(51,214,166,.15); color: var(--brand2); }}
+    .status-cancelada {{ background: rgba(255,107,122,.15); color: var(--danger); }}
+    .cat-urgente {{ background: rgba(255,107,122,.15); color: var(--danger); }}
+    .cat-ventas {{ background: rgba(51,214,166,.15); color: var(--brand2); }}
+    .cat-administrativo {{ background: rgba(155,140,255,.15); color: var(--brand); }}
+    .cat-spam {{ background: rgba(255,255,255,.1); color: var(--muted); }}
+    .cat-general {{ background: rgba(255,204,102,.15); color: var(--warn); }}
+    .priority-alta {{ background: rgba(255,107,122,.15); color: var(--danger); }}
+    .priority-media {{ background: rgba(255,204,102,.15); color: var(--warn); }}
+    .priority-baja {{ background: rgba(255,255,255,.1); color: var(--muted); }}
     @media (max-width: 850px) {{
       .hero, .grid.two {{ grid-template-columns: 1fr; }}
       .navlinks {{ display:none; }}
@@ -1933,6 +2308,8 @@ def render_index() -> str:
           <a onclick="showSection('estimator')">Calculadora</a>
           <a onclick="showSection('assistant')">Asistente</a>
           <a onclick="showSection('smartstacks')">SmartStacks</a>
+          <a onclick="showSection('middleware')">Automatización</a>
+          <a onclick="showSection('consulting')">Llave en Mano</a>
           <a onclick="showSection('invoicing')">Facturación</a>
           <a onclick="showSection('faqs')">FAQs</a>
         </div>
@@ -2162,6 +2539,91 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
         </div>
       </section>
 
+      <section id="middleware">
+        <h2>📡 Automatización Empática Multicanal</h2>
+        <p class="muted" style="max-width:640px; margin-top:-6px;">
+          Proxy unificado (LiteLLM) que responde con tono empático adaptado a cada canal, controlando el costo estimado por tokens.
+        </p>
+        <div class="grid two">
+          <div class="card">
+            <h3>Responder un mensaje entrante</h3>
+            <form id="middlewareForm" class="formgrid">
+              <div class="full">
+                <label>Canal</label>
+                <select name="channel">
+                  <option value="WhatsApp">WhatsApp</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Email">Email</option>
+                  <option value="Web">Web</option>
+                </select>
+              </div>
+              <div class="full"><label>Mensaje del cliente</label><textarea name="message" placeholder="Ej: Hola, ¿tienen envío a regiones? Necesito saber el costo." required></textarea></div>
+              <div class="full"><button type="submit">Responder</button></div>
+            </form>
+          </div>
+          <div class="card">
+            <h3>💰 Costos estimados</h3>
+            <div style="margin-bottom: 12px;">
+              <p><strong>Interacciones totales:</strong> <span id="middlewareTotalMessages">0</span></p>
+              <p><strong>Costo estimado acumulado:</strong> $<span id="middlewareTotalCost">0</span></p>
+            </div>
+            <div style="overflow:auto; max-height: 220px;">
+              <table><thead><tr><th>Canal</th><th>Mensajes</th><th>Costo</th></tr></thead><tbody id="middlewareByChannel"></tbody></table>
+            </div>
+          </div>
+        </div>
+        <div class="grid" style="margin-top: 28px;">
+          <div class="card">
+            <h3>Historial de conversaciones</h3>
+            <div id="middlewareHistory" style="overflow:auto; max-height: 420px;"><p class="muted">Sin mensajes aún.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="consulting">
+        <h2>🗝️ Digitalización IA Llave en Mano</h2>
+        <p class="muted" style="max-width:640px; margin-top:-6px;">
+          Módulos a medida: filtrado automático de correos y gestión de agendas, funcionando con datos reales.
+        </p>
+        <div class="grid two">
+          <div class="card">
+            <h3>📬 Filtrado automático de correos</h3>
+            <form id="emailClassifyForm" class="formgrid">
+              <div class="full"><label>Remitente (opcional)</label><input name="sender" placeholder="cliente@ejemplo.com"></div>
+              <div class="full"><label>Asunto</label><input name="subject" required></div>
+              <div class="full"><label>Cuerpo del correo</label><textarea name="body" required></textarea></div>
+              <div class="full"><button type="submit">Clasificar correo</button></div>
+            </form>
+            <div id="emailClassifyResult" style="margin-top: 14px;"></div>
+          </div>
+          <div class="card">
+            <h3>📅 Gestión de agendas</h3>
+            <form id="appointmentForm" class="formgrid">
+              <div class="full"><label>Nombre del cliente</label><input name="client_name" required></div>
+              <div class="full"><label>Contacto (email o teléfono)</label><input name="contact" required></div>
+              <div><label>Fecha</label><input name="appointment_date" type="date" required></div>
+              <div><label>Hora</label><input name="appointment_time" type="time" required></div>
+              <div class="full"><label>Notas</label><textarea name="notes" placeholder="Ej: Demo inicial del asistente"></textarea></div>
+              <div class="full"><button type="submit">Agendar cita</button></div>
+            </form>
+          </div>
+        </div>
+        <div class="grid two" style="margin-top: 28px;">
+          <div class="card">
+            <h3>Últimos correos clasificados</h3>
+            <div style="overflow:auto; max-height: 360px;">
+              <table><thead><tr><th>Asunto</th><th>Categoría</th><th>Prioridad</th></tr></thead><tbody id="emailClassifyRows"></tbody></table>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Próximas citas (<span id="upcomingCount">0</span>)</h3>
+            <div style="overflow:auto; max-height: 360px;">
+              <table><thead><tr><th>Fecha</th><th>Cliente</th><th>Estado</th><th></th></tr></thead><tbody id="appointmentRows"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="invoicing">
         <h2>🧾 Facturación y Pagos</h2>
         <div class="grid two">
@@ -2376,6 +2838,8 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
 <script>
 const state = {state_json};
 let smartstacksState = {{}};
+let middlewareState = {{}};
+let consultingState = {{}};
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -2401,6 +2865,12 @@ function showSection(id) {{
   if (id === 'invoicing') {{
     refreshInvoices();
     refreshBankAccounts();
+  }}
+  if (id === 'middleware') {{
+    refreshMiddleware();
+  }}
+  if (id === 'consulting') {{
+    refreshConsulting();
   }}
 }}
 
@@ -2517,6 +2987,84 @@ async function refreshSmartStacks() {{
   }} catch (e) {{
     console.error('Error refreshing smartstacks:', e);
   }}
+}}
+
+function renderMiddleware() {{
+  const totalMessages = $('#middlewareTotalMessages');
+  const totalCost = $('#middlewareTotalCost');
+  if (totalMessages) totalMessages.textContent = middlewareState.total_messages || 0;
+  if (totalCost) totalCost.textContent = (middlewareState.total_cost || 0).toFixed(5);
+
+  const byChannel = $('#middlewareByChannel');
+  if (byChannel) {{
+    byChannel.innerHTML = middlewareState.by_channel && middlewareState.by_channel.length ? middlewareState.by_channel.map(c => `
+      <tr><td>${{c.channel}}</td><td>${{c.total}}</td><td>$${{c.cost.toFixed(5)}}</td></tr>
+    `).join('') : '<tr><td colspan="3" style="text-align:center;">Sin datos aún</td></tr>';
+  }}
+
+  const history = $('#middlewareHistory');
+  if (history) {{
+    history.innerHTML = middlewareState.messages && middlewareState.messages.length ? middlewareState.messages.map(m => `
+      <div class="conversation user"><strong>Cliente (${{m.channel}}):</strong><p>${{m.customer_message}}</p></div>
+      <div class="conversation"><strong>Respuesta · ${{m.source}} (${{m.tokens_estimated}} tokens ≈ $${{m.cost_estimated}}):</strong><p>${{m.reply.replace(/\\n/g, '<br>')}}</p></div>
+    `).join('') : '<p class="muted">Sin mensajes aún.</p>';
+  }}
+}}
+
+async function refreshMiddleware() {{
+  try {{
+    const res = await fetch('/api/middleware/state');
+    middlewareState = await res.json();
+    renderMiddleware();
+  }} catch (e) {{
+    console.error('Error refreshing middleware:', e);
+  }}
+}}
+
+function renderConsulting() {{
+  const upcomingCount = $('#upcomingCount');
+  if (upcomingCount) upcomingCount.textContent = consultingState.upcoming_count || 0;
+
+  const emailRows = $('#emailClassifyRows');
+  if (emailRows) {{
+    emailRows.innerHTML = consultingState.emails && consultingState.emails.length ? consultingState.emails.map(e => `
+      <tr>
+        <td>${{e.subject}}</td>
+        <td><span class="status-badge cat-${{e.category}}">${{e.category}}</span></td>
+        <td><span class="status-badge priority-${{e.priority}}">${{e.priority}}</span></td>
+      </tr>
+    `).join('') : '<tr><td colspan="3" style="text-align:center;">Sin correos clasificados</td></tr>';
+  }}
+
+  const appointmentRows = $('#appointmentRows');
+  if (appointmentRows) {{
+    appointmentRows.innerHTML = consultingState.appointments && consultingState.appointments.length ? consultingState.appointments.map(a => `
+      <tr>
+        <td>${{a.appointment_date}} ${{a.appointment_time}}</td>
+        <td>${{a.client_name}}</td>
+        <td><span class="status-badge status-${{a.status}}">${{a.status}}</span></td>
+        <td>${{a.status === 'confirmada' ? `<button class="secondary" onclick="cancelAppointment(${{a.id}})" style="padding: 6px 8px; font-size: 12px;">Cancelar</button>` : ''}}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin citas agendadas</td></tr>';
+  }}
+}}
+
+async function refreshConsulting() {{
+  try {{
+    const res = await fetch('/api/consulting/state');
+    consultingState = await res.json();
+    renderConsulting();
+  }} catch (e) {{
+    console.error('Error refreshing consulting:', e);
+  }}
+}}
+
+async function cancelAppointment(id) {{
+  if (!confirm('¿Cancelar esta cita?')) return;
+  const result = await api('/api/consulting/appointment/cancel', {{ appointment_id: id }});
+  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
+  toast(result.message);
+  refreshConsulting();
 }}
 
 function exportLeadsCSV() {{ window.location.href = '/api/leads/export/csv'; toast('Descargando CSV...'); }}
@@ -2778,6 +3326,54 @@ if (smartstacksForm) {{
   }});
 }}
 
+const middlewareForm = $('#middlewareForm');
+if (middlewareForm) {{
+  middlewareForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/middleware/reply', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast(`Respuesta generada · ${{out.tokens_estimated}} tokens ≈ $${{out.cost_estimated}}`);
+    e.target.reset();
+    refreshMiddleware();
+  }});
+}}
+
+const emailClassifyForm = $('#emailClassifyForm');
+if (emailClassifyForm) {{
+  emailClassifyForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/consulting/email/classify', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    const resultBox = $('#emailClassifyResult');
+    if (resultBox) {{
+      resultBox.innerHTML = `
+        <div class="conversation">
+          <p><span class="status-badge cat-${{out.category}}">${{out.category}}</span> <span class="status-badge priority-${{out.priority}}">prioridad ${{out.priority}}</span></p>
+          <p><strong>Acción sugerida:</strong> ${{out.suggested_action}}</p>
+        </div>
+      `;
+    }}
+    toast('Correo clasificado');
+    e.target.reset();
+    refreshConsulting();
+  }});
+}}
+
+const appointmentForm = $('#appointmentForm');
+if (appointmentForm) {{
+  appointmentForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/consulting/appointment/create', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast(out.message);
+    e.target.reset();
+    refreshConsulting();
+  }});
+}}
+
 const invoiceForm = $('#invoiceForm');
 if (invoiceForm) {{
   invoiceForm.addEventListener('submit', async (e) => {{
@@ -2901,6 +3497,12 @@ class SabrinaHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/smartstacks/state":
             json_response(self, get_smartstacks_state())
             return
+        if parsed.path == "/api/middleware/state":
+            json_response(self, get_middleware_state())
+            return
+        if parsed.path == "/api/consulting/state":
+            json_response(self, get_consulting_state())
+            return
         if parsed.path == "/api/leads/export/csv":
             csv_data = export_leads_csv()
             file_response(self, csv_data, "leads.csv", "text/csv")
@@ -2958,6 +3560,22 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/smartstacks/assistant":
                 result = smartstacks_assistant_reply(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/middleware/reply":
+                result = channel_reply(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/consulting/email/classify":
+                result = classify_email(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/consulting/appointment/create":
+                result = create_appointment(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/consulting/appointment/cancel":
+                result = cancel_appointment(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
             if parsed.path == "/api/email/campaign/create":
@@ -3029,3 +3647,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
