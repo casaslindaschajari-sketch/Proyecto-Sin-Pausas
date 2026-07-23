@@ -681,7 +681,6 @@ def _search_inventory_products(products: list[dict[str, Any]], terms: list[str])
     return matches
 
 
-
 def local_inventory_answer(question: str, products: list[dict[str, Any]], channel: str) -> str:
     """Respuesta local simulada basada en inventario, con búsqueda real por producto."""
     if not products:
@@ -1849,9 +1848,59 @@ def render_index() -> str:
     th {{ color: var(--text); background: rgba(255,255,255,.06); }}
     .status-ok {{ color: var(--brand2); font-weight: 900; }}
     .conversation {{ background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0; border-left: 3px solid var(--brand2); }}
+    .qcard {{ margin-bottom: 22px; }}
+    .qoption {{
+      display:flex; align-items:center; gap: 10px; padding: 12px 14px;
+      border: 1px solid var(--line); border-radius: 14px; margin-bottom: 8px;
+      cursor: pointer; transition: background .15s ease;
+    }}
+    .qoption:hover {{ background: var(--panel-strong); }}
+    .qoption input {{ width: auto; accent-color: var(--brand2); }}
+    .qoption span {{ color: var(--text); font-size: 14px; }}
+    #diagnosticResult {{ display:none; }}
+    #diagnosticResult ul {{ color: var(--muted); padding-left: 20px; margin: 10px 0; }}
+    #diagnosticResult ul li {{ margin-bottom: 4px; }}
     .conversation.user {{ border-left-color: var(--brand); }}
     .conversation strong {{ color: var(--brand2); }}
     .conversation.user strong {{ color: var(--brand); }}
+    details {{
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      margin-bottom: 10px;
+      background: rgba(0,0,0,.18);
+      overflow: hidden;
+    }}
+    summary {{
+      list-style: none;
+      cursor: pointer;
+      padding: 16px 18px;
+      font-weight: 800;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--text);
+    }}
+    summary::-webkit-details-marker {{ display: none; }}
+    summary::after {{
+      content: '+';
+      font-size: 20px;
+      font-weight: 400;
+      color: var(--brand2);
+      transition: transform .2s ease;
+      flex-shrink: 0;
+    }}
+    details[open] summary::after {{ transform: rotate(45deg); }}
+    details[open] summary {{ border-bottom: 1px solid var(--line); }}
+    .faq-body {{ padding: 16px 18px 20px; color: var(--muted); line-height: 1.7; font-size: 14.5px; }}
+    .faq-body p {{ margin: 0 0 12px; }}
+    .faq-body p:last-child {{ margin-bottom: 0; }}
+    .faq-body table {{ width: 100%; border-collapse: collapse; margin: 10px 0 14px; border-radius: 12px; overflow: hidden; }}
+    .faq-body th, .faq-body td {{ text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 13.5px; }}
+    .faq-body th {{ color: var(--text); background: rgba(255,255,255,.06); }}
+    .faq-body strong {{ color: #dbe2f2; }}
+    .closing {{ margin-top: 26px; text-align: center; color: var(--muted); }}
     footer {{ border-top: 1px solid var(--line); margin-top: 36px; padding: 24px 0 36px; color: var(--muted); }}
     .toast {{ position: fixed; right: 18px; bottom: 18px; background: #102018; color: #d9ffe8; border: 1px solid rgba(51,214,166,.38); padding: 12px 14px; border-radius: 14px; opacity:0; transform: translateY(100px); transition: all .3s ease; z-index: 999; }}
     .toast.show {{ opacity:1; transform: translateY(0); }}
@@ -1879,11 +1928,13 @@ def render_index() -> str:
         <div class="brand"><div class="logo">✦</div><span>Sabrina AI Lab</span></div>
         <div class="navlinks">
           <a onclick="showSection('dashboard')" class="active">Dashboard</a>
+          <a onclick="showSection('diagnostic')">¿Qué necesito?</a>
           <a onclick="showSection('leads')">Leads y Campañas</a>
           <a onclick="showSection('estimator')">Calculadora</a>
           <a onclick="showSection('assistant')">Asistente</a>
           <a onclick="showSection('smartstacks')">SmartStacks</a>
           <a onclick="showSection('invoicing')">Facturación</a>
+          <a onclick="showSection('faqs')">FAQs</a>
         </div>
       </nav>
     </header>
@@ -1907,6 +1958,56 @@ def render_index() -> str:
               <p>Facturas: <span id="invoiceCount">0</span></p>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="diagnostic">
+        <h2>🧭 ¿Qué necesita tu negocio?</h2>
+        <p class="muted" style="max-width:640px; margin-top:-6px;">
+          Responde 5 preguntas rápidas y te decimos cuál de nuestras soluciones encaja mejor con tu caso: SmartStacks, Automatización Empática o Digitalización Llave en Mano.
+        </p>
+
+        <div class="card">
+          <form id="diagnosticForm">
+            <div class="qcard">
+              <label>1. ¿Cuál es el mayor problema que quieres resolver?</label>
+              <label class="qoption"><input type="radio" name="q1" value="smartstacks" required><span>Mi equipo pierde tiempo buscando productos, precios o stock</span></label>
+              <label class="qoption"><input type="radio" name="q1" value="middleware"><span>Recibo las mismas preguntas todo el día por WhatsApp, redes o email</span></label>
+              <label class="qoption"><input type="radio" name="q1" value="llave-en-mano"><span>Quiero digitalizar procesos completos y no sé por dónde empezar</span></label>
+            </div>
+
+            <div class="qcard">
+              <label>2. ¿Cuántas interacciones o consultas maneja tu negocio al mes?</label>
+              <label class="qoption"><input type="radio" name="q2" value="smartstacks" required><span>Menos de 500 — negocio pequeño, pocos vendedores</span></label>
+              <label class="qoption"><input type="radio" name="q2" value="middleware"><span>Entre 500 y 5,000 — varios canales, volumen alto</span></label>
+              <label class="qoption"><input type="radio" name="q2" value="llave-en-mano"><span>Miles, y sigue creciendo — necesito algo robusto</span></label>
+            </div>
+
+            <div class="qcard">
+              <label>3. ¿Qué tan importante es tener control total y datos propios?</label>
+              <label class="qoption"><input type="radio" name="q3" value="smartstacks" required><span>No es prioridad, solo quiero resolver el problema rápido</span></label>
+              <label class="qoption"><input type="radio" name="q3" value="middleware"><span>Me importa el tono y la consistencia de las respuestas</span></label>
+              <label class="qoption"><input type="radio" name="q3" value="llave-en-mano"><span>Muy importante, quiero un sistema transferible con mis datos</span></label>
+            </div>
+
+            <div class="qcard">
+              <label>4. ¿Cuál es tu presupuesto mensual aproximado para esta solución?</label>
+              <label class="qoption"><input type="radio" name="q4" value="smartstacks" required><span>Menos de USD 350</span></label>
+              <label class="qoption"><input type="radio" name="q4" value="middleware"><span>Entre USD 350 y 500</span></label>
+              <label class="qoption"><input type="radio" name="q4" value="llave-en-mano"><span>Más de USD 500, busco una implementación completa</span></label>
+            </div>
+
+            <div class="qcard">
+              <label>5. ¿Ya tienes canales digitales activos con muchas consultas repetidas?</label>
+              <label class="qoption"><input type="radio" name="q5" value="smartstacks" required><span>Tengo mostrador físico principalmente</span></label>
+              <label class="qoption"><input type="radio" name="q5" value="middleware"><span>Sí, varios canales digitales simultáneos</span></label>
+              <label class="qoption"><input type="radio" name="q5" value="llave-en-mano"><span>Quiero implementar todo desde cero, de forma integral</span></label>
+            </div>
+
+            <button type="submit">Ver resultado</button>
+          </form>
+
+          <div id="diagnosticResult"></div>
         </div>
       </section>
 
@@ -2107,6 +2208,160 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
             </div>
           </div>
         </div>
+      </section>
+
+      <section id="faqs">
+        <h2>📋 Preguntas Frecuentes</h2>
+        <p class="muted" style="max-width:640px; margin-top:-6px;">
+          Todo lo que necesitas saber sobre Sin Pausas: qué hacemos, cuánto cuesta y cómo empezar.
+        </p>
+
+        <div class="card" style="padding: 10px;">
+
+          <details>
+            <summary>🙋 ¿Qué es exactamente Sin Pausas?</summary>
+            <div class="faq-body">
+              <p>Sin Pausas es una agencia especializada en bajar la Inteligencia Artificial a la realidad cotidiana de las empresas. No somos un laboratorio de ciencia ficción ni una consultora abstracta. Somos un equipo que entiende que la tecnología solo tiene sentido cuando resuelve problemas humanos concretos: reducir el estrés de los vendedores, responder más rápido a los clientes o automatizar tareas repetitivas que roban tiempo valioso.</p>
+              <p>Nuestra filosofía es simple: usamos el poder de la IA (42 GiB de RAM y modelos GPT de Azure Foundry) para que las personas trabajen mejor, no para reemplazarlas.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>🎯 ¿A qué nos dedicamos realmente?</summary>
+            <div class="faq-body">
+              <p>Nos dedicamos a diseñar, implementar y desplegar soluciones técnicas con IA para la digitalización y automatización de procesos empresariales. Pero no lo hacemos desde lo abstracto: lo hacemos desde la trinchera del día a día.</p>
+              <p>Nuestro enfoque se centra en tres áreas concretas:</p>
+              <table>
+                <thead><tr><th>Área</th><th>¿Qué hacemos?</th></tr></thead>
+                <tbody>
+                  <tr><td>Asistentes inteligentes para comercios</td><td>Convertimos el inventario, los manuales y los catálogos de una tienda en un asistente conversacional que responde al instante por WhatsApp o tablet.</td></tr>
+                  <tr><td>Automatización de respuestas con empatía</td><td>Centralizamos y gestionamos las interacciones de redes sociales y páginas web con un tono humano, personalizado y eficiente, usando un proxy unificado (LiteLLM) que administra múltiples modelos GPT.</td></tr>
+                  <tr><td>Digitalización 'llave en mano'</td><td>Creamos sistemas modulares (con Docker) para flujos como filtrado de correos, gestión de agendas o atención al cliente, y los dejamos funcionando de forma nativa en los equipos de nuestros clientes.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+          <details>
+            <summary>🧰 ¿Qué servicios concretos pueden contratar con nosotros?</summary>
+            <div class="faq-body">
+              <p>Nuestra cartera de servicios está diseñada para adaptarse a diferentes necesidades y presupuestos. Estos son nuestros modelos comerciales:</p>
+              <p><strong>1. SaaS de Asistente Experto (SmartStacks de Cercanía)</strong><br>
+              ¿Qué es? Una suscripción mensual que convierte los datos de tu negocio (inventario, precios, manuales) en un asistente de IA accesible por WhatsApp o dispositivo en tienda.<br>
+              ¿Para quién? Pymes, comercios locales, ferreterías industriales, almacenes y cualquier negocio con catálogo de productos.<br>
+              Beneficio clave: Tus vendedores dejan de buscar códigos y hojas técnicas. Preguntan en lenguaje natural y obtienen respuestas en 1 segundo. Menos filas, menos estrés, más ventas.</p>
+              <p><strong>2. Infraestructura Centralizada de Respuestas (LiteLLM Middleware)</strong><br>
+              ¿Qué es? Un motor unificado que conecta tus canales (web, WhatsApp, redes sociales) a los modelos GPT más avanzados, administrando el consumo de tokens para optimizar costos.<br>
+              ¿Para quién? Agencias de marketing, equipos de community management o desarrolladores que quieran ofrecer respuestas inteligentes a sus clientes sin lidiar con la complejidad técnica.<br>
+              Beneficio clave: Respondes con empatía y personalización a gran escala, sin descuidar tu negocio principal ni tu tiempo libre.</p>
+              <p><strong>3. Consultorías de Implementación 'Llave en Mano'</strong><br>
+              ¿Qué es? Un proyecto único donde diseñamos y configuramos un sistema a medida para tu empresa: desde el filtrado automático de correos hasta la gestión de agendas con IA.<br>
+              ¿Para quién? Empresas tradicionales que quieren dar el salto a la IA pero necesitan acompañamiento total y soluciones que funcionen "de cajón" en su propio entorno.<br>
+              Beneficio clave: Te olvidas de la complejidad técnica. Nosotros instalamos, configuramos y te formamos. Tú solo usas la solución.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>⏳ ¿Por qué el plazo de 6 semanas es importante?</summary>
+            <div class="faq-body">
+              <p>Nuestro modelo de trabajo tiene un límite estricto de 6 semanas porque operamos en un entorno de aprendizaje intensivo con recursos de alto rendimiento (los 42 GiB de RAM y los modelos GPT de Azure Foundry). Este es nuestro "laboratorio vivo".</p>
+              <p>El proceso es el siguiente:</p>
+              <p>Semanas 1-2: Aprendemos a fondo tu negocio y configuramos el entorno técnico.<br>
+              Semanas 3-4: Desarrollamos un MVP (producto mínimo viable) funcional.<br>
+              Semanas 5-6: Lo probamos en vivo contigo, recogemos feedback y armamos la propuesta comercial definitiva.</p>
+              <p>Pasado este plazo, los accesos expiran. La única forma de continuar es que la solución haya demostrado su valor real y consolidemos una propuesta de negocio con sentido para ambas partes. Esto nos asegura que solo trabajamos en proyectos que realmente marcan la diferencia.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>💰 ¿Cuánto cuesta trabajar con Sin Pausas?</summary>
+            <div class="faq-body">
+              <p>Nuestros precios varían según el modelo de servicio:</p>
+              <table>
+                <thead><tr><th>Servicio</th><th>Modelo de Pago</th><th>Rango Aproximado</th></tr></thead>
+                <tbody>
+                  <tr><td>SaaS Asistente Experto</td><td>Suscripción mensual</td><td>Desde $99/mes (dependiendo del volumen de datos y consultas)</td></tr>
+                  <tr><td>Middleware LiteLLM</td><td>Membresía fija o fee por interacción</td><td>Desde $199/mes por volumen básico</td></tr>
+                  <tr><td>Consultoría Llave en Mano</td><td>Pago único (setup + implementación)</td><td>Desde $1,500 (según complejidad del flujo)</td></tr>
+                </tbody>
+              </table>
+              <p>Nota: Los precios son referenciales y se ajustan en la propuesta comercial final, que se construye durante las 6 semanas de trabajo conjunto.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>🛡️ ¿Qué pasa con la seguridad y privacidad de mis datos?</summary>
+            <div class="faq-body">
+              <p>Es una prioridad absoluta. Al trabajar con nosotros:</p>
+              <p><strong>Datos locales:</strong> Tu información (inventarios, manuales, correos) se almacena de forma local en la VM o en tus propios servidores. No compartimos tus datos con terceros.</p>
+              <p><strong>Cifrado:</strong> Todas las comunicaciones con los modelos GPT de Azure se realizan bajo estándares de seguridad empresarial (HTTPS, tokens cifrados).</p>
+              <p><strong>Control total:</strong> En los proyectos 'llave en mano', el sistema se despliega en tu propia infraestructura, dándote el control absoluto de tus datos.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>🤝 ¿Cómo empiezo a trabajar con Sin Pausas?</summary>
+            <div class="faq-body">
+              <p>El proceso es sencillo y directo:</p>
+              <p>Contacto inicial: Nos cuentas tu negocio, tus dolores y tus objetivos. Sin compromiso.<br>
+              Diagnóstico rápido: Evaluamos si nuestro modelo de 6 semanas es adecuado para ti.<br>
+              Firma de acuerdo: Definimos alcance, fechas y condiciones.<br>
+              Comenzamos el laboratorio: Entramos en las 6 semanas de trabajo intensivo.<br>
+              Evaluación y continuidad: Al finalizar, decidimos juntos si la solución escala a un contrato comercial formal.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>📞 ¿Puedo probar la solución antes de comprometerme?</summary>
+            <div class="faq-body">
+              <p>¡Sí! Durante las semanas 5 y 6 del laboratorio, montamos una interfaz web con protección HTTPS para que puedas probar la solución en vivo con tus propios datos y usuarios reales. Recogemos sus opiniones y las usamos para ajustar la propuesta final. Es una prueba de concepto real antes de cualquier compromiso económico.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>❓ ¿Qué tipo de empresas se benefician más con Sin Pausas?</summary>
+            <div class="faq-body">
+              <p>Principalmente:</p>
+              <p>Comercios minoristas y mayoristas (ferreterías, tiendas de ropa, almacenes de suministros).<br>
+              Empresas de servicios (consultorías, estudios legales, agencias de marketing).<br>
+              Negocios tradicionales que quieren digitalizarse pero no saben por dónde empezar.<br>
+              Startups y emprendedores que necesitan automatizar su atención al cliente sin perder el toque humano.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>🧠 ¿Qué tecnología usan exactamente?</summary>
+            <div class="faq-body">
+              <p>Nuestro stack tecnológico está diseñado para ser potente y escalable:</p>
+              <p><strong>Hardware:</strong> Máquina virtual con 42 GiB de RAM, ideal para almacenar y procesar grandes volúmenes de datos locales (inventarios, históricos, documentos).</p>
+              <p><strong>Modelos de IA:</strong> Acceso a 3 modelos GPT de Azure Foundry, lo que nos permite elegir el mejor modelo para cada tarea (velocidad, costo o calidad de respuesta).</p>
+              <p><strong>Orquestación:</strong> Usamos LiteLLM como proxy unificado para administrar los modelos y balancear el consumo de tokens.</p>
+              <p><strong>Despliegue:</strong> Contenedores Docker para sistemas modulares y portables.</p>
+              <p><strong>Interfaces:</strong> Integración con WhatsApp Business API, web con HTTPS y tablets en tienda.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>🚀 ¿Qué diferencia a Sin Pausas de otras agencias de IA?</summary>
+            <div class="faq-body">
+              <p>Lo que nos hace únicos es nuestra visión humana y nuestro modelo de validación comercial:</p>
+              <p><strong>No vendemos humo:</strong> Solo trabajamos en proyectos que han sido probados y validados en el mundo real durante nuestras 6 semanas de laboratorio.</p>
+              <p><strong>Enfoque en la persona:</strong> Medimos el éxito en reducción de estrés, tiempo recuperado y mejora de la calidad de vida de los equipos, no solo en métricas técnicas.</p>
+              <p><strong>Transparencia total:</strong> Te mostramos los costos reales de cada respuesta de IA (consumo de tokens) para que tomes decisiones informadas.</p>
+              <p><strong>Compromiso con la continuidad:</strong> Si la solución no demuestra su valor, no forzamos una relación comercial. Tu éxito es el nuestro.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>📬 ¿Cómo puedo contactarlos?</summary>
+            <div class="faq-body">
+              <p>Puedes escribirnos a través del formulario de contacto en nuestra página web, o directamente a nuestro correo: contacto@sinpausas.ia (ejemplo). También puedes seguirnos en nuestras redes sociales para estar al día de nuestros casos de éxito y novedades.</p>
+            </div>
+          </details>
+
+        </div>
+
+        <p class="closing">¿Tienes más preguntas? Estamos aquí para escucharte y construir juntos la solución que tu negocio necesita. ¡Sin pausas, pero con propósito! 🤖💙</p>
       </section>
 
     </main>
@@ -2385,6 +2640,61 @@ async function loadProductsForInvoice() {{
 }}
 
 // Event Handlers
+
+const diagnosticForm = $('#diagnosticForm');
+if (diagnosticForm) {{
+  diagnosticForm.addEventListener('submit', (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const scores = {{'smartstacks': 0, 'middleware': 0, 'llave-en-mano': 0}};
+    for (const value of data.values()) {{
+      if (scores.hasOwnProperty(value)) scores[value]++;
+    }}
+    let bestId = 'smartstacks';
+    let bestScore = -1;
+    for (const [id, score] of Object.entries(scores)) {{
+      if (score > bestScore) {{ bestScore = score; bestId = id; }}
+    }}
+    renderDiagnosticResult(bestId);
+  }});
+}}
+
+function renderDiagnosticResult(useCaseId) {{
+  const uc = (state.use_cases || []).find(u => u.id === useCaseId);
+  const box = $('#diagnosticResult');
+  if (!uc || !box) return;
+
+  box.innerHTML = `
+    <div class="conversation">
+      <span class="tag">${{uc.tag}}</span>
+      <h3 style="margin-top:10px;">Te recomendamos: ${{uc.title}}</h3>
+      <p><strong>Tu problema:</strong> ${{uc.problem}}</p>
+      <p><strong>Solución:</strong> ${{uc.solution}}</p>
+      <p class="muted">Desde $${{uc.price}}/mes · Setup desde $${{uc.setup}}</p>
+      <ul>${{uc.impact.map(i => `<li>${{i}}</li>`).join('')}}</ul>
+      <button onclick="applyDiagnosticToLead('${{uc.id}}')">Registrar mi negocio con este caso</button>
+    </div>
+  `;
+  box.style.display = 'block';
+  box.scrollIntoView({{behavior: 'smooth', block: 'nearest'}});
+}}
+
+function applyDiagnosticToLead(useCaseId) {{
+  $$('section').forEach(s => s.classList.remove('active'));
+  $$('.navlinks a').forEach(a => a.classList.remove('active'));
+  const leadsSection = $('#leads');
+  if (leadsSection) leadsSection.classList.add('active');
+  const leadsLink = Array.from($$('.navlinks a')).find(a => (a.getAttribute('onclick') || '').includes("'leads'"));
+  if (leadsLink) leadsLink.classList.add('active');
+
+  const select = document.querySelector('#leadForm select[name="use_case"]');
+  if (select) select.value = useCaseId;
+
+  const leadFormEl = $('#leadForm');
+  if (leadFormEl) leadFormEl.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+  toast('Caso preseleccionado: ' + useCaseId);
+}}
+
 const leadForm = $('#leadForm');
 if (leadForm) {{
   leadForm.addEventListener('submit', async (e) => {{
