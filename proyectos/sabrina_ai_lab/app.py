@@ -10,6 +10,7 @@ Servidor web sin dependencias externas:
 - Asistente estratégico local con integración opcional Azure OpenAI / LiteLLM compatible.
 - Sistema de inventario con asistente conversacional para smartstacks.
 - Sistema de facturación completo con integración bancaria.
+- SIMULACIÓN DE PROYECTOS LLAVE EN MANO (NUEVO)
 
 Ejecutar:
     python3 proyectos/sabrina_ai_lab/app.py
@@ -42,7 +43,7 @@ from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "data" / "sabrina_lab.sqlite3"
-HOST = os.environ.get("SABRINA_HOST", "0.0.0.0")  # Cambiado a 0.0.0.0 para Codespaces
+HOST = os.environ.get("SABRINA_HOST", "0.0.0.0")
 PORT = int(os.environ.get("SABRINA_PORT", "8000"))
 
 # Email config (opcional)
@@ -141,7 +142,6 @@ BANK_ACCOUNTS = [
     }
 ]
 
-# Configuración de métodos de pago
 PAYMENT_METHODS = [
     {"id": "transferencia", "name": "Transferencia Bancaria", "active": True},
     {"id": "tarjeta", "name": "Tarjeta de Crédito/Débito", "active": True},
@@ -162,7 +162,6 @@ def db_connect() -> sqlite3.Connection:
 
 def init_db() -> None:
     with db_connect() as conn:
-        # Tablas existentes...
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS leads (
@@ -256,8 +255,6 @@ def init_db() -> None:
             )
             """
         )
-
-        # NUEVA TABLA · SERVICIO 2: Automatización Empática Multicanal (Middleware LiteLLM)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS channel_messages (
@@ -272,8 +269,6 @@ def init_db() -> None:
             )
             """
         )
-
-        # NUEVAS TABLAS · SERVICIO 3: Digitalización IA Llave en Mano
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS email_classifications (
@@ -303,8 +298,6 @@ def init_db() -> None:
             )
             """
         )
-
-        # NUEVAS TABLAS PARA FACTURACIÓN
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS invoices (
@@ -330,7 +323,6 @@ def init_db() -> None:
             )
             """
         )
-
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS bank_accounts (
@@ -347,7 +339,6 @@ def init_db() -> None:
             )
             """
         )
-
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS payment_methods (
@@ -358,7 +349,6 @@ def init_db() -> None:
             )
             """
         )
-
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS invoice_notifications (
@@ -374,7 +364,6 @@ def init_db() -> None:
             """
         )
 
-        # Insertar datos iniciales de cuentas bancarias si no existen
         if not conn.execute("SELECT COUNT(*) FROM bank_accounts").fetchone()[0]:
             for account in BANK_ACCOUNTS:
                 conn.execute(
@@ -387,7 +376,6 @@ def init_db() -> None:
                      account.get("phone"), 1 if account.get("active", True) else 0)
                 )
 
-        # Insertar métodos de pago iniciales
         if not conn.execute("SELECT COUNT(*) FROM payment_methods").fetchone()[0]:
             for method in PAYMENT_METHODS:
                 conn.execute(
@@ -505,7 +493,6 @@ def get_dashboard_state() -> dict[str, Any]:
 
 
 def get_smartstacks_state() -> dict[str, Any]:
-    """Obtiene el estado del módulo smartstacks (inventario + asistente)."""
     with db_connect() as conn:
         products = rows_to_dicts(
             conn.execute("SELECT * FROM inventory_products ORDER BY created_at DESC").fetchall()
@@ -648,7 +635,6 @@ def local_strategy_answer(question: str, channel: str) -> str:
 
 
 def get_inventory_products() -> list[dict[str, Any]]:
-    """Obtiene los productos actuales del inventario como lista de dicts."""
     with db_connect() as conn:
         return rows_to_dicts(
             conn.execute("SELECT id, code, name, quantity, price, description, category FROM inventory_products ORDER BY name").fetchall()
@@ -656,7 +642,6 @@ def get_inventory_products() -> list[dict[str, Any]]:
 
 
 def format_inventory_context(products: list[dict[str, Any]]) -> str:
-    """Convierte la lista de productos en un bloque de texto para dar contexto al modelo."""
     if not products:
         return "El inventario está vacío."
 
@@ -670,7 +655,6 @@ def format_inventory_context(products: list[dict[str, Any]]) -> str:
 
 
 def get_inventory_context() -> str:
-    """Obtiene un contexto de inventario para pasar al asistente."""
     return format_inventory_context(get_inventory_products())
 
 
@@ -685,7 +669,6 @@ _INVENTORY_STOPWORDS = {
 
 
 def _normalize_text(text: str) -> str:
-    """Minúsculas, sin tildes y sin signos de puntuación, para comparar de forma tolerante."""
     replacements = str.maketrans("áéíóúñü", "aeiounu")
     cleaned = text.lower().translate(replacements)
     for ch in "¿?¡!.,;:()[]{}\"'":
@@ -699,7 +682,6 @@ def _extract_search_terms(question: str) -> list[str]:
 
 
 def _word_variants(word: str) -> set[str]:
-    """Genera variantes de un token (forma singular/plural simple) para comparar de forma tolerante."""
     variants = {word}
     for suffix in ("es", "s"):
         if word.endswith(suffix) and len(word) - len(suffix) >= 3:
@@ -708,9 +690,6 @@ def _word_variants(word: str) -> set[str]:
 
 
 def _term_matches(term: str, haystack_words: set[str]) -> bool:
-    """True si el término (o su forma singular/plural) coincide con alguna palabra COMPLETA
-    del producto. Se usa coincidencia por palabra (no subcadena) para poder distinguir
-    productos con nombres parecidos, por ejemplo 'Cinta Marca A' vs 'Cinta Marca B'."""
     term_variants = _word_variants(term)
     for word in haystack_words:
         if term_variants & _word_variants(word):
@@ -730,7 +709,6 @@ def _search_inventory_products(products: list[dict[str, Any]], terms: list[str])
 
 
 def local_inventory_answer(question: str, products: list[dict[str, Any]], channel: str) -> str:
-    """Respuesta local simulada basada en inventario, con búsqueda real por producto."""
     if not products:
         return "Nuestro inventario está vacío por ahora. Agrega productos desde el panel de SmartStacks para poder responder consultas."
 
@@ -762,7 +740,6 @@ def local_inventory_answer(question: str, products: list[dict[str, Any]], channe
 
 
 def smartstacks_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
-    """Asistente que responde consultando el inventario."""
     question = str(payload.get("question", "")).strip()
     channel = str(payload.get("channel", "web")).strip() or "web"
 
@@ -785,7 +762,6 @@ def smartstacks_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def call_external_model_with_inventory(question: str, channel: str, products: list[dict[str, Any]]) -> tuple[str, str]:
-    """Llama al modelo externo con contexto de inventario."""
     inventory_context = format_inventory_context(products)
     litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
     litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
@@ -895,7 +871,7 @@ def assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 # ============================================
-# SERVICIO 2 · AUTOMATIZACIÓN EMPÁTICA MULTICANAL (LiteLLM Middleware)
+# SERVICIO 2 · AUTOMATIZACIÓN EMPÁTICA MULTICANAL
 # ============================================
 
 CHANNEL_COST_PER_1K_TOKENS = float(os.environ.get("CHANNEL_COST_PER_1K_TOKENS", "0.002"))
@@ -908,7 +884,6 @@ CHANNEL_TONE_HINTS = {
 
 
 def estimate_tokens(text: str) -> int:
-    """Estimación simple de tokens (~4 caracteres por token) para mostrar control de costos."""
     return max(1, round(len(text) / 4))
 
 
@@ -923,12 +898,6 @@ _SPANISH_NUMBER_WORDS = {
 
 
 def _extract_mentioned_quantity(normalized_text: str) -> str | None:
-    """Busca la mayor cantidad mencionada en el mensaje (dígitos o número escrito en español).
-
-    Se toma el número más grande entre todas las coincidencias (en vez del primero) porque
-    palabras como 'una' (de 'una empresa') no deben ganarle a la cifra de negocio real,
-    por ejemplo 'cien' en 'realizamos cien envíos diarios'.
-    """
     candidates = [int(n) for n in re.findall(r"\b(\d{1,6})\b", normalized_text)]
     for word, value in _SPANISH_NUMBER_WORDS.items():
         if re.search(rf"\b{word}\b", normalized_text):
@@ -936,7 +905,6 @@ def _extract_mentioned_quantity(normalized_text: str) -> str | None:
     return str(max(candidates)) if candidates else None
 
 
-# Intenciones ordenadas por prioridad: la primera que coincida gana.
 _CHANNEL_INTENTS = [
     (
         "urgente",
@@ -947,7 +915,7 @@ _CHANNEL_INTENTS = [
     (
         "logistica",
         ("envio", "envios", "despacho", "despachos", "logistica", "reparto", "repartos", "pedido", "pedidos", "tracking", "seguimiento de pedido", "distribucion", "delivery"),
-        None,  # se arma dinámicamente más abajo
+        None,
         None,
     ),
     (
@@ -978,13 +946,6 @@ _CHANNEL_INTENTS = [
 
 
 def local_channel_answer(message: str, channel: str) -> str:
-    """Respuesta empática simulada cuando no hay LiteLLM/Azure configurado.
-
-    A diferencia de una versión anterior más simple, esta detecta un conjunto amplio
-    de intenciones (reclamos, logística/automatización, agendar, precio, agradecimiento,
-    saludo) y, si no reconoce ninguna, arma una respuesta que sí hace referencia concreta
-    a lo que la persona escribió en vez de una plantilla genérica repetida.
-    """
     normalized = _normalize_text(message)
     tone = CHANNEL_TONE_HINTS.get(channel.lower(), "cercano y profesional")
 
@@ -1005,8 +966,6 @@ def local_channel_answer(message: str, channel: str) -> str:
 
         return f"{opening} (tono {tone})\n\n{closing}"
 
-    # Fallback: sin coincidencias claras, pero evitamos la respuesta genérica muerta.
-    # Referenciamos lo que la persona escribió para demostrar que sí se leyó el mensaje.
     trimmed = message.strip()
     excerpt = trimmed if len(trimmed) <= 140 else trimmed[:137].rstrip() + "..."
     return (
@@ -1018,7 +977,6 @@ def local_channel_answer(message: str, channel: str) -> str:
 
 
 def call_external_model_channel(message: str, channel: str) -> tuple[str, str]:
-    """Llama al modelo externo (LiteLLM/Azure) con un prompt de atención al cliente multicanal."""
     litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
     litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
     azure_key = os.environ.get("AZURE_OPENAI_API_KEY")
@@ -1056,7 +1014,6 @@ def call_external_model_channel(message: str, channel: str) -> tuple[str, str]:
 
 
 def channel_reply(payload: dict[str, Any]) -> dict[str, Any]:
-    """Responde un mensaje entrante de cualquier canal y registra el costo estimado en tokens."""
     channel = str(payload.get("channel", "web")).strip() or "web"
     message = str(payload.get("message", "")).strip()
     if not message:
@@ -1111,7 +1068,6 @@ def get_middleware_state() -> dict[str, Any]:
 
 # ============================================
 # SERVICIO 3 · DIGITALIZACIÓN IA LLAVE EN MANO
-# (filtrado automático de correos + gestión de agendas)
 # ============================================
 
 _EMAIL_CATEGORY_RULES = [
@@ -1139,7 +1095,6 @@ _EMAIL_PRIORITY_BY_CATEGORY = {
 
 
 def classify_email_local(subject: str, body: str) -> tuple[str, str, str]:
-    """Clasificación local basada en reglas: categoría, prioridad y acción sugerida."""
     text = _normalize_text(f"{subject} {body}")
     category = "general"
     for cat, keywords in _EMAIL_CATEGORY_RULES:
@@ -1153,7 +1108,6 @@ def classify_email_local(subject: str, body: str) -> tuple[str, str, str]:
 
 
 def call_external_email_action(category: str, subject: str, body: str) -> tuple[str, str]:
-    """Pide al modelo externo (si está configurado) una acción sugerida más específica."""
     litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
     litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
     azure_key = os.environ.get("AZURE_OPENAI_API_KEY")
@@ -1298,6 +1252,183 @@ def get_consulting_state() -> dict[str, Any]:
         "email_count": email_count,
         "upcoming_count": upcoming_count,
     }
+
+
+# ============================================
+# NUEVO MÓDULO: SIMULACIÓN DE PROYECTO "LLAVE EN MANO"
+# ============================================
+
+AUTOMATION_DEMOS = {
+    "correo": {
+        "name": "📬 Automatización de Correos",
+        "description": "Filtra, clasifica y prioriza correos entrantes automáticamente, sugiriendo acciones a tomar.",
+        "icon": "📧",
+        "steps": [
+            {"title": "1. Conectar Bandeja de Entrada", "desc": "Simulamos la conexión a tu correo. (En la vida real, usaríamos la API de Gmail/Outlook)", "action": "Conectar Correo Demo"},
+            {"title": "2. Definir Reglas de Clasificación", "desc": "Creamos reglas para identificar correos urgentes, de ventas, administrativos o spam.", "action": "Definir Reglas"},
+            {"title": "3. Entrenar el Filtro IA", "desc": "El asistente IA aprende a clasificar correos basándose en el contenido y el asunto.", "action": "Entrenar IA"},
+            {"title": "4. ¡Automatización Activa!", "desc": "Los correos ahora se clasifican automáticamente y se te notifica de los más importantes.", "action": "Ver Panel de Control"},
+        ],
+        "example_data": [
+            {"sender": "cliente1@gmail.com", "subject": "Urgente: Problema con el pedido #1234", "body": "No he recibido mi pedido y ya pasó la fecha de entrega. Necesito una solución inmediata."},
+            {"sender": "proveedor@suministros.cl", "subject": "Cotización de productos", "body": "Buenos días, adjunto la cotización para los productos que nos solicitó la semana pasada. Quedo atento."},
+            {"sender": "info@empresa.com", "subject": "Factura del mes de julio", "body": "Adjunto la factura correspondiente al mes de julio. Por favor, revisarla y confirmar su recepción."},
+            {"sender": "promociones@spam.com", "subject": "¡Gane un premio!", "body": "¡Haga click aquí y gane un premio increíble! Último día para participar."},
+        ]
+    },
+    "agenda": {
+        "name": "📅 Gestión de Agenda Inteligente",
+        "description": "Un asistente que agenda, confirma y administra tus citas automáticamente.",
+        "icon": "🗓️",
+        "steps": [
+            {"title": "1. Configurar Disponibilidad", "desc": "Definimos tus horarios de trabajo y días disponibles.", "action": "Configurar Horarios"},
+            {"title": "2. Integrar con Calendario", "desc": "Sincronizamos el asistente con tu calendario (Google, Outlook, etc.)", "action": "Sincronizar Calendario"},
+            {"title": "3. Definir Tipos de Cita", "desc": "Creamos diferentes tipos de cita: ventas, soporte, consultoría, etc.", "action": "Crear Tipos de Cita"},
+            {"title": "4. ¡Sistema de Agendamiento en Vivo!", "desc": "El asistente agenda citas, envía recordatorios y cancela automáticamente.", "action": "Probar Agendamiento"},
+        ],
+        "example_data": [
+            {"client": "María Pérez", "contact": "maria@gmail.com", "date": "2026-08-15", "time": "10:00", "notes": "Reunión de ventas"},
+            {"client": "Juan Gómez", "contact": "juan@empresa.cl", "date": "2026-08-16", "time": "15:30", "notes": "Soporte técnico"},
+            {"client": "Ana Rodríguez", "contact": "ana@negocio.com", "date": "2026-08-17", "time": "11:00", "notes": "Consultoría de IA"},
+        ]
+    },
+    "whatsapp": {
+        "name": "💬 Automatización Empática (WhatsApp)",
+        "description": "Un asistente que responde consultas de WhatsApp con un tono empático y personalizado.",
+        "icon": "🤖",
+        "steps": [
+            {"title": "1. Conectar con WhatsApp", "desc": "Configuramos la API de WhatsApp Business para recibir y enviar mensajes.", "action": "Conectar WhatsApp"},
+            {"title": "2. Definir Flujos de Conversación", "desc": "Creamos flujos para preguntas frecuentes: precios, stock, envíos, etc.", "action": "Crear Flujos"},
+            {"title": "3. Entrenar con Preguntas Reales", "desc": "El asistente aprende a responder con ejemplos reales de tus clientes.", "action": "Entrenar Asistente"},
+            {"title": "4. ¡Botón de 'Responder con IA'!", "desc": "Cuando llega un mensaje, el asistente sugiere una respuesta que puedes revisar y enviar.", "action": "Probar Respuesta IA"},
+        ],
+        "example_data": [
+            {"message": "Hola, ¿tienen stock de martillos? Necesito 10 para mañana."},
+            {"message": "Buenas, ¿cuánto cuesta el envío a la región de Valparaíso?"},
+            {"message": "Quiero agendar una hora para ver el showroom, ¿están disponibles mañana?"},
+            {"message": "¡Gracias! Su atención es excelente."},
+        ]
+    },
+    "facturacion": {
+        "name": "🧾 Facturación y Pagos Automatizada",
+        "description": "Sistema de facturación que genera documentos, envía correos y verifica pagos automáticamente.",
+        "icon": "💳",
+        "steps": [
+            {"title": "1. Configurar Productos y Precios", "desc": "Cargamos tu catálogo de productos con precios y stock.", "action": "Cargar Productos"},
+            {"title": "2. Definir Datos Bancarios", "desc": "Configuramos las cuentas bancarias para los pagos.", "action": "Configurar Cuentas"},
+            {"title": "3. Crear Plantillas de Factura", "desc": "Diseñamos la plantilla de factura que se enviará a los clientes.", "action": "Diseñar Plantilla"},
+            {"title": "4. ¡Sistema de Facturación en Vivo!", "desc": "Crea una factura, el cliente recibe un correo y puede pagar.", "action": "Crear Factura Demo"},
+        ],
+        "example_data": [
+            {"client": "Cliente Demo 1", "products": [{"name": "Producto A", "price": 15000, "qty": 2}, {"name": "Producto B", "price": 5000, "qty": 1}]},
+            {"client": "Cliente Demo 2", "products": [{"name": "Producto C", "price": 25000, "qty": 1}, {"name": "Producto D", "price": 10000, "qty": 3}]},
+        ]
+    }
+}
+
+
+def get_demo_state() -> dict[str, Any]:
+    """Obtiene el estado de las demostraciones de proyectos."""
+    return {
+        "ok": True,
+        "demos": AUTOMATION_DEMOS,
+        "current_step": 0,
+        "demo_data": {},
+    }
+
+
+def run_demo_step(payload: dict[str, Any]) -> dict[str, Any]:
+    """Ejecuta un paso de la demostración de un proyecto."""
+    demo_id = payload.get("demo_id")
+    step_index = payload.get("step_index", 0)
+    user_data = payload.get("user_data", {})
+
+    if demo_id not in AUTOMATION_DEMOS:
+        return {"ok": False, "error": "Proyecto no encontrado"}
+
+    demo = AUTOMATION_DEMOS[demo_id]
+    steps = demo["steps"]
+    
+    if step_index >= len(steps):
+        return {"ok": False, "error": "Paso fuera de rango"}
+
+    step = steps[step_index]
+    
+    result = {
+        "ok": True,
+        "step_index": step_index,
+        "step": step,
+        "completed": False,
+        "message": f"Paso '{step['title']}' completado. ¡Excelente progreso!",
+        "next_action": "Continuar",
+        "data": {}
+    }
+
+    if demo_id == "correo":
+        if step_index == 3:
+            result["data"]["classified_emails"] = [
+                {"subject": "Urgente: Problema con el pedido #1234", "category": "urgente", "priority": "alta", "action": "Responder en 1 hora"},
+                {"subject": "Cotización de productos", "category": "ventas", "priority": "media", "action": "Enviar cotización"},
+                {"subject": "Factura del mes de julio", "category": "administrativo", "priority": "media", "action": "Derivar a contabilidad"},
+                {"subject": "¡Gane un premio!", "category": "spam", "priority": "baja", "action": "Archivar"},
+            ]
+            result["message"] = "✅ ¡Filtro de correos activo! Ahora todos los correos se clasifican automáticamente."
+            result["completed"] = True
+
+    elif demo_id == "agenda":
+        if step_index == 3:
+            result["data"]["appointments"] = [
+                {"client": "María Pérez", "date": "2026-08-15", "time": "10:00", "status": "confirmada"},
+                {"client": "Juan Gómez", "date": "2026-08-16", "time": "15:30", "status": "confirmada"},
+                {"client": "Carlos López", "date": "2026-08-17", "time": "09:00", "status": "pendiente"},
+            ]
+            result["message"] = "✅ ¡Agenda sincronizada! Las citas se gestionan automáticamente."
+            result["completed"] = True
+
+    elif demo_id == "whatsapp":
+        if step_index == 3:
+            messages = user_data.get("messages", demo["example_data"])
+            result["data"]["responses"] = [
+                {"message": msg["message"], "response": f"✅ Respuesta empática generada para: '{msg['message'][:30]}...'"}
+                for msg in messages
+            ]
+            result["message"] = "✅ ¡Asistente de WhatsApp activo! Puedes ver las respuestas sugeridas."
+            result["completed"] = True
+
+    elif demo_id == "facturacion":
+        if step_index == 3:
+            client = user_data.get("client", "Cliente Demo")
+            products = user_data.get("products", demo["example_data"][0]["products"])
+            subtotal = sum(p["price"] * p["qty"] for p in products)
+            tax = subtotal * 0.19
+            total = subtotal + tax
+            
+            result["data"]["invoice"] = {
+                "number": "INV-2026-0001",
+                "client": client,
+                "subtotal": subtotal,
+                "tax": tax,
+                "total": total,
+                "status": "enviada"
+            }
+            result["message"] = f"✅ ¡Factura {result['data']['invoice']['number']} creada y enviada a {client}!"
+            result["completed"] = True
+
+    return result
+
+
+def get_demo_data(demo_id: str) -> dict[str, Any]:
+    """Obtiene datos de ejemplo para un demo específico."""
+    if demo_id in AUTOMATION_DEMOS:
+        return {"ok": True, "data": AUTOMATION_DEMOS[demo_id]["example_data"]}
+    return {"ok": False, "error": "Demo no encontrado"}
+
+
+# ============================================
+# FUNCIONES DE INVENTARIO
+# ============================================
+
+def add_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
     """Agrega un producto al inventario."""
     missing = validate_required(payload, ["code", "name", "quantity"])
     if missing:
@@ -2210,7 +2341,7 @@ def process_purchase_request(question: str, channel: str) -> dict[str, Any]:
 
 
 # ============================================
-# RENDER HTML - Versión simplificada
+# RENDER HTML - Versión completa con DEMO
 # ============================================
 
 def render_index() -> str:
@@ -2397,6 +2528,7 @@ def render_index() -> str:
           <a onclick="showSection('middleware')">Automatización</a>
           <a onclick="showSection('consulting')">Llave en Mano</a>
           <a onclick="showSection('invoicing')">Facturación</a>
+          <a onclick="showSection('demo')">🚀 Proyectos</a>
           <a onclick="showSection('faqs')">FAQs</a>
         </div>
       </nav>
@@ -2753,6 +2885,60 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
             <div id="bankAccountsList"></div>
             <div style="margin-top: 14px; display: flex; gap: 8px;">
               <button onclick="refreshBankAccounts()" class="secondary">🔄 Actualizar</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- NUEVA SECCIÓN: DEMO DE PROYECTOS -->
+      <section id="demo">
+        <h2>🚀 Simulación de Proyecto Llave en Mano</h2>
+        <p class="muted" style="max-width:640px; margin-top:-6px;">
+          Elige un proyecto y te mostraremos paso a paso cómo se construye y funciona. 
+          ¡Interactúa con datos de ejemplo o ingresa los tuyos!
+        </p>
+
+        <div class="grid two" style="margin-bottom: 20px;">
+          <div class="card">
+            <h3>Selecciona tu Proyecto</h3>
+            <div id="demoSelector">
+              <button onclick="selectDemo('correo')" class="btn" style="margin: 4px;">📬 Correo</button>
+              <button onclick="selectDemo('agenda')" class="btn" style="margin: 4px;">📅 Agenda</button>
+              <button onclick="selectDemo('whatsapp')" class="btn" style="margin: 4px;">💬 WhatsApp</button>
+              <button onclick="selectDemo('facturacion')" class="btn" style="margin: 4px;">🧾 Facturación</button>
+            </div>
+            <div id="demoDescription" style="margin-top: 12px; color: var(--muted);">
+              <p>Selecciona un proyecto para comenzar la simulación.</p>
+            </div>
+          </div>
+          
+          <div class="card" id="demoProgressPanel">
+            <h3>Progreso del Proyecto</h3>
+            <div id="demoProgress">
+              <p style="color: var(--muted);">Esperando selección de proyecto...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="demoSimulation" style="display: none;">
+          <div id="demoStepContent">
+            <h3 id="demoStepTitle">Paso 1: Conectar Bandeja de Entrada</h3>
+            <p id="demoStepDesc">Simulamos la conexión a tu correo.</p>
+            
+            <div id="demoDataArea" style="background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0;">
+              <p style="color: var(--muted);">Cargando datos de ejemplo...</p>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 14px;">
+              <button id="demoStepActionBtn" class="btn" onclick="runDemoStep()">Continuar</button>
+              <button id="demoResetBtn" class="btn secondary" onclick="resetDemo()">Reiniciar</button>
+              <button id="demoEditBtn" class="btn secondary" onclick="toggleDemoEdit()">✏️ Usar mis datos</button>
+            </div>
+            
+            <div id="demoUserInput" style="display: none; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px;">
+              <h4>Ingresa tus propios datos</h4>
+              <textarea id="demoUserDataInput" rows="4" style="width: 100%;" placeholder="Escribe tus datos aquí..."></textarea>
+              <button onclick="applyUserData()" class="btn" style="margin-top: 8px;">Aplicar mis datos</button>
             </div>
           </div>
         </div>
@@ -3273,6 +3459,228 @@ async function loadProductsForInvoice() {{
   }}
 }}
 
+// ============================================
+// JAVASCRIPT PARA SIMULACIÓN DE PROYECTOS
+// ============================================
+
+let currentDemoId = null;
+let currentStep = 0;
+let demoData = [];
+let isUsingUserData = false;
+
+async function selectDemo(demoId) {{
+  currentDemoId = demoId;
+  currentStep = 0;
+  isUsingUserData = false;
+  
+  const res = await fetch(`/api/demo/data/${{demoId}}`);
+  const data = await res.json();
+  if (data.ok) {{
+    demoData = data.data;
+  }}
+  
+  const demoSection = $('#demoSimulation');
+  if (demoSection) demoSection.style.display = 'block';
+  
+  await refreshDemoState();
+  
+  const desc = $('#demoDescription');
+  if (desc) {{
+    const demos = window.demoConfig || (await (await fetch('/api/demo/state')).json()).demos;
+    if (demos && demos[demoId]) {{
+      desc.innerHTML = `<h4>${{demos[demoId].icon}} ${{demos[demoId].name}}</h4>
+                        <p>${{demos[demoId].description}}</p>`;
+    }}
+  }}
+  
+  await runDemoStep();
+}}
+
+async function refreshDemoState() {{
+  try {{
+    const res = await fetch('/api/demo/state');
+    const state = await res.json();
+  }} catch (e) {{
+    console.error('Error refreshing demo state:', e);
+  }}
+}}
+
+async function runDemoStep() {{
+  if (!currentDemoId) {{
+    toast('Selecciona un proyecto primero.');
+    return;
+  }}
+  
+  const userData = {{}};
+  if (isUsingUserData && currentDemoId === 'whatsapp') {{
+    const input = $('#demoUserDataInput');
+    if (input && input.value) {{
+      try {{
+        const parsed = JSON.parse(input.value);
+        userData.messages = Array.isArray(parsed) ? parsed : [parsed];
+      }} catch (e) {{
+        userData.messages = [{{ message: input.value }}];
+      }}
+    }}
+  }} else if (isUsingUserData && currentDemoId === 'facturacion') {{
+    const input = $('#demoUserDataInput');
+    if (input && input.value) {{
+      try {{
+        const parsed = JSON.parse(input.value);
+        userData.client = parsed.client || 'Cliente Personalizado';
+        userData.products = parsed.products || [];
+      }} catch (e) {{
+        toast('Error: Los datos deben estar en formato JSON válido.');
+        return;
+      }}
+    }}
+  }}
+  
+  const payload = {{
+    demo_id: currentDemoId,
+    step_index: currentStep,
+    user_data: userData
+  }};
+  
+  const result = await api('/api/demo/step', payload);
+  
+  if (!result.ok) {{
+    toast('Error en la simulación: ' + result.error);
+    return;
+  }}
+  
+  renderDemoStep(result);
+  currentStep = result.step_index + 1;
+  
+  if (result.completed) {{
+    toast('🎉 ¡Proyecto completado! Revisa los resultados.');
+    const actionBtn = $('#demoStepActionBtn');
+    if (actionBtn) {{
+      actionBtn.textContent = '🔄 Reiniciar Demo';
+      actionBtn.onclick = resetDemo;
+    }}
+  }}
+}}
+
+function renderDemoStep(result) {{
+  const title = $('#demoStepTitle');
+  const desc = $('#demoStepDesc');
+  const dataArea = $('#demoDataArea');
+  const actionBtn = $('#demoStepActionBtn');
+  
+  if (title) title.textContent = result.step.title;
+  if (desc) desc.textContent = result.step.desc;
+  if (actionBtn) actionBtn.textContent = 'Continuar';
+  
+  if (dataArea) {{
+    let html = '';
+    
+    if (result.data && result.data.classified_emails) {{
+      html = '<h4>📬 Correos Clasificados</h4><table><thead><tr><th>Asunto</th><th>Categoría</th><th>Prioridad</th><th>Acción</th></tr></thead><tbody>';
+      result.data.classified_emails.forEach(email => {{
+        html += `<tr><td>${{email.subject}}</td>
+                 <td><span class="status-badge cat-${{email.category}}">${{email.category}}</span></td>
+                 <td><span class="status-badge priority-${{email.priority}}">${{email.priority}}</span></td>
+                 <td>${{email.action}}</td></tr>`;
+      }});
+      html += '</tbody></table>';
+    }} else if (result.data && result.data.appointments) {{
+      html = '<h4>📅 Citas Agendadas</h4><table><thead><tr><th>Cliente</th><th>Fecha</th><th>Hora</th><th>Estado</th></tr></thead><tbody>';
+      result.data.appointments.forEach(apt => {{
+        html += `<tr><td>${{apt.client}}</td>
+                 <td>${{apt.date}}</td>
+                 <td>${{apt.time}}</td>
+                 <td><span class="status-badge status-${{apt.status}}">${{apt.status}}</span></td></tr>`;
+      }});
+      html += '</tbody></table>';
+    }} else if (result.data && result.data.responses) {{
+      html = '<h4>💬 Respuestas del Asistente</h4>';
+      result.data.responses.forEach(item => {{
+        html += `<div class="conversation user"><strong>Cliente:</strong><p>${{item.message}}</p></div>
+                 <div class="conversation"><strong>Asistente IA:</strong><p>${{item.response}}</p></div>`;
+      }});
+    }} else if (result.data && result.data.invoice) {{
+      const inv = result.data.invoice;
+      html = `<h4>🧾 Factura Generada</h4>
+              <p><strong>Número:</strong> ${{inv.number}}</p>
+              <p><strong>Cliente:</strong> ${{inv.client}}</p>
+              <p><strong>Subtotal:</strong> $${{inv.subtotal.toFixed(2)}}</p>
+              <p><strong>IVA (19%):</strong> $${{inv.tax.toFixed(2)}}</p>
+              <p><strong>Total:</strong> <span class="metric">$${{inv.total.toFixed(2)}}</span></p>
+              <p><strong>Estado:</strong> <span class="status-badge status-paid">${{inv.status}}</span></p>`;
+    }} else {{
+      html = `<p style="color: var(--muted);">En este paso, el sistema ${{result.step.action.toLowerCase()}}.</p>
+              <p><small>💡 Usa el botón "Usar mis datos" para personalizar esta simulación.</small></p>`;
+    }}
+    
+    dataArea.innerHTML = html;
+  }}
+}}
+
+function resetDemo() {{
+  currentStep = 0;
+  isUsingUserData = false;
+  const userInput = $('#demoUserDataInput');
+  if (userInput) userInput.value = '';
+  const editBtn = $('#demoEditBtn');
+  if (editBtn) editBtn.textContent = '✏️ Usar mis datos';
+  const userInputArea = $('#demoUserInput');
+  if (userInputArea) userInputArea.style.display = 'none';
+  const actionBtn = $('#demoStepActionBtn');
+  if (actionBtn) {{
+    actionBtn.textContent = 'Continuar';
+    actionBtn.onclick = runDemoStep;
+  }}
+  runDemoStep();
+  toast('🔄 Demo reiniciada');
+}}
+
+function toggleDemoEdit() {{
+  const userInputArea = $('#demoUserInput');
+  const editBtn = $('#demoEditBtn');
+  if (userInputArea.style.display === 'none') {{
+    userInputArea.style.display = 'block';
+    if (editBtn) editBtn.textContent = '✖ Cerrar';
+    const input = $('#demoUserDataInput');
+    if (input && currentDemoId) {{
+      if (currentDemoId === 'whatsapp') {{
+        input.value = JSON.stringify(demoData, null, 2);
+      }} else if (currentDemoId === 'facturacion') {{
+        input.value = JSON.stringify({{
+          client: "Mi Cliente Personalizado",
+          products: [
+            {{ name: "Producto X", price: 15000, qty: 2 }},
+            {{ name: "Producto Y", price: 25000, qty: 1 }}
+          ]
+        }}, null, 2);
+      }}
+    }}
+  }} else {{
+    userInputArea.style.display = 'none';
+    if (editBtn) editBtn.textContent = '✏️ Usar mis datos';
+  }}
+}}
+
+function applyUserData() {{
+  const input = $('#demoUserDataInput');
+  if (!input || !input.value.trim()) {{
+    toast('Escribe o pega tus datos primero.');
+    return;
+  }}
+  isUsingUserData = true;
+  toast('✅ Datos aplicados. Ahora puedes ejecutar el paso.');
+  runDemoStep();
+}}
+
+// Cargar la configuración de demos al inicio
+window.demoConfig = null;
+fetch('/api/demo/state')
+  .then(res => res.json())
+  .then(data => {{
+    window.demoConfig = data.demos;
+  }})
+  .catch(e => console.error('Error loading demo config:', e));
+
 // Event Handlers
 
 const diagnosticForm = $('#diagnosticForm');
@@ -3610,6 +4018,9 @@ class SabrinaHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/notifications":
             json_response(self, get_invoice_notifications())
             return
+        if parsed.path == "/api/demo/state":
+            json_response(self, get_demo_state())
+            return
         if parsed.path == "/health":
             json_response(self, {"ok": True, "time": now_iso()})
             return
@@ -3708,6 +4119,14 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 else:
                     json_response(self, {"ok": False, "error": "Falta notification_id"}, 400)
                 return
+            if parsed.path == "/api/demo/step":
+                result = run_demo_step(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path.startswith("/api/demo/data/"):
+                demo_id = parsed.path.split("/")[-1]
+                json_response(self, get_demo_data(demo_id))
+                return
                 
             json_response(self, {"ok": False, "error": "Ruta no encontrada"}, HTTPStatus.NOT_FOUND)
         except json.JSONDecodeError:
@@ -3722,6 +4141,7 @@ def main() -> None:
     print(f"Sabrina AI Lab listo en http://{HOST}:{PORT}")
     print(f"Base de datos: {DB_PATH}")
     print(f"Cuentas bancarias configuradas: {len(BANK_ACCOUNTS)}")
+    print(f"🚀 Simulación de Proyectos disponible en la pestaña 'Proyectos'")
     print("Ctrl+C para detener.")
     try:
         server.serve_forever()
