@@ -18,6 +18,7 @@ Ejecutar:
     python3 proyectos/sabrina_ai_lab/app.py
 Abrir:
     http://127.0.0.1:8000
+#!/usr/bin/env python3
 """
 
 from __future__ import annotations
@@ -2839,22 +2840,19 @@ def process_purchase_request(question: str, channel: str) -> dict[str, Any]:
 
 
 # ============================================
-# RENDER HTML - Versión completa
+# RENDER HTML - Función principal
 # ============================================
 
 def render_index() -> str:
-    state_json = json.dumps(get_dashboard_state(), ensure_ascii=False)
-    smartstacks_demo_json = json.dumps(SMARTSTACKS_DEMO, ensure_ascii=False)
-    middleware_demo_json = json.dumps(MIDDLEWARE_DEMO, ensure_ascii=False)
-    
-    return f"""<!doctype html>
+    """Renderiza la página HTML principal."""
+    return """<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sabrina AI Lab · MVP IA Humana</title>
   <style>
-    :root {{
+    :root {
       color-scheme: dark;
       --bg: #090b12;
       --panel: rgba(255,255,255,.075);
@@ -2868,92 +2866,91 @@ def render_index() -> str:
       --danger: #ff6b7a;
       --shadow: 0 24px 80px rgba(0,0,0,.35);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
+    }
+    * { box-sizing: border-box; }
+    body {
       margin: 0;
-      background:
-        radial-gradient(circle at 18% 12%, rgba(155,140,255,.28), transparent 32rem),
-        radial-gradient(circle at 82% 0%, rgba(51,214,166,.16), transparent 30rem),
-        linear-gradient(135deg, #080a12, #111827 48%, #07111d);
+      background: radial-gradient(circle at 18% 12%, rgba(155,140,255,.28), transparent 32rem),
+                  radial-gradient(circle at 82% 0%, rgba(51,214,166,.16), transparent 30rem),
+                  linear-gradient(135deg, #080a12, #111827 48%, #07111d);
       color: var(--text);
       min-height: 100vh;
       padding: 20px;
-    }}
-    a {{ color: inherit; }}
-    .wrap {{ width: min(1180px, calc(100% - 32px)); margin: 0 auto; }}
-    header {{
+    }
+    .wrap { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
+    header {
       position: sticky; top: 0; z-index: 10;
       backdrop-filter: blur(18px);
       background: rgba(9,11,18,.72);
       border-bottom: 1px solid var(--line);
       padding: 10px 0;
-    }}
-    nav {{ display: flex; justify-content: space-between; align-items: center; padding: 14px 0; gap: 14px; }}
-    .brand {{ display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.03em; }}
-    .logo {{ width: 38px; height: 38px; border-radius: 14px; background: linear-gradient(135deg, var(--brand), var(--brand2)); display:grid; place-items:center; box-shadow: var(--shadow); }}
-    .navlinks {{ display: flex; gap: 10px; flex-wrap: wrap; }}
-    .navlinks a {{ text-decoration: none; color: var(--muted); font-size: 14px; padding: 8px 10px; border-radius: 999px; cursor: pointer; }}
-    .navlinks a:hover, .navlinks a.active {{ background: var(--panel); color: var(--text); }}
-    .hero {{ padding: 72px 0 36px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: center; }}
-    .eyebrow {{ display:inline-flex; gap: 8px; align-items:center; color: var(--brand2); background: rgba(51,214,166,.09); border:1px solid rgba(51,214,166,.25); padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }}
-    h1 {{ font-size: clamp(42px, 7vw, 76px); line-height: .92; margin: 20px 0; letter-spacing: -.07em; }}
-    h2 {{ font-size: clamp(26px, 4vw, 42px); margin: 0 0 14px; letter-spacing: -.04em; }}
-    h3 {{ margin: 0 0 8px; letter-spacing: -.02em; }}
-    p {{ color: var(--muted); line-height: 1.65; }}
-    .hero p {{ font-size: 18px; max-width: 720px; }}
-    .actions {{ display: flex; gap: 12px; margin-top: 26px; flex-wrap: wrap; }}
-    button, .btn {{
+    }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; gap: 14px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.03em; }
+    .logo { width: 38px; height: 38px; border-radius: 14px; background: linear-gradient(135deg, var(--brand), var(--brand2)); display:grid; place-items:center; box-shadow: var(--shadow); }
+    .navlinks { display: flex; gap: 8px; flex-wrap: wrap; }
+    .navlinks a { text-decoration: none; color: var(--muted); font-size: 13px; padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+    .navlinks a:hover, .navlinks a.active { background: var(--panel); color: var(--text); }
+    .hero { padding: 72px 0 36px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: center; }
+    .eyebrow { display:inline-flex; gap: 8px; align-items:center; color: var(--brand2); background: rgba(51,214,166,.09); border:1px solid rgba(51,214,166,.25); padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+    h1 { font-size: clamp(42px, 7vw, 76px); line-height: .92; margin: 20px 0; letter-spacing: -.07em; }
+    h2 { font-size: clamp(26px, 4vw, 42px); margin: 0 0 14px; letter-spacing: -.04em; }
+    h3 { margin: 0 0 8px; letter-spacing: -.02em; }
+    p { color: var(--muted); line-height: 1.65; }
+    .hero p { font-size: 18px; max-width: 720px; }
+    .actions { display: flex; gap: 12px; margin-top: 26px; flex-wrap: wrap; }
+    button, .btn {
       border: 0; color: #07111d; background: linear-gradient(135deg, var(--brand2), #b4ffe8);
-      padding: 12px 16px; border-radius: 14px; font-weight: 800; cursor: pointer;
+      padding: 10px 16px; border-radius: 14px; font-weight: 800; cursor: pointer;
       text-decoration: none; display: inline-flex; align-items:center; gap: 8px;
-    }}
-    button.secondary, .btn.secondary {{ background: var(--panel-strong); color: var(--text); border: 1px solid var(--line); }}
-    .card {{ background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 22px; box-shadow: var(--shadow); }}
-    .grid {{ display: grid; gap: 18px; }}
-    .grid.two {{ grid-template-columns: repeat(2, 1fr); }}
-    .metric {{ font-size: 32px; font-weight: 900; letter-spacing: -.04em; }}
-    .muted {{ color: var(--muted); }}
-    .tag {{ display:inline-flex; padding: 6px 9px; border-radius: 999px; background: rgba(155,140,255,.13); border: 1px solid rgba(155,140,255,.28); color: #d8d2ff; font-size: 12px; font-weight: 600; }}
-    section {{ padding: 38px 0; display: none; }}
-    section.active {{ display: block; }}
-    input, textarea, select {{
+      font-size: 14px;
+    }
+    button.secondary, .btn.secondary { background: var(--panel-strong); color: var(--text); border: 1px solid var(--line); }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 22px; box-shadow: var(--shadow); }
+    .grid { display: grid; gap: 18px; }
+    .grid.two { grid-template-columns: repeat(2, 1fr); }
+    .metric { font-size: 32px; font-weight: 900; letter-spacing: -.04em; }
+    .muted { color: var(--muted); }
+    .tag { display:inline-flex; padding: 6px 9px; border-radius: 999px; background: rgba(155,140,255,.13); border: 1px solid rgba(155,140,255,.28); color: #d8d2ff; font-size: 12px; font-weight: 600; }
+    section { padding: 38px 0; display: none; }
+    section.active { display: block; }
+    input, textarea, select {
       width: 100%; background: rgba(0,0,0,.24); color: var(--text);
       border: 1px solid var(--line); border-radius: 14px; padding: 12px 13px;
       outline: none; font: inherit;
-    }}
-    textarea {{ min-height: 110px; resize: vertical; }}
-    label {{ display:block; font-size: 13px; font-weight: 800; color: #dbe2f2; margin: 0 0 7px; }}
-    .formgrid {{ display:grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }}
-    .full {{ grid-column: 1 / -1; }}
-    table {{ width:100%; border-collapse: collapse; overflow: hidden; border-radius: 16px; }}
-    th, td {{ text-align:left; padding: 12px; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: top; }}
-    th {{ color: var(--text); background: rgba(255,255,255,.06); }}
-    .status-ok {{ color: var(--brand2); font-weight: 900; }}
-    .conversation {{ background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0; border-left: 3px solid var(--brand2); }}
-    .qcard {{ margin-bottom: 22px; }}
-    .qoption {{
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    label { display:block; font-size: 13px; font-weight: 800; color: #dbe2f2; margin: 0 0 7px; }
+    .formgrid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .full { grid-column: 1 / -1; }
+    table { width:100%; border-collapse: collapse; overflow: hidden; border-radius: 16px; }
+    th, td { text-align:left; padding: 10px; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: top; font-size: 13px; }
+    th { color: var(--text); background: rgba(255,255,255,.06); }
+    .status-ok { color: var(--brand2); font-weight: 900; }
+    .conversation { background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0; border-left: 3px solid var(--brand2); }
+    .qcard { margin-bottom: 22px; }
+    .qoption {
       display:flex; align-items:center; gap: 10px; padding: 12px 14px;
       border: 1px solid var(--line); border-radius: 14px; margin-bottom: 8px;
       cursor: pointer; transition: background .15s ease;
-    }}
-    .qoption:hover {{ background: var(--panel-strong); }}
-    .qoption input {{ width: auto; accent-color: var(--brand2); }}
-    .qoption span {{ color: var(--text); font-size: 14px; }}
-    #diagnosticResult {{ display:none; }}
-    #diagnosticResult ul {{ color: var(--muted); padding-left: 20px; margin: 10px 0; }}
-    #diagnosticResult ul li {{ margin-bottom: 4px; }}
-    .conversation.user {{ border-left-color: var(--brand); }}
-    .conversation strong {{ color: var(--brand2); }}
-    .conversation.user strong {{ color: var(--brand); }}
-    details {{
+    }
+    .qoption:hover { background: var(--panel-strong); }
+    .qoption input { width: auto; accent-color: var(--brand2); }
+    .qoption span { color: var(--text); font-size: 14px; }
+    #diagnosticResult { display:none; }
+    #diagnosticResult ul { color: var(--muted); padding-left: 20px; margin: 10px 0; }
+    #diagnosticResult ul li { margin-bottom: 4px; }
+    .conversation.user { border-left-color: var(--brand); }
+    .conversation strong { color: var(--brand2); }
+    .conversation.user strong { color: var(--brand); }
+    details {
       border: 1px solid var(--line);
       border-radius: 16px;
       margin-bottom: 10px;
       background: rgba(0,0,0,.18);
       overflow: hidden;
-    }}
-    summary {{
+    }
+    summary {
       list-style: none;
       cursor: pointer;
       padding: 16px 18px;
@@ -2964,54 +2961,54 @@ def render_index() -> str:
       justify-content: space-between;
       gap: 12px;
       color: var(--text);
-    }}
-    summary::-webkit-details-marker {{ display: none; }}
-    summary::after {{
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::after {
       content: '+';
       font-size: 20px;
       font-weight: 400;
       color: var(--brand2);
       transition: transform .2s ease;
       flex-shrink: 0;
-    }}
-    details[open] summary::after {{ transform: rotate(45deg); }}
-    details[open] summary {{ border-bottom: 1px solid var(--line); }}
-    .faq-body {{ padding: 16px 18px 20px; color: var(--muted); line-height: 1.7; font-size: 14.5px; }}
-    .faq-body p {{ margin: 0 0 12px; }}
-    .faq-body p:last-child {{ margin-bottom: 0; }}
-    .faq-body table {{ width: 100%; border-collapse: collapse; margin: 10px 0 14px; border-radius: 12px; overflow: hidden; }}
-    .faq-body th, .faq-body td {{ text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 13.5px; }}
-    .faq-body th {{ color: var(--text); background: rgba(255,255,255,.06); }}
-    .faq-body strong {{ color: #dbe2f2; }}
-    .closing {{ margin-top: 26px; text-align: center; color: var(--muted); }}
-    footer {{ border-top: 1px solid var(--line); margin-top: 36px; padding: 24px 0 36px; color: var(--muted); }}
-    .toast {{ position: fixed; right: 18px; bottom: 18px; background: #102018; color: #d9ffe8; border: 1px solid rgba(51,214,166,.38); padding: 12px 14px; border-radius: 14px; opacity:0; transform: translateY(100px); transition: all .3s ease; z-index: 999; }}
-    .toast.show {{ opacity:1; transform: translateY(0); }}
-    .status-badge {{
+    }
+    details[open] summary::after { transform: rotate(45deg); }
+    details[open] summary { border-bottom: 1px solid var(--line); }
+    .faq-body { padding: 16px 18px 20px; color: var(--muted); line-height: 1.7; font-size: 14.5px; }
+    .faq-body p { margin: 0 0 12px; }
+    .faq-body p:last-child { margin-bottom: 0; }
+    .faq-body table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; border-radius: 12px; overflow: hidden; }
+    .faq-body th, .faq-body td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 13.5px; }
+    .faq-body th { color: var(--text); background: rgba(255,255,255,.06); }
+    .faq-body strong { color: #dbe2f2; }
+    .closing { margin-top: 26px; text-align: center; color: var(--muted); }
+    footer { border-top: 1px solid var(--line); margin-top: 36px; padding: 24px 0 36px; color: var(--muted); }
+    .toast { position: fixed; right: 18px; bottom: 18px; background: #102018; color: #d9ffe8; border: 1px solid rgba(51,214,166,.38); padding: 12px 14px; border-radius: 14px; opacity:0; transform: translateY(100px); transition: all .3s ease; z-index: 999; }
+    .toast.show { opacity:1; transform: translateY(0); }
+    .status-badge {
       display: inline-block;
       padding: 4px 10px;
       border-radius: 999px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
-    }}
-    .status-pending {{ background: rgba(255,204,102,.15); color: var(--warn); }}
-    .status-paid {{ background: rgba(51,214,166,.15); color: var(--brand2); }}
-    .status-cancelled {{ background: rgba(255,107,122,.15); color: var(--danger); }}
-    .status-verified {{ background: rgba(155,140,255,.15); color: var(--brand); }}
-    .status-confirmada {{ background: rgba(51,214,166,.15); color: var(--brand2); }}
-    .status-cancelada {{ background: rgba(255,107,122,.15); color: var(--danger); }}
-    .cat-urgente {{ background: rgba(255,107,122,.15); color: var(--danger); }}
-    .cat-ventas {{ background: rgba(51,214,166,.15); color: var(--brand2); }}
-    .cat-administrativo {{ background: rgba(155,140,255,.15); color: var(--brand); }}
-    .cat-spam {{ background: rgba(255,255,255,.1); color: var(--muted); }}
-    .cat-general {{ background: rgba(255,204,102,.15); color: var(--warn); }}
-    .priority-alta {{ background: rgba(255,107,122,.15); color: var(--danger); }}
-    .priority-media {{ background: rgba(255,204,102,.15); color: var(--warn); }}
-    .priority-baja {{ background: rgba(255,255,255,.1); color: var(--muted); }}
-    @media (max-width: 850px) {{
-      .hero, .grid.two {{ grid-template-columns: 1fr; }}
-      .navlinks {{ display:none; }}
-    }}
+    }
+    .status-pending { background: rgba(255,204,102,.15); color: var(--warn); }
+    .status-paid { background: rgba(51,214,166,.15); color: var(--brand2); }
+    .status-cancelled { background: rgba(255,107,122,.15); color: var(--danger); }
+    .status-verified { background: rgba(155,140,255,.15); color: var(--brand); }
+    .status-confirmada { background: rgba(51,214,166,.15); color: var(--brand2); }
+    .status-cancelada { background: rgba(255,107,122,.15); color: var(--danger); }
+    .cat-urgente { background: rgba(255,107,122,.15); color: var(--danger); }
+    .cat-ventas { background: rgba(51,214,166,.15); color: var(--brand2); }
+    .cat-administrativo { background: rgba(155,140,255,.15); color: var(--brand); }
+    .cat-spam { background: rgba(255,255,255,.1); color: var(--muted); }
+    .cat-general { background: rgba(255,204,102,.15); color: var(--warn); }
+    .priority-alta { background: rgba(255,107,122,.15); color: var(--danger); }
+    .priority-media { background: rgba(255,204,102,.15); color: var(--warn); }
+    .priority-baja { background: rgba(255,255,255,.1); color: var(--muted); }
+    @media (max-width: 850px) {
+      .hero, .grid.two { grid-template-columns: 1fr; }
+      .navlinks { display:none; }
+    }
   </style>
 </head>
 <body>
@@ -3022,7 +3019,7 @@ def render_index() -> str:
         <div class="navlinks">
           <a onclick="showSection('dashboard')" class="active">Dashboard</a>
           <a onclick="showSection('diagnostic')">¿Qué necesito?</a>
-          <a onclick="showSection('leads')">Leads y Campañas</a>
+          <a onclick="showSection('leads')">Leads</a>
           <a onclick="showSection('estimator')">Calculadora</a>
           <a onclick="showSection('assistant')">Asistente</a>
           <a onclick="showSection('smartstacks')">SmartStacks</a>
@@ -3047,6 +3044,11 @@ def render_index() -> str:
               Gestión integral de leads, inventario, facturación y asistentes de IA para comercios.
               Incluye automación de email, inventario en tiempo real y consultor estratégico.
             </p>
+            <div class="actions">
+              <button onclick="showSection('diagnostic')">🧭 Diagnóstico</button>
+              <button onclick="showSection('leads')" class="secondary">📋 Leads</button>
+              <button onclick="showSection('smartstacks-demo')" class="secondary">🏪 SmartStacks</button>
+            </div>
           </div>
           <div class="card">
             <h3>Estado del Sistema</h3>
@@ -3104,7 +3106,6 @@ def render_index() -> str:
 
       <section id="leads">
         <h2>📋 Leads y Campañas</h2>
-        <h3 style="margin-top:0; color: var(--muted); font-weight:600; font-size:13px; letter-spacing:.04em; text-transform:uppercase;">1. Registro de leads</h3>
         <div class="grid two">
           <div class="card">
             <h3>Últimas oportunidades</h3>
@@ -3126,29 +3127,6 @@ def render_index() -> str:
               <div class="full"><label>Presupuesto</label><input name="budget" required></div>
               <div class="full"><label>Dolor</label><textarea name="pain" required></textarea></div>
               <div class="full"><button type="submit">Guardar lead</button></div>
-            </form>
-          </div>
-        </div>
-        <h3 style="margin-top:32px; color: var(--muted); font-weight:600; font-size:13px; letter-spacing:.04em; text-transform:uppercase;">2. Envío de campañas</h3>
-        <div class="grid two">
-          <div class="card">
-            <h3>Email masivo (múltiples leads)</h3>
-            <form id="emailForm" class="formgrid">
-              <div class="full"><label for="emailSubject">Asunto</label><input id="emailSubject" name="subject" required></div>
-              <div class="full"><label for="emailBody">Cuerpo (usa {{name}} y {{email}})</label><textarea id="emailBody" name="body" required>Hola {{name}},
-
-Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</textarea></div>
-              <div class="full"><label>Selecciona leads:</label><div id="leadCheckboxes"></div></div>
-              <div class="full"><button type="submit">Enviar campaña</button></div>
-            </form>
-          </div>
-          <div class="card">
-            <h3>Email individual (un lead)</h3>
-            <form id="singleEmailForm" class="formgrid">
-              <div class="full"><label for="singleLeadSelect">Lead</label><select id="singleLeadSelect" name="lead_id" required></select></div>
-              <div class="full"><label for="singleEmailSubject">Asunto</label><input id="singleEmailSubject" name="subject" required></div>
-              <div class="full"><label for="singleEmailBody">Mensaje</label><textarea id="singleEmailBody" name="body" required>Hola {{name}}...</textarea></div>
-              <div class="full"><button type="submit">Enviar email</button></div>
             </form>
           </div>
         </div>
@@ -3415,10 +3393,8 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
           </div>
           <div class="card">
             <h3>📦 Inventario Rápido</h3>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 120px; overflow-y: auto;">
-              <div id="ssInventoryPreview">
-                <p style="color: var(--muted); font-size: 12px;">Cargando productos...</p>
-              </div>
+            <div id="ssInventoryPreview" style="max-height: 120px; overflow-y: auto;">
+              <p style="color: var(--muted); font-size: 12px;">Cargando productos...</p>
             </div>
             <button onclick="showFullInventory()" class="btn secondary" style="width: 100%; margin-top: 8px; font-size: 12px;">
               📋 Ver Inventario Completo
@@ -3468,11 +3444,7 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
             <div id="ssCurrentStep">
               <h4 id="ssStepTitle">1. Cargar el Inventario Local</h4>
               <p id="ssStepDesc">Subimos los datos de tu negocio: productos, códigos, precios y descripciones.</p>
-              <div id="ssStepDetails">
-                <ul style="color: var(--muted); list-style: none; padding: 0;">
-                  <li style="padding: 4px 0;">⏳ Cargando detalles del paso...</li>
-                </ul>
-              </div>
+              <div id="ssStepDetails"></div>
             </div>
             
             <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
@@ -3615,11 +3587,7 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
             <div id="mdCurrentStep">
               <h4 id="mdStepTitle">1. Configurar el Proxy LiteLLM</h4>
               <p id="mdStepDesc">Instalamos y configuramos LiteLLM como proxy unificado para administrar múltiples modelos GPT.</p>
-              <div id="mdStepDetails">
-                <ul style="color: var(--muted); list-style: none; padding: 0;">
-                  <li style="padding: 4px 0;">⏳ Cargando detalles del paso...</li>
-                </ul>
-              </div>
+              <div id="mdStepDetails"></div>
             </div>
             
             <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
@@ -3665,8 +3633,7 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
       <section id="demo">
         <h2>🚀 Simulación de Proyecto Llave en Mano</h2>
         <p class="muted" style="max-width:640px; margin-top:-6px;">
-          Elige un proyecto y te mostraremos paso a paso cómo se construye y funciona. 
-          ¡Interactúa con datos de ejemplo o ingresa los tuyos!
+          Elige un proyecto y te mostraremos paso a paso cómo se construye y funciona.
         </p>
         <div class="grid two" style="margin-bottom: 20px;">
           <div class="card">
@@ -3774,1275 +3741,877 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
     </main>
 
     <footer>
-      <strong>Sabrina AI Lab</strong> · Ejecuta: <code>python3 proyectos/sabrina_ai_lab/app.py</code>
+      <strong>Sabrina AI Lab</strong> · Ejecuta: <code>python3 app.py</code>
     </footer>
   </div>
 
   <div class="toast" id="toast"></div>
 
 <script>
-const state = {state_json};
-let smartstacksState = {{}};
-let middlewareState = {{}};
-let consultingState = {{}};
-
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
-const api = async (url, data) => {{
-  const res = await fetch(url, {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(data)}});
-  return await res.json();
-}};
-const toast = (msg) => {{
-  const el = $('#toast');
-  if (!el) return;
-  el.textContent = msg;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 3000);
-}};
-
-function showSection(id) {{
-  $$('section').forEach(s => s.classList.remove('active'));
-  $$('.navlinks a').forEach(a => a.classList.remove('active'));
-  const section = $(`#${{id}}`);
-  if (section) section.classList.add('active');
-  if (event && event.target) event.target.classList.add('active');
-  
-  if (id === 'invoicing') {{
-    refreshInvoices();
-    refreshBankAccounts();
-  }}
-  if (id === 'middleware') {{
-    refreshMiddleware();
-  }}
-  if (id === 'consulting') {{
-    refreshConsulting();
-  }}
-  if (id === 'smartstacks-demo') {{
-    loadSmartstacksDemo();
-  }}
-  if (id === 'middleware-demo') {{
-    loadMiddlewareDemo();
-  }}
-}}
-
-function renderState() {{
-  const modeStatus = $('#modeStatus');
-  if (modeStatus) {{
-    modeStatus.textContent = state.integrations.email_ready ? 
-      '✓ Email configurado' : 
-      '⚠ Email no configurado';
-  }}
-  
-  const invoiceCount = $('#invoiceCount');
-  if (invoiceCount) {{
-    invoiceCount.textContent = state.metrics.invoices || 0;
-  }}
-  
-  const leadRows = $('#leadRows');
-  if (leadRows) {{
-    leadRows.innerHTML = state.leads && state.leads.length ? state.leads.map(l => `
-      <tr>
-        <td>${{new Date(l.created_at).toLocaleString()}}</td>
-        <td><strong>${{l.business}}</strong></td>
-        <td>${{l.email}}</td>
-        <td>${{l.use_case}}</td>
-      </tr>
-    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin leads registrados</td></tr>';
-  }}
-  
-  const leadCheckboxes = $('#leadCheckboxes');
-  if (leadCheckboxes) {{
-    leadCheckboxes.innerHTML = state.leads && state.leads.length ? state.leads.map(l => `
-      <label><input type="checkbox" class="lead-checkbox" value="${{l.email}}"> <strong>${{l.business}}</strong> (${{l.email}})</label>
-    `).join('<br>') : '<p style="color:var(--muted);">Registra leads primero</p>';
-  }}
-  
-  const singleLeadSelect = $('#singleLeadSelect');
-  if (singleLeadSelect) {{
-    singleLeadSelect.innerHTML = state.leads && state.leads.length ? state.leads.map(l => `
-      <option value="${{l.id}}">${{l.business}} - ${{l.name}}</option>
-    `).join('') : '<option>Sin leads</option>';
-  }}
-
-  const estimateRows = $('#estimateRows');
-  if (estimateRows) {{
-    estimateRows.innerHTML = state.estimates && state.estimates.length ? state.estimates.map(e => `
-      <tr>
-        <td>${{e.use_case}}</td>
-        <td>${{e.interactions}}</td>
-        <td>$${{e.monthly_value}}</td>
-        <td>$${{e.suggested_price}}</td>
-      </tr>
-    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin cálculos aún</td></tr>';
-  }}
-
-  const assistantHistory = $('#assistantHistory');
-  if (assistantHistory) {{
-    assistantHistory.innerHTML = state.assistant_events && state.assistant_events.length ? state.assistant_events.slice().reverse().map(ev => `
-      <div class="conversation user"><strong>Tú (${{ev.channel}}):</strong><p>${{ev.question}}</p></div>
-      <div class="conversation"><strong>Asistente · ${{ev.source}}:</strong><p>${{ev.answer.replace(/\\n/g, '<br>')}}</p></div>
-    `).join('') : '<p class="muted">Sin consultas aún.</p>';
-  }}
-}}
-
-function renderSmartStacks() {{
-  const productCount = $('#productCount');
-  const totalStock = $('#totalStock');
-  if (productCount) productCount.textContent = smartstacksState.metrics?.total_products || 0;
-  if (totalStock) totalStock.textContent = smartstacksState.metrics?.total_stock || 0;
-  
-  const productRows = $('#productRows');
-  if (productRows) {{
-    productRows.innerHTML = smartstacksState.products && smartstacksState.products.length ? smartstacksState.products.map(p => `
-      <tr>
-        <td><strong>${{p.code}}</strong></td>
-        <td>${{p.name}}</td>
-        <td>${{p.quantity}}</td>
-        <td>${{p.price ? '$' + p.price : 'N/A'}}</td>
-        <td><button class="secondary" onclick="deleteProduct(${{p.id}})" style="padding: 6px 8px; font-size: 12px;">Eliminar</button></td>
-      </tr>
-    `).join('') : '<tr><td colspan="5" style="text-align:center;">Sin productos</td></tr>';
-  }}
-  
-  const conversationHistory = $('#conversationHistory');
-  if (conversationHistory) {{
-    conversationHistory.innerHTML = smartstacksState.conversations && smartstacksState.conversations.length ? smartstacksState.conversations.slice().reverse().map(c => `
-      <div class="conversation user">
-        <strong>Tú (${{c.channel}}):</strong>
-        <p>${{c.question}}</p>
-      </div>
-      <div class="conversation">
-        <strong>Asistente:</strong>
-        <p>${{(c.answer || '').replace(/\\n/g, '<br>')}}</p>
-      </div>
-    `).join('') : '<p style="color: var(--muted); text-align: center;">Sin conversaciones aún</p>';
-  }}
-}}
-
-async function refresh() {{
-  try {{
-    const res = await fetch('/api/state');
-    const newState = await res.json();
-    Object.assign(state, newState);
-    renderState();
-  }} catch (e) {{
-    console.error('Error refreshing state:', e);
-  }}
-}}
-
-async function refreshSmartStacks() {{
-  try {{
-    const res = await fetch('/api/smartstacks/state');
-    smartstacksState = await res.json();
-    renderSmartStacks();
-  }} catch (e) {{
-    console.error('Error refreshing smartstacks:', e);
-  }}
-}}
-
-function renderMiddleware() {{
-  const totalMessages = $('#middlewareTotalMessages');
-  const totalCost = $('#middlewareTotalCost');
-  if (totalMessages) totalMessages.textContent = middlewareState.total_messages || 0;
-  if (totalCost) totalCost.textContent = (middlewareState.total_cost || 0).toFixed(5);
-
-  const byChannel = $('#middlewareByChannel');
-  if (byChannel) {{
-    byChannel.innerHTML = middlewareState.by_channel && middlewareState.by_channel.length ? middlewareState.by_channel.map(c => `
-      <tr><td>${{c.channel}}</td><td>${{c.total}}</td><td>$${{c.cost.toFixed(5)}}</td></tr>
-    `).join('') : '<tr><td colspan="3" style="text-align:center;">Sin datos aún</td></tr>';
-  }}
-
-  const history = $('#middlewareHistory');
-  if (history) {{
-    history.innerHTML = middlewareState.messages && middlewareState.messages.length ? middlewareState.messages.map(m => `
-      <div class="conversation user"><strong>Cliente (${{m.channel}}):</strong><p>${{m.customer_message}}</p></div>
-      <div class="conversation"><strong>Respuesta · ${{m.source}} (${{m.tokens_estimated}} tokens ≈ $${{m.cost_estimated}}):</strong><p>${{m.reply.replace(/\\n/g, '<br>')}}</p></div>
-    `).join('') : '<p class="muted">Sin mensajes aún.</p>';
-  }}
-}}
-
-async function refreshMiddleware() {{
-  try {{
-    const res = await fetch('/api/middleware/state');
-    middlewareState = await res.json();
-    renderMiddleware();
-  }} catch (e) {{
-    console.error('Error refreshing middleware:', e);
-  }}
-}}
-
-function renderConsulting() {{
-  const upcomingCount = $('#upcomingCount');
-  if (upcomingCount) upcomingCount.textContent = consultingState.upcoming_count || 0;
-
-  const emailRows = $('#emailClassifyRows');
-  if (emailRows) {{
-    emailRows.innerHTML = consultingState.emails && consultingState.emails.length ? consultingState.emails.map(e => `
-      <tr>
-        <td>${{e.subject}}</td>
-        <td><span class="status-badge cat-${{e.category}}">${{e.category}}</span></td>
-        <td><span class="status-badge priority-${{e.priority}}">${{e.priority}}</span></td>
-      </tr>
-    `).join('') : '<tr><td colspan="3" style="text-align:center;">Sin correos clasificados</td></tr>';
-  }}
-
-  const appointmentRows = $('#appointmentRows');
-  if (appointmentRows) {{
-    appointmentRows.innerHTML = consultingState.appointments && consultingState.appointments.length ? consultingState.appointments.map(a => `
-      <tr>
-        <td>${{a.appointment_date}} ${{a.appointment_time}}</td>
-        <td>${{a.client_name}}</td>
-        <td><span class="status-badge status-${{a.status}}">${{a.status}}</span></td>
-        <td>${{a.status === 'confirmada' ? `<button class="secondary" onclick="cancelAppointment(${{a.id}})" style="padding: 6px 8px; font-size: 12px;">Cancelar</button>` : ''}}</td>
-      </tr>
-    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin citas agendadas</td></tr>';
-  }}
-}}
-
-async function refreshConsulting() {{
-  try {{
-    const res = await fetch('/api/consulting/state');
-    consultingState = await res.json();
-    renderConsulting();
-  }} catch (e) {{
-    console.error('Error refreshing consulting:', e);
-  }}
-}}
-
-async function cancelAppointment(id) {{
-  if (!confirm('¿Cancelar esta cita?')) return;
-  const result = await api('/api/consulting/appointment/cancel', {{ appointment_id: id }});
-  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
-  toast(result.message);
-  refreshConsulting();
-}}
-
-function exportLeadsCSV() {{ window.location.href = '/api/leads/export/csv'; toast('Descargando CSV...'); }}
-function exportLeadsJSON() {{ window.location.href = '/api/leads/export/json'; toast('Descargando JSON...'); }}
-function exportInventoryCSV() {{ window.location.href = '/api/inventory/export/csv'; toast('Descargando CSV...'); }}
-
-async function deleteProduct(id) {{
-  if (!confirm('¿Eliminar este producto?')) return;
-  const result = await api('/api/inventory/product/delete', {{ product_id: id }});
-  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
-  toast(result.message);
-  refreshSmartStacks();
-}}
-
-async function refreshInvoices() {{
-  try {{
-    const res = await fetch('/api/invoices');
-    const data = await res.json();
-    if (!data.ok) {{ toast('Error: ' + data.error); return; }}
-    
-    const invoiceRows = $('#invoiceRows');
-    if (invoiceRows) {{
-      invoiceRows.innerHTML = data.invoices && data.invoices.length ? data.invoices.map(inv => `
-        <tr>
-          <td><strong>${{inv.invoice_number}}</strong></td>
-          <td>${{inv.customer_name}}</td>
-          <td>$${{inv.total.toFixed(2)}}</td>
-          <td><span class="status-badge status-${{inv.status}}">${{inv.status}}</span></td>
-          <td>
-            <button onclick="updateInvoiceStatus(${{inv.id}}, 'verified')" class="secondary" style="padding: 4px 8px; font-size: 11px;">✓ Verificar</button>
-            <button onclick="updateInvoiceStatus(${{inv.id}}, 'cancelled')" class="secondary" style="padding: 4px 8px; font-size: 11px;">✗ Cancelar</button>
-          </td>
-        </tr>
-      `).join('') : '<tr><td colspan="5" style="text-align:center;">Sin facturas</td></tr>';
-    }}
-  }} catch (e) {{
-    console.error('Error refreshing invoices:', e);
-  }}
-}}
-
-async function refreshBankAccounts() {{
-  try {{
-    const res = await fetch('/api/bank-accounts');
-    const data = await res.json();
-    if (!data.ok) {{ toast('Error: ' + data.error); return; }}
-    
-    const select = $('#invoiceBankAccount');
-    if (select) {{
-      select.innerHTML = data.bank_accounts && data.bank_accounts.length ? data.bank_accounts.map(acc => `
-        <option value="${{acc.id}}">${{acc.name}} - ${{acc.bank}} - ${{acc.account_number}}</option>
-      `).join('') : '<option>No hay cuentas activas</option>';
-    }}
-    
-    const bankAccountsList = $('#bankAccountsList');
-    if (bankAccountsList) {{
-      bankAccountsList.innerHTML = data.bank_accounts && data.bank_accounts.length ? data.bank_accounts.map(acc => `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid var(--line);">
-          <div>
-            <strong>${{acc.name}}</strong>
-            <span style="color: var(--muted); font-size: 12px;">${{acc.bank}} - ${{acc.account_number}}</span>
-          </div>
-          <div>
-            <span style="color: var(--brand2); font-size: 12px;">✓ Activa</span>
-            <button onclick="toggleBankAccount(${{acc.id}})" class="secondary" style="padding: 4px 8px; font-size: 11px;">Desactivar</button>
-          </div>
-        </div>
-      `).join('') : '<p style="color: var(--muted);">No hay cuentas bancarias configuradas</p>';
-    }}
-  }} catch (e) {{
-    console.error('Error refreshing bank accounts:', e);
-  }}
-}}
-
-async function toggleBankAccount(accountId) {{
-  if (!confirm('¿Desactivar esta cuenta bancaria?')) return;
-  const result = await api('/api/bank-account/update', {{
-    account_id: accountId,
-    active: 0
-  }});
-  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
-  toast('Cuenta desactivada');
-  refreshBankAccounts();
-}}
-
-async function updateInvoiceStatus(invoiceId, status) {{
-  if (!confirm(`¿Cambiar estado de factura a "${{status}}"?`)) return;
-  const result = await api('/api/invoice/status', {{
-    invoice_id: invoiceId,
-    status: status,
-    verified_by: 'Admin Web'
-  }});
-  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
-  toast(result.message);
-  refreshInvoices();
-}}
-
-async function loadProductsForInvoice() {{
-  try {{
-    const res = await fetch('/api/smartstacks/state');
-    const data = await res.json();
-    const container = $('#invoiceProductSelection');
-    if (!container) return;
-    
-    if (!data.products || !data.products.length) {{
-      container.innerHTML = '<p style="color: var(--muted);">No hay productos disponibles en el inventario.</p>';
-      return;
-    }}
-    
-    container.innerHTML = data.products.map(p => `
-      <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line);">
-        <input type="checkbox" class="invoice-product-checkbox" data-id="${{p.id}}" data-price="${{p.price || 0}}" data-name="${{p.name}}">
-        <span><strong>${{p.code}}</strong> - ${{p.name}}</span>
-        <span style="color: var(--muted); font-size: 12px;">Stock: ${{p.quantity}}</span>
-        <span style="color: var(--brand2);">$${{p.price || 0}}</span>
-        <input type="number" class="invoice-product-qty" data-id="${{p.id}}" value="1" min="1" max="${{p.quantity}}" style="width: 60px; padding: 4px;">
-      </div>
-    `).join('');
-  }} catch (e) {{
-    console.error('Error loading products:', e);
-  }}
-}}
-
 // ============================================
-// CASO 1: SMARTSTACKS DEMO - JavaScript
+// ESTADO GLOBAL Y UTILIDADES
 // ============================================
 
-let smartstacksDemoState = {{
-    currentStep: 0,
-    isComplete: false,
-    stats: {{
-        questions_answered: 0,
-        hours_saved: 0,
-        customer_satisfaction: 0
-    }}
-}};
-
+let state = {};
+let smartstacksState = {};
+let middlewareState = {};
+let consultingState = {};
+let smartstacksDemoState = { currentStep: 0, isComplete: false, stats: { questions_answered: 0, hours_saved: 0, customer_satisfaction: 0 } };
+let middlewareDemoState = { currentStep: 0, isComplete: false, stats: { totalMessages: 0, avgTime: 0, totalCost: 0, hoursSaved: 0 } };
 let ssConversationHistory = [];
-const smartstacksDemo = {smartstacks_demo_json};
-
-async function loadSmartstacksDemo() {{
-    try {{
-        const res = await fetch('/api/smartstacks/demo/state');
-        const data = await res.json();
-        if (data.ok) {{
-            smartstacksDemoState.currentStep = data.current_step || 0;
-            smartstacksDemoState.isComplete = data.is_complete || false;
-            if (data.stats) {{
-                smartstacksDemoState.stats = data.stats;
-            }}
-            updateSmartstacksUI(data);
-            renderSmartstacksInventory(data.demo?.example_products || []);
-        }}
-    }} catch (e) {{
-        console.error('Error loading smartstacks demo:', e);
-    }}
-}}
-
-function updateSmartstacksUI(data) {{
-    const demo = data.demo || {{}};
-    const step = demo.steps && demo.steps[smartstacksDemoState.currentStep];
-    const totalSteps = (demo.steps || []).length;
-    
-    const progress = ((smartstacksDemoState.currentStep) / totalSteps) * 100;
-    const progressBar = $('#ssProgressBar');
-    if (progressBar) progressBar.style.width = Math.min(progress, 100) + '%';
-    
-    const indicator = $('#ssStepIndicator');
-    if (indicator) {{
-        if (smartstacksDemoState.isComplete) {{
-            indicator.textContent = '✅ Completado';
-        }} else {{
-            indicator.textContent = `Paso ${{smartstacksDemoState.currentStep + 1}}/${{totalSteps}}`;
-        }}
-    }}
-    
-    const stats = smartstacksDemoState.stats;
-    const questionsEl = $('#ssQuestions');
-    const hoursEl = $('#ssHours');
-    const satisfactionEl = $('#ssSatisfaction');
-    const avgTimeEl = $('#ssAvgTime');
-    
-    if (questionsEl) questionsEl.textContent = stats.questions_answered || 0;
-    if (hoursEl) hoursEl.textContent = (stats.hours_saved || 0).toFixed(1) + 'h';
-    if (satisfactionEl) satisfactionEl.textContent = (stats.customer_satisfaction || 0) + '%';
-    if (avgTimeEl) avgTimeEl.textContent = (demo.stats?.avg_response_time || 0) + 's';
-    
-    if (step) {{
-        const title = $('#ssStepTitle');
-        const desc = $('#ssStepDesc');
-        const details = $('#ssStepDetails');
-        
-        if (title) title.textContent = step.title;
-        if (desc) desc.textContent = step.desc;
-        
-        if (details) {{
-            let html = '<ul style="color: var(--muted); list-style: none; padding: 0;">';
-            if (step.details) {{
-                step.details.forEach(d => {{
-                    html += `<li style="padding: 4px 0;">✅ ${{d}}</li>`;
-                }});
-            }}
-            html += '</ul>';
-            details.innerHTML = html;
-        }}
-        
-        const btn = $('#ssStepBtn');
-        if (btn) {{
-            if (smartstacksDemoState.isComplete) {{
-                btn.textContent = '🔄 Reiniciar Demo';
-                btn.onclick = resetSmartstacksDemo;
-            }} else {{
-                btn.textContent = `▶️ ${{step.action}}`;
-                btn.onclick = runSmartstacksStep;
-            }}
-        }}
-    }}
-}}
-
-function renderSmartstacksInventory(products) {{
-    const preview = $('#ssInventoryPreview');
-    if (preview && products && products.length) {{
-        const display = products.slice(0, 6);
-        let html = '';
-        display.forEach(p => {{
-            const emoji = p.stock > 10 ? '✅' : p.stock > 0 ? '⚠️' : '❌';
-            html += `<div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12px;">
-                <span><strong>${{p.code}}</strong> ${{p.name}}</span>
-                <span style="color: var(--muted);">${{emoji}} ${{p.stock}}</span>
-            </div>`;
-        }});
-        if (products.length > 6) {{
-            html += `<div style="text-align: center; font-size: 11px; color: var(--muted); padding: 4px;">+ ${{products.length - 6}} productos más</div>`;
-        }}
-        preview.innerHTML = html;
-    }}
-}}
-
-function showFullInventory() {{
-    const modal = $('#ssFullInventoryModal');
-    const content = $('#ssFullInventoryContent');
-    if (!modal || !content) return;
-    
-    const products = smartstacksDemo.example_products || [];
-    let html = '<table><thead><tr><th>Código</th><th>Nombre</th><th>Stock</th><th>Precio</th><th>Descripción</th></tr></thead><tbody>';
-    products.forEach(p => {{
-        html += `<tr>
-            <td><strong>${{p.code}}</strong></td>
-            <td>${{p.name}}</td>
-            <td>${{p.stock}}</td>
-            <td>$${{p.price}}</td>
-            <td style="font-size: 12px;">${{p.description || 'Sin descripción'}}</td>
-        </tr>`;
-    }});
-    html += '</tbody></table>';
-    content.innerHTML = html;
-    modal.style.display = 'block';
-}}
-
-function closeFullInventory() {{
-    const modal = $('#ssFullInventoryModal');
-    if (modal) modal.style.display = 'none';
-}}
-
-async function runSmartstacksStep() {{
-    if (smartstacksDemoState.isComplete) {{
-        resetSmartstacksDemo();
-        return;
-    }}
-    
-    try {{
-        const res = await fetch('/api/smartstacks/demo/step', {{
-            method: 'POST',
-            headers: {{'Content-Type': 'application/json'}},
-            body: JSON.stringify({{
-                step_index: smartstacksDemoState.currentStep
-            }})
-        }});
-        const data = await res.json();
-        
-        if (!data.ok) {{
-            toast('Error: ' + data.error);
-            return;
-        }}
-        
-        smartstacksDemoState.currentStep = data.step_index + 1;
-        smartstacksDemoState.isComplete = data.completed || false;
-        
-        if (data.data && data.data.dashboard) {{
-            smartstacksDemoState.stats.questions_answered = data.data.dashboard.impact.questions_answered || 0;
-            smartstacksDemoState.stats.hours_saved = data.data.dashboard.impact.hours_saved || 0;
-            smartstacksDemoState.stats.customer_satisfaction = data.data.dashboard.impact.customer_satisfaction || 0;
-        }}
-        
-        toast(data.message);
-        loadSmartstacksDemo();
-        
-    }} catch (e) {{
-        console.error('Error running smartstacks step:', e);
-        toast('Error al ejecutar el paso');
-    }}
-}}
-
-function resetSmartstacksDemo() {{
-    smartstacksDemoState.currentStep = 0;
-    smartstacksDemoState.isComplete = false;
-    smartstacksDemoState.stats = {{
-        questions_answered: 0,
-        hours_saved: 0,
-        customer_satisfaction: 0
-    }};
-    ssConversationHistory = [];
-    const conversation = $('#ssConversation');
-    if (conversation) {{
-        conversation.innerHTML = '<p style="color: var(--muted); text-align: center;">Haz una pregunta para ver cómo responde el asistente.</p>';
-    }}
-    toast('🔄 Demo reiniciada');
-    loadSmartstacksDemo();
-}}
-
-async function askSmartAssistant() {{
-    const question = $('#ssQuestion').value.trim();
-    if (!question) {{
-        toast('Escribe una pregunta primero');
-        return;
-    }}
-    
-    try {{
-        const res = await fetch('/api/smartstacks/demo/simulate', {{
-            method: 'POST',
-            headers: {{'Content-Type': 'application/json'}},
-            body: JSON.stringify({{ question: question }})
-        }});
-        const data = await res.json();
-        
-        if (!data.ok) {{
-            toast('Error: ' + data.error);
-            return;
-        }}
-        
-        smartstacksDemoState.stats.questions_answered += 1;
-        smartstacksDemoState.stats.hours_saved += 0.05;
-        smartstacksDemoState.stats.customer_satisfaction = Math.min(100, 
-            smartstacksDemoState.stats.customer_satisfaction + 0.5
-        );
-        
-        $('#ssQuestions').textContent = smartstacksDemoState.stats.questions_answered;
-        $('#ssHours').textContent = smartstacksDemoState.stats.hours_saved.toFixed(1) + 'h';
-        $('#ssSatisfaction').textContent = Math.round(smartstacksDemoState.stats.customer_satisfaction) + '%';
-        
-        const conversation = $('#ssConversation');
-        if (conversation) {{
-            let html = '';
-            ssConversationHistory.push({{ question: question, answer: data.answer, time: data.response_time }});
-            if (ssConversationHistory.length > 5) {{
-                ssConversationHistory.shift();
-            }}
-            
-            ssConversationHistory.slice().reverse().forEach(item => {{
-                html += `
-                    <div class="conversation user">
-                        <strong>👤 Tú:</strong>
-                        <p>"${{item.question}}"</p>
-                        <span style="font-size: 11px; color: var(--muted);">⏱ ${{item.time}}s</span>
-                    </div>
-                    <div class="conversation">
-                        <strong>🤖 Asistente IA:</strong>
-                        <p>${{item.answer.replace(/\\n/g, '<br>')}}</p>
-                    </div>
-                `;
-            }});
-            conversation.innerHTML = html;
-            conversation.scrollTop = 0;
-        }}
-        
-        toast('✅ Respuesta generada en ' + data.response_time + 's');
-        $('#ssQuestion').value = '';
-        
-    }} catch (e) {{
-        console.error('Error asking assistant:', e);
-        toast('Error al procesar la pregunta');
-    }}
-}}
-
-function loadSmartExample(type) {{
-    const examples = {{
-        default: "¿Tienes pernos de anclaje 3/8?",
-        stock: "¿Cuántos martillos tienen en stock?",
-        precio: "¿Cuánto cuesta la tubería PVC?",
-        descripcion: "Dame más información sobre el taladro percutor"
-    }};
-    
-    const questionInput = $('#ssQuestion');
-    if (questionInput) {{
-        questionInput.value = examples[type] || examples.default;
-    }}
-}}
-
-function clearSmartConversation() {{
-    ssConversationHistory = [];
-    const conversation = $('#ssConversation');
-    if (conversation) {{
-        conversation.innerHTML = '<p style="color: var(--muted); text-align: center;">Haz una pregunta para ver cómo responde el asistente.</p>';
-    }}
-    toast('🗑️ Conversación limpiada');
-}}
-
-const ssProductForm = $('#ssProductForm');
-if (ssProductForm) {{
-    ssProductForm.addEventListener('submit', async (e) => {{
-        e.preventDefault();
-        
-        const code = $('#ssProductCode').value.trim();
-        const name = $('#ssProductName').value.trim();
-        const stock = parseInt($('#ssProductStock').value);
-        const price = parseFloat($('#ssProductPrice').value);
-        const description = $('#ssProductDesc').value.trim();
-        
-        if (!code || !name || isNaN(stock) || isNaN(price)) {{
-            toast('Completa todos los campos requeridos');
-            return;
-        }}
-        
-        try {{
-            const res = await fetch('/api/smartstacks/demo/product/add', {{
-                method: 'POST',
-                headers: {{'Content-Type': 'application/json'}},
-                body: JSON.stringify({{ code, name, stock, price, description }})
-            }});
-            const data = await res.json();
-            
-            if (!data.ok) {{
-                toast('Error: ' + data.error);
-                return;
-            }}
-            
-            toast('✅ ' + data.message);
-            ssProductForm.reset();
-            $('#ssProductResult').innerHTML = `
-                <div style="background: rgba(51,214,166,.15); padding: 10px; border-radius: 8px; color: var(--brand2);">
-                    ✅ Producto "${name}" agregado correctamente
-                </div>
-            `;
-            setTimeout(() => $('#ssProductResult').innerHTML = '', 3000);
-            loadSmartstacksDemo();
-            
-        }} catch (e) {{
-            console.error('Error adding product:', e);
-            toast('Error al agregar producto');
-        }}
-    }});
-}}
-
-// ============================================
-// CASO 2: MIDDLEWARE DEMO - JavaScript
-// ============================================
-
-let middlewareDemoState = {{
-    currentStep: 0,
-    isComplete: false,
-    stats: {{
-        totalMessages: 0,
-        avgTime: 0,
-        totalCost: 0,
-        hoursSaved: 0
-    }}
-}};
-
-async function loadMiddlewareDemo() {{
-    try {{
-        const res = await fetch('/api/middleware/demo/state');
-        const data = await res.json();
-        if (data.ok) {{
-            middlewareDemoState.currentStep = data.current_step || 0;
-            middlewareDemoState.isComplete = data.is_complete || false;
-            updateMiddlewareUI(data);
-        }}
-    }} catch (e) {{
-        console.error('Error loading middleware demo:', e);
-    }}
-}}
-
-function updateMiddlewareUI(data) {{
-    const demo = data.demo || {{}};
-    const step = demo.steps && demo.steps[middlewareDemoState.currentStep];
-    const totalSteps = (demo.steps || []).length;
-    
-    const progress = ((middlewareDemoState.currentStep) / totalSteps) * 100;
-    const progressBar = $('#mdProgressBar');
-    if (progressBar) progressBar.style.width = Math.min(progress, 100) + '%';
-    
-    const indicator = $('#mdStepIndicator');
-    if (indicator) {{
-        if (middlewareDemoState.isComplete) {{
-            indicator.textContent = '✅ Completado';
-        }} else {{
-            indicator.textContent = `Paso ${{middlewareDemoState.currentStep + 1}}/${{totalSteps}}`;
-        }}
-    }}
-    
-    if (step) {{
-        const title = $('#mdStepTitle');
-        const desc = $('#mdStepDesc');
-        const details = $('#mdStepDetails');
-        
-        if (title) title.textContent = step.title;
-        if (desc) desc.textContent = step.desc;
-        
-        if (details) {{
-            let html = '<ul style="color: var(--muted); list-style: none; padding: 0;">';
-            if (step.details) {{
-                step.details.forEach(d => {{
-                    html += `<li style="padding: 4px 0;">✅ ${{d}}</li>`;
-                }});
-            }} else if (step.channels) {{
-                step.channels.forEach(ch => {{
-                    html += `<li style="padding: 4px 0;">${{ch.emoji}} <strong>${{ch.name}}</strong>: ${{ch.tone}}</li>`;
-                    html += `<li style="padding: 4px 0 4px 20px; font-size: 13px; color: var(--muted);">"${{ch.example}}"</li>`;
-                }});
-            }}
-            html += '</ul>';
-            details.innerHTML = html;
-        }}
-        
-        const btn = $('#mdStepBtn');
-        if (btn) {{
-            if (middlewareDemoState.isComplete) {{
-                btn.textContent = '🔄 Reiniciar Demo';
-                btn.onclick = resetMiddlewareDemo;
-            }} else {{
-                btn.textContent = `▶️ ${{step.action}}`;
-                btn.onclick = runMiddlewareStep;
-            }}
-        }}
-    }}
-    
-    if (data.demo && data.demo.stats) {{
-        const stats = data.demo.stats;
-        const totalMessages = $('#mdTotalMessages');
-        const avgTime = $('#mdAvgTime');
-        const totalCost = $('#mdTotalCost');
-        const hoursSaved = $('#mdHoursSaved');
-        
-        if (totalMessages) totalMessages.textContent = stats.total_messages || 0;
-        if (avgTime) avgTime.textContent = (stats.avg_response_time || 0) + 's';
-        if (totalCost) totalCost.textContent = '$' + (stats.total_cost || 0).toFixed(2);
-        if (hoursSaved) hoursSaved.textContent = (stats.hours_saved || 0) + 'h';
-        
-        const channelStats = $('#mdChannelStats');
-        if (channelStats && data.demo.channel_stats) {{
-            let html = '<table><thead><tr><th>Canal</th><th>Mensajes</th><th>Tiempo Prom.</th><th>Costo</th></tr></thead><tbody>';
-            data.demo.channel_stats.forEach(ch => {{
-                html += `<tr><td>${{ch.channel}}</td><td>${{ch.messages}}</td><td>${{ch.avg_time}}s</td><td>$${{ch.cost.toFixed(2)}}</td></tr>`;
-            }});
-            html += '</tbody></table>';
-            channelStats.innerHTML = html;
-        }}
-    }}
-}}
-
-async function runMiddlewareStep() {{
-    if (middlewareDemoState.isComplete) {{
-        resetMiddlewareDemo();
-        return;
-    }}
-    
-    try {{
-        const res = await fetch('/api/middleware/demo/step', {{
-            method: 'POST',
-            headers: {{'Content-Type': 'application/json'}},
-            body: JSON.stringify({{
-                step_index: middlewareDemoState.currentStep
-            }})
-        }});
-        const data = await res.json();
-        
-        if (!data.ok) {{
-            toast('Error: ' + data.error);
-            return;
-        }}
-        
-        middlewareDemoState.currentStep = data.step_index + 1;
-        middlewareDemoState.isComplete = data.completed || false;
-        
-        if (data.data && data.data.dashboard) {{
-            updateMiddlewareDashboard(data.data.dashboard);
-        }}
-        
-        toast(data.message);
-        loadMiddlewareDemo();
-        
-    }} catch (e) {{
-        console.error('Error running middleware step:', e);
-        toast('Error al ejecutar el paso');
-    }}
-}}
-
-function updateMiddlewareDashboard(dashboard) {{
-    if (dashboard.stats) {{
-        const stats = dashboard.stats;
-        $('#mdTotalMessages').textContent = stats.total_messages || 0;
-        $('#mdAvgTime').textContent = (stats.avg_response_time || 0) + 's';
-        $('#mdTotalCost').textContent = '$' + (stats.total_cost || 0).toFixed(2);
-        $('#mdHoursSaved').textContent = (stats.hours_saved || 0) + 'h';
-    }}
-    
-    if (dashboard.channel_stats) {{
-        const channelStats = $('#mdChannelStats');
-        if (channelStats) {{
-            let html = '<table><thead><tr><th>Canal</th><th>Mensajes</th><th>Tiempo Prom.</th><th>Costo</th></tr></thead><tbody>';
-            dashboard.channel_stats.forEach(ch => {{
-                html += `<tr><td>${{ch.channel}}</td><td>${{ch.messages}}</td><td>${{ch.avg_time}}s</td><td>$${{ch.cost.toFixed(2)}}</td></tr>`;
-            }});
-            html += '</tbody></table>';
-            channelStats.innerHTML = html;
-        }}
-    }}
-    
-    if (dashboard.recent_messages) {{
-        const examples = $('#mdExamples');
-        if (examples) {{
-            let html = '';
-            dashboard.recent_messages.forEach((msg, index) => {{
-                const emojis = {{'WhatsApp': '📱', 'Instagram': '📸', 'Email': '📧', 'Web': '🌐'}};
-                const emoji = emojis[msg.channel] || '💬';
-                html += `
-                    <div class="conversation user">
-                        <strong>${{emoji}} ${{msg.channel}}:</strong>
-                        <p>"${{msg.message}}"</p>
-                        <span style="font-size: 11px; color: var(--muted);">${{msg.time}}</span>
-                    </div>
-                    <div class="conversation">
-                        <strong>🤖 Respuesta:</strong>
-                        <p>"${{msg.response}}"</p>
-                        <span style="font-size: 11px; color: var(--muted);">🧠 ${{msg.tokens}} tokens · 💰 $${{msg.cost.toFixed(5)}}</span>
-                    </div>
-                `;
-                if (index < dashboard.recent_messages.length - 1) {{
-                    html += '<hr style="border-color: var(--line); margin: 12px 0;">';
-                }}
-            }});
-            examples.innerHTML = html;
-        }}
-    }}
-}}
-
-function resetMiddlewareDemo() {{
-    middlewareDemoState.currentStep = 0;
-    middlewareDemoState.isComplete = false;
-    toast('🔄 Demo reiniciada');
-    loadMiddlewareDemo();
-}}
-
-async function simulateMiddlewareMessage() {{
-    const channel = $('#mdChannel').value;
-    const tone = $('#mdTone').value.trim();
-    const message = $('#mdMessage').value.trim();
-    
-    if (!message) {{
-        toast('Escribe un mensaje para simular');
-        return;
-    }}
-    
-    try {{
-        const res = await fetch('/api/middleware/demo/simulate', {{
-            method: 'POST',
-            headers: {{'Content-Type': 'application/json'}},
-            body: JSON.stringify({{
-                channel: channel,
-                message: message,
-                tone: tone
-            }})
-        }});
-        const data = await res.json();
-        
-        if (!data.ok) {{
-            toast('Error: ' + data.error);
-            return;
-        }}
-        
-        const resultDiv = $('#mdSimulationResult');
-        if (resultDiv) {{
-            resultDiv.style.display = 'block';
-            $('#mdResultChannel').textContent = data.channel || 'WhatsApp';
-            $('#mdResultTime').textContent = data.response_time || 0;
-            $('#mdResultCost').textContent = data.cost || 0;
-            $('#mdResultMessage').textContent = message;
-            $('#mdResultResponse').textContent = data.response || 'No se pudo generar respuesta';
-            $('#mdResultSource').textContent = data.source || 'simulada';
-            $('#mdResultTokens').textContent = data.tokens || 0;
-            
-            if (data.tokens) {{
-                middlewareDemoState.stats.totalMessages += 1;
-                middlewareDemoState.stats.totalCost += data.cost || 0;
-                middlewareDemoState.stats.avgTime = (middlewareDemoState.stats.avgTime + (data.response_time || 0)) / 2;
-                middlewareDemoState.stats.hoursSaved += 0.05;
-                
-                const totalMessages = $('#mdTotalMessages');
-                const avgTime = $('#mdAvgTime');
-                const totalCost = $('#mdTotalCost');
-                const hoursSaved = $('#mdHoursSaved');
-                
-                if (totalMessages) totalMessages.textContent = middlewareDemoState.stats.totalMessages;
-                if (avgTime) avgTime.textContent = middlewareDemoState.stats.avgTime.toFixed(1) + 's';
-                if (totalCost) totalCost.textContent = '$' + middlewareDemoState.stats.totalCost.toFixed(4);
-                if (hoursSaved) hoursSaved.textContent = middlewareDemoState.stats.hoursSaved.toFixed(1) + 'h';
-            }}
-            
-            toast('✅ Respuesta generada exitosamente');
-        }}
-    }} catch (e) {{
-        console.error('Error simulating message:', e);
-        toast('Error al simular mensaje');
-    }}
-}}
-
-function loadMiddlewareExample() {{
-    const examples = [
-        "Hola, ¿tienen envío a domicilio?",
-        "Me encantó el producto, ¿hay descuento por primera compra?",
-        "Quisiera una cotización para 50 unidades.",
-        "¿Cómo funciona el sistema de garantía?",
-        "Necesito ayuda con mi pedido #1234",
-        "¿Qué horario tienen para atención al cliente?"
-    ];
-    
-    const randomExample = examples[Math.floor(Math.random() * examples.length)];
-    const messageInput = $('#mdMessage');
-    if (messageInput) messageInput.value = randomExample;
-    
-    toast('📋 Ejemplo cargado');
-}}
-
-// ============================================
-// DEMO DE PROYECTOS - JavaScript
-// ============================================
-
 let currentDemoId = null;
 let currentStep = 0;
 let demoData = [];
 let isUsingUserData = false;
 
-async function selectDemo(demoId) {{
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+const api = async (url, data) => {
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  return await res.json();
+};
+
+const toast = (msg) => {
+  const el = $('#toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+};
+
+function showSection(id) {
+  $$('section').forEach(s => s.classList.remove('active'));
+  $$('.navlinks a').forEach(a => a.classList.remove('active'));
+  const section = $(`#${id}`);
+  if (section) section.classList.add('active');
+  const navLink = document.querySelector(`.navlinks a[onclick*="${id}"]`);
+  if (navLink) navLink.classList.add('active');
+  
+  if (id === 'invoicing') { refreshInvoices(); refreshBankAccounts(); }
+  if (id === 'middleware') { refreshMiddleware(); }
+  if (id === 'consulting') { refreshConsulting(); }
+  if (id === 'smartstacks-demo') { loadSmartstacksDemo(); }
+  if (id === 'middleware-demo') { loadMiddlewareDemo(); }
+}
+
+// ============================================
+// FUNCIONES DE RENDERIZADO
+// ============================================
+
+function renderState() {
+  const modeStatus = $('#modeStatus');
+  if (modeStatus) {
+    modeStatus.textContent = state.integrations?.email_ready ? '✓ Email configurado' : '⚠ Email no configurado';
+  }
+  const invoiceCount = $('#invoiceCount');
+  if (invoiceCount) {
+    invoiceCount.textContent = state.metrics?.invoices || 0;
+  }
+  const leadRows = $('#leadRows');
+  if (leadRows) {
+    leadRows.innerHTML = state.leads?.length ? state.leads.map(l => `
+      <tr>
+        <td>${new Date(l.created_at).toLocaleString()}</td>
+        <td><strong>${l.business}</strong></td>
+        <td>${l.email}</td>
+        <td>${l.use_case}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin leads registrados</td></tr>';
+  }
+  const estimateRows = $('#estimateRows');
+  if (estimateRows) {
+    estimateRows.innerHTML = state.estimates?.length ? state.estimates.map(e => `
+      <tr>
+        <td>${e.use_case}</td>
+        <td>${e.interactions}</td>
+        <td>$${e.monthly_value}</td>
+        <td>$${e.suggested_price}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin cálculos aún</td></tr>';
+  }
+  const assistantHistory = $('#assistantHistory');
+  if (assistantHistory) {
+    assistantHistory.innerHTML = state.assistant_events?.length ? state.assistant_events.slice().reverse().map(ev => `
+      <div class="conversation user"><strong>Tú (${ev.channel}):</strong><p>${ev.question}</p></div>
+      <div class="conversation"><strong>Asistente · ${ev.source}:</strong><p>${ev.answer.replace(/\\n/g, '<br>')}</p></div>
+    `).join('') : '<p class="muted">Sin consultas aún.</p>';
+  }
+}
+
+function renderSmartStacks() {
+  const productCount = $('#productCount');
+  const totalStock = $('#totalStock');
+  if (productCount) productCount.textContent = smartstacksState.metrics?.total_products || 0;
+  if (totalStock) totalStock.textContent = smartstacksState.metrics?.total_stock || 0;
+  const productRows = $('#productRows');
+  if (productRows) {
+    productRows.innerHTML = smartstacksState.products?.length ? smartstacksState.products.map(p => `
+      <tr>
+        <td><strong>${p.code}</strong></td>
+        <td>${p.name}</td>
+        <td>${p.quantity}</td>
+        <td>${p.price ? '$' + p.price : 'N/A'}</td>
+        <td><button class="secondary" onclick="deleteProduct(${p.id})" style="padding: 6px 8px; font-size: 12px;">Eliminar</button></td>
+      </tr>
+    `).join('') : '<tr><td colspan="5" style="text-align:center;">Sin productos</td></tr>';
+  }
+  const conversationHistory = $('#conversationHistory');
+  if (conversationHistory) {
+    conversationHistory.innerHTML = smartstacksState.conversations?.length ? smartstacksState.conversations.slice().reverse().map(c => `
+      <div class="conversation user"><strong>Tú (${c.channel}):</strong><p>${c.question}</p></div>
+      <div class="conversation"><strong>Asistente:</strong><p>${(c.answer || '').replace(/\\n/g, '<br>')}</p></div>
+    `).join('') : '<p style="color: var(--muted); text-align: center;">Sin conversaciones aún</p>';
+  }
+}
+
+function renderMiddleware() {
+  const totalMessages = $('#middlewareTotalMessages');
+  const totalCost = $('#middlewareTotalCost');
+  if (totalMessages) totalMessages.textContent = middlewareState.total_messages || 0;
+  if (totalCost) totalCost.textContent = (middlewareState.total_cost || 0).toFixed(5);
+  const byChannel = $('#middlewareByChannel');
+  if (byChannel) {
+    byChannel.innerHTML = middlewareState.by_channel?.length ? middlewareState.by_channel.map(c => `
+      <tr><td>${c.channel}</td><td>${c.total}</td><td>$${c.cost.toFixed(5)}</td></tr>
+    `).join('') : '<tr><td colspan="3" style="text-align:center;">Sin datos aún</td></tr>';
+  }
+  const history = $('#middlewareHistory');
+  if (history) {
+    history.innerHTML = middlewareState.messages?.length ? middlewareState.messages.map(m => `
+      <div class="conversation user"><strong>Cliente (${m.channel}):</strong><p>${m.customer_message}</p></div>
+      <div class="conversation"><strong>Respuesta · ${m.source} (${m.tokens_estimated} tokens ≈ $${m.cost_estimated}):</strong><p>${m.reply.replace(/\\n/g, '<br>')}</p></div>
+    `).join('') : '<p class="muted">Sin mensajes aún.</p>';
+  }
+}
+
+function renderConsulting() {
+  const upcomingCount = $('#upcomingCount');
+  if (upcomingCount) upcomingCount.textContent = consultingState.upcoming_count || 0;
+  const emailRows = $('#emailClassifyRows');
+  if (emailRows) {
+    emailRows.innerHTML = consultingState.emails?.length ? consultingState.emails.map(e => `
+      <tr>
+        <td>${e.subject}</td>
+        <td><span class="status-badge cat-${e.category}">${e.category}</span></td>
+        <td><span class="status-badge priority-${e.priority}">${e.priority}</span></td>
+      </tr>
+    `).join('') : '<tr><td colspan="3" style="text-align:center;">Sin correos clasificados</td></tr>';
+  }
+  const appointmentRows = $('#appointmentRows');
+  if (appointmentRows) {
+    appointmentRows.innerHTML = consultingState.appointments?.length ? consultingState.appointments.map(a => `
+      <tr>
+        <td>${a.appointment_date} ${a.appointment_time}</td>
+        <td>${a.client_name}</td>
+        <td><span class="status-badge status-${a.status}">${a.status}</span></td>
+        <td>${a.status === 'confirmada' ? `<button class="secondary" onclick="cancelAppointment(${a.id})" style="padding: 6px 8px; font-size: 12px;">Cancelar</button>` : ''}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin citas agendadas</td></tr>';
+  }
+}
+
+// ============================================
+// FUNCIONES DE REFRESH
+// ============================================
+
+async function refresh() {
+  try {
+    const res = await fetch('/api/state');
+    state = await res.json();
+    renderState();
+  } catch (e) { console.error('Error refreshing state:', e); }
+}
+
+async function refreshSmartStacks() {
+  try {
+    const res = await fetch('/api/smartstacks/state');
+    smartstacksState = await res.json();
+    renderSmartStacks();
+  } catch (e) { console.error('Error refreshing smartstacks:', e); }
+}
+
+async function refreshMiddleware() {
+  try {
+    const res = await fetch('/api/middleware/state');
+    middlewareState = await res.json();
+    renderMiddleware();
+  } catch (e) { console.error('Error refreshing middleware:', e); }
+}
+
+async function refreshConsulting() {
+  try {
+    const res = await fetch('/api/consulting/state');
+    consultingState = await res.json();
+    renderConsulting();
+  } catch (e) { console.error('Error refreshing consulting:', e); }
+}
+
+async function refreshInvoices() {
+  try {
+    const res = await fetch('/api/invoices');
+    const data = await res.json();
+    if (!data.ok) { toast('Error: ' + data.error); return; }
+    const invoiceRows = $('#invoiceRows');
+    if (invoiceRows) {
+      invoiceRows.innerHTML = data.invoices?.length ? data.invoices.map(inv => `
+        <tr>
+          <td><strong>${inv.invoice_number}</strong></td>
+          <td>${inv.customer_name}</td>
+          <td>$${inv.total.toFixed(2)}</td>
+          <td><span class="status-badge status-${inv.status}">${inv.status}</span></td>
+          <td>
+            <button onclick="updateInvoiceStatus(${inv.id}, 'verified')" class="secondary" style="padding: 4px 8px; font-size: 11px;">✓ Verificar</button>
+            <button onclick="updateInvoiceStatus(${inv.id}, 'cancelled')" class="secondary" style="padding: 4px 8px; font-size: 11px;">✗ Cancelar</button>
+          </td>
+        </tr>
+      `).join('') : '<tr><td colspan="5" style="text-align:center;">Sin facturas</td></tr>';
+    }
+  } catch (e) { console.error('Error refreshing invoices:', e); }
+}
+
+async function refreshBankAccounts() {
+  try {
+    const res = await fetch('/api/bank-accounts');
+    const data = await res.json();
+    if (!data.ok) { toast('Error: ' + data.error); return; }
+    const select = $('#invoiceBankAccount');
+    if (select) {
+      select.innerHTML = data.bank_accounts?.length ? data.bank_accounts.map(acc => `
+        <option value="${acc.id}">${acc.name} - ${acc.bank}</option>
+      `).join('') : '<option>No hay cuentas activas</option>';
+    }
+    const bankAccountsList = $('#bankAccountsList');
+    if (bankAccountsList) {
+      bankAccountsList.innerHTML = data.bank_accounts?.length ? data.bank_accounts.map(acc => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid var(--line);">
+          <div><strong>${acc.name}</strong> <span style="color: var(--muted); font-size: 12px;">${acc.bank}</span></div>
+          <div><span style="color: var(--brand2); font-size: 12px;">✓ Activa</span></div>
+        </div>
+      `).join('') : '<p style="color: var(--muted);">No hay cuentas bancarias configuradas</p>';
+    }
+  } catch (e) { console.error('Error refreshing bank accounts:', e); }
+}
+
+// ============================================
+// EXPORT FUNCTIONS
+// ============================================
+
+function exportLeadsCSV() { window.location.href = '/api/leads/export/csv'; toast('Descargando CSV...'); }
+function exportLeadsJSON() { window.location.href = '/api/leads/export/json'; toast('Descargando JSON...'); }
+function exportInventoryCSV() { window.location.href = '/api/inventory/export/csv'; toast('Descargando CSV...'); }
+
+async function deleteProduct(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  const result = await api('/api/inventory/product/delete', { product_id: id });
+  if (!result.ok) { toast('Error: ' + result.error); return; }
+  toast(result.message);
+  refreshSmartStacks();
+}
+
+async function updateInvoiceStatus(invoiceId, status) {
+  if (!confirm(`¿Cambiar estado de factura a "${status}"?`)) return;
+  const result = await api('/api/invoice/status', { invoice_id: invoiceId, status: status, verified_by: 'Admin Web' });
+  if (!result.ok) { toast('Error: ' + result.error); return; }
+  toast(result.message);
+  refreshInvoices();
+}
+
+async function cancelAppointment(id) {
+  if (!confirm('¿Cancelar esta cita?')) return;
+  const result = await api('/api/consulting/appointment/cancel', { appointment_id: id });
+  if (!result.ok) { toast('Error: ' + result.error); return; }
+  toast(result.message);
+  refreshConsulting();
+}
+
+async function loadProductsForInvoice() {
+  try {
+    const res = await fetch('/api/smartstacks/state');
+    const data = await res.json();
+    const container = $('#invoiceProductSelection');
+    if (!container) return;
+    if (!data.products?.length) {
+      container.innerHTML = '<p style="color: var(--muted);">No hay productos disponibles.</p>';
+      return;
+    }
+    container.innerHTML = data.products.map(p => `
+      <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line);">
+        <input type="checkbox" class="invoice-product-checkbox" data-id="${p.id}" data-price="${p.price || 0}" data-name="${p.name}">
+        <span><strong>${p.code}</strong> - ${p.name}</span>
+        <span style="color: var(--muted); font-size: 12px;">Stock: ${p.quantity}</span>
+        <span style="color: var(--brand2);">$${p.price || 0}</span>
+        <input type="number" class="invoice-product-qty" data-id="${p.id}" value="1" min="1" max="${p.quantity}" style="width: 60px; padding: 4px;">
+      </div>
+    `).join('');
+  } catch (e) { console.error('Error loading products:', e); }
+}
+
+// ============================================
+// CASO 1: SMARTSTACKS DEMO
+// ============================================
+
+async function loadSmartstacksDemo() {
+  try {
+    const res = await fetch('/api/smartstacks/demo/state');
+    const data = await res.json();
+    if (data.ok) {
+      smartstacksDemoState.currentStep = data.current_step || 0;
+      smartstacksDemoState.isComplete = data.is_complete || false;
+      if (data.stats) {
+        smartstacksDemoState.stats = data.stats;
+      }
+      updateSmartstacksUI(data);
+      renderSmartstacksInventory(data.demo?.example_products || []);
+    }
+  } catch (e) { console.error('Error loading smartstacks demo:', e); }
+}
+
+function updateSmartstacksUI(data) {
+  const demo = data.demo || {};
+  const step = demo.steps && demo.steps[smartstacksDemoState.currentStep];
+  const totalSteps = (demo.steps || []).length;
+  const progress = ((smartstacksDemoState.currentStep) / totalSteps) * 100;
+  const progressBar = $('#ssProgressBar');
+  if (progressBar) progressBar.style.width = Math.min(progress, 100) + '%';
+  const indicator = $('#ssStepIndicator');
+  if (indicator) {
+    indicator.textContent = smartstacksDemoState.isComplete ? '✅ Completado' : `Paso ${smartstacksDemoState.currentStep + 1}/${totalSteps}`;
+  }
+  const stats = smartstacksDemoState.stats;
+  const questionsEl = $('#ssQuestions');
+  const hoursEl = $('#ssHours');
+  const satisfactionEl = $('#ssSatisfaction');
+  const avgTimeEl = $('#ssAvgTime');
+  if (questionsEl) questionsEl.textContent = stats.questions_answered || 0;
+  if (hoursEl) hoursEl.textContent = (stats.hours_saved || 0).toFixed(1) + 'h';
+  if (satisfactionEl) satisfactionEl.textContent = (stats.customer_satisfaction || 0) + '%';
+  if (avgTimeEl) avgTimeEl.textContent = (demo.stats?.avg_response_time || 0) + 's';
+  if (step) {
+    const title = $('#ssStepTitle');
+    const desc = $('#ssStepDesc');
+    const details = $('#ssStepDetails');
+    if (title) title.textContent = step.title;
+    if (desc) desc.textContent = step.desc;
+    if (details) {
+      let html = '<ul style="color: var(--muted); list-style: none; padding: 0;">';
+      if (step.details) {
+        step.details.forEach(d => { html += `<li style="padding: 4px 0;">✅ ${d}</li>`; });
+      }
+      html += '</ul>';
+      details.innerHTML = html;
+    }
+    const btn = $('#ssStepBtn');
+    if (btn) {
+      if (smartstacksDemoState.isComplete) {
+        btn.textContent = '🔄 Reiniciar Demo';
+        btn.onclick = resetSmartstacksDemo;
+      } else {
+        btn.textContent = `▶️ ${step.action}`;
+        btn.onclick = runSmartstacksStep;
+      }
+    }
+  }
+}
+
+function renderSmartstacksInventory(products) {
+  const preview = $('#ssInventoryPreview');
+  if (preview && products?.length) {
+    const display = products.slice(0, 6);
+    let html = '';
+    display.forEach(p => {
+      const emoji = p.stock > 10 ? '✅' : p.stock > 0 ? '⚠️' : '❌';
+      html += `<div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12px;">
+        <span><strong>${p.code}</strong> ${p.name}</span>
+        <span style="color: var(--muted);">${emoji} ${p.stock}</span>
+      </div>`;
+    });
+    if (products.length > 6) {
+      html += `<div style="text-align: center; font-size: 11px; color: var(--muted); padding: 4px;">+ ${products.length - 6} productos más</div>`;
+    }
+    preview.innerHTML = html;
+  }
+}
+
+function showFullInventory() {
+  const modal = $('#ssFullInventoryModal');
+  const content = $('#ssFullInventoryContent');
+  if (!modal || !content) return;
+  const products = smartstacksDemoState.demo?.example_products || [];
+  let html = '<table><thead><tr><th>Código</th><th>Nombre</th><th>Stock</th><th>Precio</th><th>Descripción</th></tr></thead><tbody>';
+  products.forEach(p => {
+    html += `<tr><td><strong>${p.code}</strong></td><td>${p.name}</td><td>${p.stock}</td><td>$${p.price}</td><td style="font-size: 12px;">${p.description || 'Sin descripción'}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  content.innerHTML = html;
+  modal.style.display = 'block';
+}
+
+function closeFullInventory() {
+  const modal = $('#ssFullInventoryModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function runSmartstacksStep() {
+  if (smartstacksDemoState.isComplete) { resetSmartstacksDemo(); return; }
+  try {
+    const res = await fetch('/api/smartstacks/demo/step', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ step_index: smartstacksDemoState.currentStep })
+    });
+    const data = await res.json();
+    if (!data.ok) { toast('Error: ' + data.error); return; }
+    smartstacksDemoState.currentStep = data.step_index + 1;
+    smartstacksDemoState.isComplete = data.completed || false;
+    if (data.data?.dashboard?.impact) {
+      smartstacksDemoState.stats.questions_answered = data.data.dashboard.impact.questions_answered || 0;
+      smartstacksDemoState.stats.hours_saved = data.data.dashboard.impact.hours_saved || 0;
+      smartstacksDemoState.stats.customer_satisfaction = data.data.dashboard.impact.customer_satisfaction || 0;
+    }
+    toast(data.message);
+    loadSmartstacksDemo();
+  } catch (e) { console.error('Error running smartstacks step:', e); toast('Error al ejecutar el paso'); }
+}
+
+function resetSmartstacksDemo() {
+  smartstacksDemoState.currentStep = 0;
+  smartstacksDemoState.isComplete = false;
+  smartstacksDemoState.stats = { questions_answered: 0, hours_saved: 0, customer_satisfaction: 0 };
+  ssConversationHistory = [];
+  const conversation = $('#ssConversation');
+  if (conversation) conversation.innerHTML = '<p style="color: var(--muted); text-align: center;">Haz una pregunta para ver cómo responde el asistente.</p>';
+  toast('🔄 Demo reiniciada');
+  loadSmartstacksDemo();
+}
+
+async function askSmartAssistant() {
+  const question = $('#ssQuestion').value.trim();
+  if (!question) { toast('Escribe una pregunta primero'); return; }
+  try {
+    const res = await fetch('/api/smartstacks/demo/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: question })
+    });
+    const data = await res.json();
+    if (!data.ok) { toast('Error: ' + data.error); return; }
+    smartstacksDemoState.stats.questions_answered += 1;
+    smartstacksDemoState.stats.hours_saved += 0.05;
+    smartstacksDemoState.stats.customer_satisfaction = Math.min(100, smartstacksDemoState.stats.customer_satisfaction + 0.5);
+    $('#ssQuestions').textContent = smartstacksDemoState.stats.questions_answered;
+    $('#ssHours').textContent = smartstacksDemoState.stats.hours_saved.toFixed(1) + 'h';
+    $('#ssSatisfaction').textContent = Math.round(smartstacksDemoState.stats.customer_satisfaction) + '%';
+    const conversation = $('#ssConversation');
+    if (conversation) {
+      let html = '';
+      ssConversationHistory.push({ question: question, answer: data.answer, time: data.response_time });
+      if (ssConversationHistory.length > 5) ssConversationHistory.shift();
+      ssConversationHistory.slice().reverse().forEach(item => {
+        html += `
+          <div class="conversation user"><strong>👤 Tú:</strong><p>"${item.question}"</p><span style="font-size: 11px; color: var(--muted);">⏱ ${item.time}s</span></div>
+          <div class="conversation"><strong>🤖 Asistente IA:</strong><p>${item.answer.replace(/\\n/g, '<br>')}</p></div>
+        `;
+      });
+      conversation.innerHTML = html;
+    }
+    toast('✅ Respuesta generada en ' + data.response_time + 's');
+    $('#ssQuestion').value = '';
+  } catch (e) { console.error('Error asking assistant:', e); toast('Error al procesar la pregunta'); }
+}
+
+function loadSmartExample(type) {
+  const examples = {
+    default: "¿Tienes pernos de anclaje 3/8?",
+    stock: "¿Cuántos martillos tienen en stock?",
+    precio: "¿Cuánto cuesta la tubería PVC?",
+    descripcion: "Dame más información sobre el taladro percutor"
+  };
+  const questionInput = $('#ssQuestion');
+  if (questionInput) questionInput.value = examples[type] || examples.default;
+}
+
+function clearSmartConversation() {
+  ssConversationHistory = [];
+  const conversation = $('#ssConversation');
+  if (conversation) conversation.innerHTML = '<p style="color: var(--muted); text-align: center;">Haz una pregunta para ver cómo responde el asistente.</p>';
+  toast('🗑️ Conversación limpiada');
+}
+
+// ============================================
+// CASO 2: MIDDLEWARE DEMO
+// ============================================
+
+async function loadMiddlewareDemo() {
+  try {
+    const res = await fetch('/api/middleware/demo/state');
+    const data = await res.json();
+    if (data.ok) {
+      middlewareDemoState.currentStep = data.current_step || 0;
+      middlewareDemoState.isComplete = data.is_complete || false;
+      updateMiddlewareUI(data);
+    }
+  } catch (e) { console.error('Error loading middleware demo:', e); }
+}
+
+function updateMiddlewareUI(data) {
+  const demo = data.demo || {};
+  const step = demo.steps && demo.steps[middlewareDemoState.currentStep];
+  const totalSteps = (demo.steps || []).length;
+  const progress = ((middlewareDemoState.currentStep) / totalSteps) * 100;
+  const progressBar = $('#mdProgressBar');
+  if (progressBar) progressBar.style.width = Math.min(progress, 100) + '%';
+  const indicator = $('#mdStepIndicator');
+  if (indicator) {
+    indicator.textContent = middlewareDemoState.isComplete ? '✅ Completado' : `Paso ${middlewareDemoState.currentStep + 1}/${totalSteps}`;
+  }
+  if (step) {
+    const title = $('#mdStepTitle');
+    const desc = $('#mdStepDesc');
+    const details = $('#mdStepDetails');
+    if (title) title.textContent = step.title;
+    if (desc) desc.textContent = step.desc;
+    if (details) {
+      let html = '<ul style="color: var(--muted); list-style: none; padding: 0;">';
+      if (step.details) {
+        step.details.forEach(d => { html += `<li style="padding: 4px 0;">✅ ${d}</li>`; });
+      } else if (step.channels) {
+        step.channels.forEach(ch => {
+          html += `<li style="padding: 4px 0;">${ch.emoji} <strong>${ch.name}</strong>: ${ch.tone}</li>`;
+          html += `<li style="padding: 4px 0 4px 20px; font-size: 13px; color: var(--muted);">"${ch.example}"</li>`;
+        });
+      }
+      html += '</ul>';
+      details.innerHTML = html;
+    }
+    const btn = $('#mdStepBtn');
+    if (btn) {
+      if (middlewareDemoState.isComplete) {
+        btn.textContent = '🔄 Reiniciar Demo';
+        btn.onclick = resetMiddlewareDemo;
+      } else {
+        btn.textContent = `▶️ ${step.action}`;
+        btn.onclick = runMiddlewareStep;
+      }
+    }
+  }
+  if (data.demo?.stats) {
+    const stats = data.demo.stats;
+    const totalMessages = $('#mdTotalMessages');
+    const avgTime = $('#mdAvgTime');
+    const totalCost = $('#mdTotalCost');
+    const hoursSaved = $('#mdHoursSaved');
+    if (totalMessages) totalMessages.textContent = stats.total_messages || 0;
+    if (avgTime) avgTime.textContent = (stats.avg_response_time || 0) + 's';
+    if (totalCost) totalCost.textContent = '$' + (stats.total_cost || 0).toFixed(2);
+    if (hoursSaved) hoursSaved.textContent = (stats.hours_saved || 0) + 'h';
+    const channelStats = $('#mdChannelStats');
+    if (channelStats && data.demo.channel_stats) {
+      let html = '<table><thead><tr><th>Canal</th><th>Mensajes</th><th>Tiempo Prom.</th><th>Costo</th></tr></thead><tbody>';
+      data.demo.channel_stats.forEach(ch => {
+        html += `<tr><td>${ch.channel}</td><td>${ch.messages}</td><td>${ch.avg_time}s</td><td>$${ch.cost.toFixed(2)}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      channelStats.innerHTML = html;
+    }
+  }
+}
+
+async function runMiddlewareStep() {
+  if (middlewareDemoState.isComplete) { resetMiddlewareDemo(); return; }
+  try {
+    const res = await fetch('/api/middleware/demo/step', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ step_index: middlewareDemoState.currentStep })
+    });
+    const data = await res.json();
+    if (!data.ok) { toast('Error: ' + data.error); return; }
+    middlewareDemoState.currentStep = data.step_index + 1;
+    middlewareDemoState.isComplete = data.completed || false;
+    if (data.data?.dashboard) {
+      updateMiddlewareDashboard(data.data.dashboard);
+    }
+    toast(data.message);
+    loadMiddlewareDemo();
+  } catch (e) { console.error('Error running middleware step:', e); toast('Error al ejecutar el paso'); }
+}
+
+function updateMiddlewareDashboard(dashboard) {
+  if (dashboard.stats) {
+    const stats = dashboard.stats;
+    $('#mdTotalMessages').textContent = stats.total_messages || 0;
+    $('#mdAvgTime').textContent = (stats.avg_response_time || 0) + 's';
+    $('#mdTotalCost').textContent = '$' + (stats.total_cost || 0).toFixed(2);
+    $('#mdHoursSaved').textContent = (stats.hours_saved || 0) + 'h';
+  }
+  if (dashboard.channel_stats) {
+    const channelStats = $('#mdChannelStats');
+    if (channelStats) {
+      let html = '<table><thead><tr><th>Canal</th><th>Mensajes</th><th>Tiempo Prom.</th><th>Costo</th></tr></thead><tbody>';
+      dashboard.channel_stats.forEach(ch => {
+        html += `<tr><td>${ch.channel}</td><td>${ch.messages}</td><td>${ch.avg_time}s</td><td>$${ch.cost.toFixed(2)}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      channelStats.innerHTML = html;
+    }
+  }
+}
+
+function resetMiddlewareDemo() {
+  middlewareDemoState.currentStep = 0;
+  middlewareDemoState.isComplete = false;
+  toast('🔄 Demo reiniciada');
+  loadMiddlewareDemo();
+}
+
+async function simulateMiddlewareMessage() {
+  const channel = $('#mdChannel').value;
+  const tone = $('#mdTone').value.trim();
+  const message = $('#mdMessage').value.trim();
+  if (!message) { toast('Escribe un mensaje para simular'); return; }
+  try {
+    const res = await fetch('/api/middleware/demo/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel, message, tone })
+    });
+    const data = await res.json();
+    if (!data.ok) { toast('Error: ' + data.error); return; }
+    const resultDiv = $('#mdSimulationResult');
+    if (resultDiv) {
+      resultDiv.style.display = 'block';
+      $('#mdResultChannel').textContent = data.channel || 'WhatsApp';
+      $('#mdResultTime').textContent = data.response_time || 0;
+      $('#mdResultCost').textContent = data.cost || 0;
+      $('#mdResultMessage').textContent = message;
+      $('#mdResultResponse').textContent = data.response || 'No se pudo generar respuesta';
+      $('#mdResultSource').textContent = data.source || 'simulada';
+      $('#mdResultTokens').textContent = data.tokens || 0;
+      if (data.tokens) {
+        middlewareDemoState.stats.totalMessages += 1;
+        middlewareDemoState.stats.totalCost += data.cost || 0;
+        middlewareDemoState.stats.avgTime = (middlewareDemoState.stats.avgTime + (data.response_time || 0)) / 2;
+        middlewareDemoState.stats.hoursSaved += 0.05;
+        $('#mdTotalMessages').textContent = middlewareDemoState.stats.totalMessages;
+        $('#mdAvgTime').textContent = middlewareDemoState.stats.avgTime.toFixed(1) + 's';
+        $('#mdTotalCost').textContent = '$' + middlewareDemoState.stats.totalCost.toFixed(4);
+        $('#mdHoursSaved').textContent = middlewareDemoState.stats.hoursSaved.toFixed(1) + 'h';
+      }
+      toast('✅ Respuesta generada exitosamente');
+    }
+  } catch (e) { console.error('Error simulating message:', e); toast('Error al simular mensaje'); }
+}
+
+function loadMiddlewareExample() {
+  const examples = [
+    "Hola, ¿tienen envío a domicilio?",
+    "Me encantó el producto, ¿hay descuento por primera compra?",
+    "Quisiera una cotización para 50 unidades.",
+    "¿Cómo funciona el sistema de garantía?"
+  ];
+  const messageInput = $('#mdMessage');
+  if (messageInput) messageInput.value = examples[Math.floor(Math.random() * examples.length)];
+  toast('📋 Ejemplo cargado');
+}
+
+// ============================================
+// DEMO DE PROYECTOS
+// ============================================
+
+async function selectDemo(demoId) {
   currentDemoId = demoId;
   currentStep = 0;
   isUsingUserData = false;
-  
-  const res = await fetch(`/api/demo/data/${{demoId}}`);
+  const res = await fetch(`/api/demo/data/${demoId}`);
   const data = await res.json();
-  if (data.ok) {{
-    demoData = data.data;
-  }}
-  
+  if (data.ok) demoData = data.data;
   const demoSection = $('#demoSimulation');
   if (demoSection) demoSection.style.display = 'block';
-  
   await refreshDemoState();
-  
   const desc = $('#demoDescription');
-  if (desc) {{
+  if (desc) {
     const demos = window.demoConfig || (await (await fetch('/api/demo/state')).json()).demos;
-    if (demos && demos[demoId]) {{
-      desc.innerHTML = `<h4>${{demos[demoId].icon}} ${{demos[demoId].name}}</h4>
-                        <p>${{demos[demoId].description}}</p>`;
-    }}
-  }}
-  
+    if (demos && demos[demoId]) {
+      desc.innerHTML = `<h4>${demos[demoId].icon} ${demos[demoId].name}</h4><p>${demos[demoId].description}</p>`;
+    }
+  }
   await runDemoStep();
-}}
+}
 
-async function refreshDemoState() {{
-  try {{
-    const res = await fetch('/api/demo/state');
-    const state = await res.json();
-  }} catch (e) {{
-    console.error('Error refreshing demo state:', e);
-  }}
-}}
+async function refreshDemoState() {
+  try { await fetch('/api/demo/state'); } catch (e) { console.error('Error refreshing demo state:', e); }
+}
 
-async function runDemoStep() {{
-  if (!currentDemoId) {{
-    toast('Selecciona un proyecto primero.');
-    return;
-  }}
-  
-  const userData = {{}};
-  if (isUsingUserData && currentDemoId === 'whatsapp') {{
+async function runDemoStep() {
+  if (!currentDemoId) { toast('Selecciona un proyecto primero.'); return; }
+  const userData = {};
+  if (isUsingUserData) {
     const input = $('#demoUserDataInput');
-    if (input && input.value) {{
-      try {{
+    if (input && input.value) {
+      try {
         const parsed = JSON.parse(input.value);
-        userData.messages = Array.isArray(parsed) ? parsed : [parsed];
-      }} catch (e) {{
-        userData.messages = [{{ message: input.value }}];
-      }}
-    }}
-  }} else if (isUsingUserData && currentDemoId === 'facturacion') {{
-    const input = $('#demoUserDataInput');
-    if (input && input.value) {{
-      try {{
-        const parsed = JSON.parse(input.value);
-        userData.client = parsed.client || 'Cliente Personalizado';
-        userData.products = parsed.products || [];
-      }} catch (e) {{
-        toast('Error: Los datos deben estar en formato JSON válido.');
-        return;
-      }}
-    }}
-  }}
-  
-  const payload = {{
-    demo_id: currentDemoId,
-    step_index: currentStep,
-    user_data: userData
-  }};
-  
+        if (currentDemoId === 'whatsapp') userData.messages = Array.isArray(parsed) ? parsed : [parsed];
+        else if (currentDemoId === 'facturacion') {
+          userData.client = parsed.client || 'Cliente Personalizado';
+          userData.products = parsed.products || [];
+        }
+      } catch (e) { toast('Error: Los datos deben estar en formato JSON válido.'); return; }
+    }
+  }
+  const payload = { demo_id: currentDemoId, step_index: currentStep, user_data: userData };
   const result = await api('/api/demo/step', payload);
-  
-  if (!result.ok) {{
-    toast('Error en la simulación: ' + result.error);
-    return;
-  }}
-  
+  if (!result.ok) { toast('Error en la simulación: ' + result.error); return; }
   renderDemoStep(result);
   currentStep = result.step_index + 1;
-  
-  if (result.completed) {{
+  if (result.completed) {
     toast('🎉 ¡Proyecto completado! Revisa los resultados.');
     const actionBtn = $('#demoStepActionBtn');
-    if (actionBtn) {{
-      actionBtn.textContent = '🔄 Reiniciar Demo';
-      actionBtn.onclick = resetDemo;
-    }}
-  }}
-}}
+    if (actionBtn) { actionBtn.textContent = '🔄 Reiniciar Demo'; actionBtn.onclick = resetDemo; }
+  }
+}
 
-function renderDemoStep(result) {{
+function renderDemoStep(result) {
   const title = $('#demoStepTitle');
   const desc = $('#demoStepDesc');
   const dataArea = $('#demoDataArea');
   const actionBtn = $('#demoStepActionBtn');
-  
   if (title) title.textContent = result.step.title;
   if (desc) desc.textContent = result.step.desc;
   if (actionBtn) actionBtn.textContent = 'Continuar';
-  
-  if (dataArea) {{
+  if (dataArea) {
     let html = '';
-    
-    if (result.data && result.data.classified_emails) {{
+    if (result.data?.classified_emails) {
       html = '<h4>📬 Correos Clasificados</h4><table><thead><tr><th>Asunto</th><th>Categoría</th><th>Prioridad</th><th>Acción</th></tr></thead><tbody>';
-      result.data.classified_emails.forEach(email => {{
-        html += `<tr><td>${{email.subject}}</td>
-                 <td><span class="status-badge cat-${{email.category}}">${{email.category}}</span></td>
-                 <td><span class="status-badge priority-${{email.priority}}">${{email.priority}}</span></td>
-                 <td>${{email.action}}</td></tr>`;
-      }});
+      result.data.classified_emails.forEach(email => {
+        html += `<tr><td>${email.subject}</td><td><span class="status-badge cat-${email.category}">${email.category}</span></td><td><span class="status-badge priority-${email.priority}">${email.priority}</span></td><td>${email.action}</td></tr>`;
+      });
       html += '</tbody></table>';
-    }} else if (result.data && result.data.appointments) {{
+    } else if (result.data?.appointments) {
       html = '<h4>📅 Citas Agendadas</h4><table><thead><tr><th>Cliente</th><th>Fecha</th><th>Hora</th><th>Estado</th></tr></thead><tbody>';
-      result.data.appointments.forEach(apt => {{
-        html += `<tr><td>${{apt.client}}</td>
-                 <td>${{apt.date}}</td>
-                 <td>${{apt.time}}</td>
-                 <td><span class="status-badge status-${{apt.status}}">${{apt.status}}</span></td></tr>`;
-      }});
+      result.data.appointments.forEach(apt => {
+        html += `<tr><td>${apt.client}</td><td>${apt.date}</td><td>${apt.time}</td><td><span class="status-badge status-${apt.status}">${apt.status}</span></td></tr>`;
+      });
       html += '</tbody></table>';
-    }} else if (result.data && result.data.responses) {{
+    } else if (result.data?.responses) {
       html = '<h4>💬 Respuestas del Asistente</h4>';
-      result.data.responses.forEach(item => {{
-        html += `<div class="conversation user"><strong>Cliente:</strong><p>${{item.message}}</p></div>
-                 <div class="conversation"><strong>Asistente IA:</strong><p>${{item.response}}</p></div>`;
-      }});
-    }} else if (result.data && result.data.invoice) {{
+      result.data.responses.forEach(item => {
+        html += `<div class="conversation user"><strong>Cliente:</strong><p>${item.message}</p></div><div class="conversation"><strong>Asistente IA:</strong><p>${item.response}</p></div>`;
+      });
+    } else if (result.data?.invoice) {
       const inv = result.data.invoice;
-      html = `<h4>🧾 Factura Generada</h4>
-              <p><strong>Número:</strong> ${{inv.number}}</p>
-              <p><strong>Cliente:</strong> ${{inv.client}}</p>
-              <p><strong>Subtotal:</strong> $${{inv.subtotal.toFixed(2)}}</p>
-              <p><strong>IVA (19%):</strong> $${{inv.tax.toFixed(2)}}</p>
-              <p><strong>Total:</strong> <span class="metric">$${{inv.total.toFixed(2)}}</span></p>
-              <p><strong>Estado:</strong> <span class="status-badge status-paid">${{inv.status}}</span></p>`;
-    }} else {{
-      html = `<p style="color: var(--muted);">En este paso, el sistema ${{result.step.action.toLowerCase()}}.</p>
-              <p><small>💡 Usa el botón "Usar mis datos" para personalizar esta simulación.</small></p>`;
-    }}
-    
+      html = `<h4>🧾 Factura Generada</h4><p><strong>Número:</strong> ${inv.number}</p><p><strong>Cliente:</strong> ${inv.client}</p><p><strong>Subtotal:</strong> $${inv.subtotal.toFixed(2)}</p><p><strong>IVA (19%):</strong> $${inv.tax.toFixed(2)}</p><p><strong>Total:</strong> <span class="metric">$${inv.total.toFixed(2)}</span></p><p><strong>Estado:</strong> <span class="status-badge status-paid">${inv.status}</span></p>`;
+    } else {
+      html = `<p style="color: var(--muted);">En este paso, el sistema ${result.step.action.toLowerCase()}.</p><p><small>💡 Usa el botón "Usar mis datos" para personalizar esta simulación.</small></p>`;
+    }
     dataArea.innerHTML = html;
-  }}
-}}
+  }
+}
 
-function resetDemo() {{
+function resetDemo() {
   currentStep = 0;
   isUsingUserData = false;
   const userInput = $('#demoUserDataInput');
   if (userInput) userInput.value = '';
-  const editBtn = $('#demoEditBtn');
-  if (editBtn) editBtn.textContent = '✏️ Usar mis datos';
   const userInputArea = $('#demoUserInput');
   if (userInputArea) userInputArea.style.display = 'none';
   const actionBtn = $('#demoStepActionBtn');
-  if (actionBtn) {{
-    actionBtn.textContent = 'Continuar';
-    actionBtn.onclick = runDemoStep;
-  }}
+  if (actionBtn) { actionBtn.textContent = 'Continuar'; actionBtn.onclick = runDemoStep; }
   runDemoStep();
   toast('🔄 Demo reiniciada');
-}}
+}
 
-function toggleDemoEdit() {{
+function toggleDemoEdit() {
   const userInputArea = $('#demoUserInput');
   const editBtn = $('#demoEditBtn');
-  if (userInputArea.style.display === 'none') {{
+  if (userInputArea.style.display === 'none') {
     userInputArea.style.display = 'block';
     if (editBtn) editBtn.textContent = '✖ Cerrar';
     const input = $('#demoUserDataInput');
-    if (input && currentDemoId) {{
-      if (currentDemoId === 'whatsapp') {{
+    if (input && currentDemoId) {
+      if (currentDemoId === 'whatsapp' || currentDemoId === 'facturacion') {
         input.value = JSON.stringify(demoData, null, 2);
-      }} else if (currentDemoId === 'facturacion') {{
-        input.value = JSON.stringify({{
-          client: "Mi Cliente Personalizado",
-          products: [
-            {{ name: "Producto X", price: 15000, qty: 2 }},
-            {{ name: "Producto Y", price: 25000, qty: 1 }}
-          ]
-        }}, null, 2);
-      }}
-    }}
-  }} else {{
+      }
+    }
+  } else {
     userInputArea.style.display = 'none';
     if (editBtn) editBtn.textContent = '✏️ Usar mis datos';
-  }}
-}}
+  }
+}
 
-function applyUserData() {{
+function applyUserData() {
   const input = $('#demoUserDataInput');
-  if (!input || !input.value.trim()) {{
-    toast('Escribe o pega tus datos primero.');
-    return;
-  }}
+  if (!input?.value?.trim()) { toast('Escribe o pega tus datos primero.'); return; }
   isUsingUserData = true;
   toast('✅ Datos aplicados. Ahora puedes ejecutar el paso.');
   runDemoStep();
-}}
+}
 
-window.demoConfig = null;
-fetch('/api/demo/state')
-  .then(res => res.json())
-  .then(data => {{
-    window.demoConfig = data.demos;
-  }})
-  .catch(e => console.error('Error loading demo config:', e));
+// ============================================
+// DIAGNÓSTICO
+// ============================================
+
+const diagnosticForm = $('#diagnosticForm');
+if (diagnosticForm) {
+  diagnosticForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const scores = { 'smartstacks': 0, 'middleware': 0, 'llave-en-mano': 0 };
+    for (const value of data.values()) {
+      if (scores.hasOwnProperty(value)) scores[value]++;
+    }
+    let bestId = 'smartstacks';
+    let bestScore = -1;
+    for (const [id, score] of Object.entries(scores)) {
+      if (score > bestScore) { bestScore = score; bestId = id; }
+    }
+    const uc = state.use_cases?.find(u => u.id === bestId);
+    const box = $('#diagnosticResult');
+    if (uc && box) {
+      box.innerHTML = `
+        <div class="conversation">
+          <span class="tag">${uc.tag}</span>
+          <h3 style="margin-top:10px;">Te recomendamos: ${uc.title}</h3>
+          <p><strong>Tu problema:</strong> ${uc.problem}</p>
+          <p><strong>Solución:</strong> ${uc.solution}</p>
+          <p class="muted">Desde $${uc.price}/mes · Setup desde $${uc.setup}</p>
+          <ul>${uc.impact.map(i => `<li>${i}</li>`).join('')}</ul>
+          <button onclick="applyDiagnosticToLead('${uc.id}')">Registrar mi negocio con este caso</button>
+        </div>
+      `;
+      box.style.display = 'block';
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  });
+}
+
+function applyDiagnosticToLead(useCaseId) {
+  showSection('leads');
+  const select = document.querySelector('#leadForm select[name="use_case"]');
+  if (select) select.value = useCaseId;
+  toast('Caso preseleccionado: ' + useCaseId);
+}
 
 // ============================================
 // EVENT HANDLERS
 // ============================================
 
-const diagnosticForm = $('#diagnosticForm');
-if (diagnosticForm) {{
-  diagnosticForm.addEventListener('submit', (e) => {{
-    e.preventDefault();
-    const data = new FormData(e.target);
-    const scores = {{'smartstacks': 0, 'middleware': 0, 'llave-en-mano': 0}};
-    for (const value of data.values()) {{
-      if (scores.hasOwnProperty(value)) scores[value]++;
-    }}
-    let bestId = 'smartstacks';
-    let bestScore = -1;
-    for (const [id, score] of Object.entries(scores)) {{
-      if (score > bestScore) {{ bestScore = score; bestId = id; }}
-    }}
-    renderDiagnosticResult(bestId);
-  }});
-}}
-
-function renderDiagnosticResult(useCaseId) {{
-  const uc = (state.use_cases || []).find(u => u.id === useCaseId);
-  const box = $('#diagnosticResult');
-  if (!uc || !box) return;
-
-  box.innerHTML = `
-    <div class="conversation">
-      <span class="tag">${{uc.tag}}</span>
-      <h3 style="margin-top:10px;">Te recomendamos: ${{uc.title}}</h3>
-      <p><strong>Tu problema:</strong> ${{uc.problem}}</p>
-      <p><strong>Solución:</strong> ${{uc.solution}}</p>
-      <p class="muted">Desde $${{uc.price}}/mes · Setup desde $${{uc.setup}}</p>
-      <ul>${{uc.impact.map(i => `<li>${{i}}</li>`).join('')}}</ul>
-      <button onclick="applyDiagnosticToLead('${{uc.id}}')">Registrar mi negocio con este caso</button>
-    </div>
-  `;
-  box.style.display = 'block';
-  box.scrollIntoView({{behavior: 'smooth', block: 'nearest'}});
-}}
-
-function applyDiagnosticToLead(useCaseId) {{
-  $$('section').forEach(s => s.classList.remove('active'));
-  $$('.navlinks a').forEach(a => a.classList.remove('active'));
-  const leadsSection = $('#leads');
-  if (leadsSection) leadsSection.classList.add('active');
-  const leadsLink = Array.from($$('.navlinks a')).find(a => (a.getAttribute('onclick') || '').includes("'leads'"));
-  if (leadsLink) leadsLink.classList.add('active');
-
-  const select = document.querySelector('#leadForm select[name="use_case"]');
-  if (select) select.value = useCaseId;
-
-  const leadFormEl = $('#leadForm');
-  if (leadFormEl) leadFormEl.scrollIntoView({{behavior: 'smooth', block: 'center'}});
-  toast('Caso preseleccionado: ' + useCaseId);
-}}
-
 const leadForm = $('#leadForm');
-if (leadForm) {{
-  leadForm.addEventListener('submit', async (e) => {{
+if (leadForm) {
+  leadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     const out = await api('/api/leads', Object.fromEntries(data));
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    if (!out.ok) { toast('Error: ' + out.error); return; }
     toast(out.message);
     e.target.reset();
     refresh();
-  }});
-}}
+  });
+}
 
 const estimateForm = $('#estimateForm');
-if (estimateForm) {{
-  estimateForm.addEventListener('submit', async (e) => {{
+if (estimateForm) {
+  estimateForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     const payload = Object.fromEntries(data);
@@ -5050,133 +4619,127 @@ if (estimateForm) {{
     payload.minutes_saved = parseInt(payload.minutes_saved);
     payload.hourly_cost = parseFloat(payload.hourly_cost);
     const out = await api('/api/estimate', payload);
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    if (!out.ok) { toast('Error: ' + out.error); return; }
     const estimateResult = $('#estimateResult');
-    if (estimateResult) {{
+    if (estimateResult) {
       estimateResult.innerHTML = `
-        <p><strong>Caso:</strong> ${{out.use_case}}</p>
-        <p><strong>Horas humanas ahorradas/mes:</strong> ${{out.human_hours_saved}}</p>
-        <p><strong>Valor mensual generado:</strong> $${{out.monthly_value}}</p>
-        <p><strong>Costo estimado de IA:</strong> $${{out.estimated_ai_cost}}</p>
-        <p><strong>Precio mensual sugerido:</strong> <span class="metric">$${{out.suggested_price}}</span></p>
-        <p><strong>Setup sugerido:</strong> $${{out.setup}}</p>
-        <p class="muted">Margen aproximado: $${{out.margin_hint}}</p>
+        <p><strong>Caso:</strong> ${out.use_case}</p>
+        <p><strong>Horas humanas ahorradas/mes:</strong> ${out.human_hours_saved}</p>
+        <p><strong>Valor mensual generado:</strong> $${out.monthly_value}</p>
+        <p><strong>Costo estimado de IA:</strong> $${out.estimated_ai_cost}</p>
+        <p><strong>Precio mensual sugerido:</strong> <span class="metric">$${out.suggested_price}</span></p>
+        <p><strong>Setup sugerido:</strong> $${out.setup}</p>
+        <p class="muted">Margen aproximado: $${out.margin_hint}</p>
       `;
-    }}
+    }
     toast('Estimación calculada');
     refresh();
-  }});
-}}
+  });
+}
 
 const assistantForm = $('#assistantForm');
-if (assistantForm) {{
-  assistantForm.addEventListener('submit', async (e) => {{
+if (assistantForm) {
+  assistantForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     const out = await api('/api/assistant', Object.fromEntries(data));
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    if (!out.ok) { toast('Error: ' + out.error); return; }
     toast('Respuesta recibida (' + out.source + ')');
     e.target.reset();
     refresh();
-  }});
-}}
+  });
+}
 
 const productForm = $('#productForm');
-if (productForm) {{
-  productForm.addEventListener('submit', async (e) => {{
+if (productForm) {
+  productForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     const payload = Object.fromEntries(data);
     payload.quantity = parseInt(payload.quantity);
     if (payload.price) payload.price = parseFloat(payload.price);
     const out = await api('/api/inventory/product/add', payload);
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    if (!out.ok) { toast('Error: ' + out.error); return; }
     toast(out.message);
     e.target.reset();
     refreshSmartStacks();
-  }});
-}}
+  });
+}
 
 const smartstacksForm = $('#smartstacksForm');
-if (smartstacksForm) {{
-  smartstacksForm.addEventListener('submit', async (e) => {{
+if (smartstacksForm) {
+  smartstacksForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     const out = await api('/api/smartstacks/assistant', Object.fromEntries(data));
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    if (!out.ok) { toast('Error: ' + out.error); return; }
     toast('Respuesta recibida');
     e.target.reset();
     refreshSmartStacks();
-  }});
-}}
+  });
+}
 
 const middlewareForm = $('#middlewareForm');
-if (middlewareForm) {{
-  middlewareForm.addEventListener('submit', async (e) => {{
+if (middlewareForm) {
+  middlewareForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     const out = await api('/api/middleware/reply', Object.fromEntries(data));
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-    toast(`Respuesta generada · ${{out.tokens_estimated}} tokens ≈ $${{out.cost_estimated}}`);
+    if (!out.ok) { toast('Error: ' + out.error); return; }
+    toast(`Respuesta generada · ${out.tokens_estimated} tokens ≈ $${out.cost_estimated}`);
     e.target.reset();
     refreshMiddleware();
-  }});
-}}
+  });
+}
 
 const emailClassifyForm = $('#emailClassifyForm');
-if (emailClassifyForm) {{
-  emailClassifyForm.addEventListener('submit', async (e) => {{
+if (emailClassifyForm) {
+  emailClassifyForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     const out = await api('/api/consulting/email/classify', Object.fromEntries(data));
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    if (!out.ok) { toast('Error: ' + out.error); return; }
     const resultBox = $('#emailClassifyResult');
-    if (resultBox) {{
+    if (resultBox) {
       resultBox.innerHTML = `
         <div class="conversation">
-          <p><span class="status-badge cat-${{out.category}}">${{out.category}}</span> <span class="status-badge priority-${{out.priority}}">prioridad ${{out.priority}}</span></p>
-          <p><strong>Acción sugerida:</strong> ${{out.suggested_action}}</p>
+          <p><span class="status-badge cat-${out.category}">${out.category}</span> <span class="status-badge priority-${out.priority}">prioridad ${out.priority}</span></p>
+          <p><strong>Acción sugerida:</strong> ${out.suggested_action}</p>
         </div>
       `;
-    }}
+    }
     toast('Correo clasificado');
     e.target.reset();
     refreshConsulting();
-  }});
-}}
+  });
+}
 
 const appointmentForm = $('#appointmentForm');
-if (appointmentForm) {{
-  appointmentForm.addEventListener('submit', async (e) => {{
+if (appointmentForm) {
+  appointmentForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(e.target);
     const out = await api('/api/consulting/appointment/create', Object.fromEntries(data));
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    if (!out.ok) { toast('Error: ' + out.error); return; }
     toast(out.message);
     e.target.reset();
     refreshConsulting();
-  }});
-}}
+  });
+}
 
 const invoiceForm = $('#invoiceForm');
-if (invoiceForm) {{
-  invoiceForm.addEventListener('submit', async (e) => {{
+if (invoiceForm) {
+  invoiceForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
     const selectedProducts = [];
-    document.querySelectorAll('.invoice-product-checkbox:checked').forEach(cb => {{
+    document.querySelectorAll('.invoice-product-checkbox:checked').forEach(cb => {
       const id = parseInt(cb.dataset.id);
-      const qtyInput = document.querySelector(`.invoice-product-qty[data-id="${{id}}"]`);
+      const qtyInput = document.querySelector(`.invoice-product-qty[data-id="${id}"]`);
       const quantity = parseInt(qtyInput ? qtyInput.value : 1);
-      selectedProducts.push({{product_id: id, quantity: quantity}});
-    }});
-    
-    if (!selectedProducts.length) {{
-      toast('Selecciona al menos un producto');
-      return;
-    }}
-    
-    const data = {{
+      selectedProducts.push({ product_id: id, quantity: quantity });
+    });
+    if (!selectedProducts.length) { toast('Selecciona al menos un producto'); return; }
+    const data = {
       customer_name: $('#invoiceCustomerName').value,
       customer_email: $('#invoiceCustomerEmail').value,
       customer_phone: $('#invoiceCustomerPhone').value,
@@ -5184,68 +4747,40 @@ if (invoiceForm) {{
       products: selectedProducts,
       payment_method: $('#invoicePaymentMethod').value,
       bank_account_id: parseInt($('#invoiceBankAccount').value)
-    }};
-    
+    };
     const out = await api('/api/invoice/create', data);
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-    
+    if (!out.ok) { toast('Error: ' + out.error); return; }
     toast(out.message);
     invoiceForm.reset();
     refreshInvoices();
     refreshSmartStacks();
-  }});
-}}
+  });
+}
 
-const emailForm = $('#emailForm');
-if (emailForm) {{
-  emailForm.addEventListener('submit', async (e) => {{
+const ssProductForm = $('#ssProductForm');
+if (ssProductForm) {
+  ssProductForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const emails = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => cb.value);
-    if (!emails.length) {{ toast('Selecciona al menos un lead'); return; }}
-    
-    const subject = $('#emailSubject').value;
-    const body = $('#emailBody').value;
-    
-    const out = await api('/api/email/campaign/create', {{
-      subject: subject,
-      body: body,
-      recipient_emails: emails
-    }});
-    
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-    
-    if (confirm(`Campaña creada para ${{emails.length}} contactos. ¿Enviar ahora?`)) {{
-      const sent = await api(`/api/email/campaign/${{out.campaign_id}}/send`, {{}});
-      if (!sent.ok) {{ toast('Error: ' + sent.error); return; }}
-      if (sent.failed > 0 && sent.errors && sent.errors.length) {{
-        alert(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos.\\n\\nDetalle de fallos:\\n` + sent.errors.join('\\n'));
-      }} else {{
-        toast(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos`);
-      }}
-    }}
-    
-    emailForm.reset();
-    refresh();
-  }});
-}}
-
-const singleEmailForm = $('#singleEmailForm');
-if (singleEmailForm) {{
-  singleEmailForm.addEventListener('submit', async (e) => {{
-    e.preventDefault();
-    const data = new FormData(e.target);
-    const out = await api('/api/email/send', {{
-      lead_id: parseInt(data.get('lead_id')),
-      subject: data.get('subject'),
-      body: data.get('body')
-    }});
-    
-    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
-    toast(out.message);
-    singleEmailForm.reset();
-    refresh();
-  }});
-}}
+    const code = $('#ssProductCode').value.trim();
+    const name = $('#ssProductName').value.trim();
+    const stock = parseInt($('#ssProductStock').value);
+    const price = parseFloat($('#ssProductPrice').value);
+    const description = $('#ssProductDesc').value.trim();
+    if (!code || !name || isNaN(stock) || isNaN(price)) { toast('Completa todos los campos requeridos'); return; }
+    const res = await fetch('/api/smartstacks/demo/product/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, name, stock, price, description })
+    });
+    const data = await res.json();
+    if (!data.ok) { toast('Error: ' + data.error); return; }
+    toast('✅ ' + data.message);
+    ssProductForm.reset();
+    $('#ssProductResult').innerHTML = `<div style="background: rgba(51,214,166,.15); padding: 10px; border-radius: 8px; color: var(--brand2);">✅ Producto "${name}" agregado correctamente</div>`;
+    setTimeout(() => $('#ssProductResult').innerHTML = '', 3000);
+    loadSmartstacksDemo();
+  });
+}
 
 // ============================================
 // INICIALIZACIÓN
@@ -5260,6 +4795,13 @@ loadMiddlewareDemo();
 
 setInterval(refreshSmartStacks, 30000);
 setInterval(refreshInvoices, 30000);
+
+// Cargar configuraciones de demo
+fetch('/api/demo/state')
+  .then(res => res.json())
+  .then(data => window.demoConfig = data.demos)
+  .catch(e => console.error('Error loading demo config:', e));
+
 </script>
 </body>
 </html>"""
@@ -5316,6 +4858,13 @@ class SabrinaHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/demo/state":
             json_response(self, get_demo_state())
             return
+        if parsed.path == "/api/demo/data":
+            json_response(self, {"ok": True, "demos": AUTOMATION_DEMOS})
+            return
+        if parsed.path.startswith("/api/demo/data/"):
+            demo_id = parsed.path.split("/")[-1]
+            json_response(self, get_demo_data(demo_id))
+            return
         if parsed.path == "/api/smartstacks/demo/state":
             json_response(self, get_smartstacks_demo_state())
             return
@@ -5348,10 +4897,6 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 result = add_inventory_product(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
-            if parsed.path == "/api/inventory/product/update":
-                result = update_inventory_product(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
             if parsed.path == "/api/inventory/product/delete":
                 result = delete_inventory_product(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
@@ -5376,22 +4921,6 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 result = cancel_appointment(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
-            if parsed.path == "/api/email/campaign/create":
-                result = create_email_campaign(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
-            if parsed.path.startswith("/api/email/campaign/") and "/send" in parsed.path:
-                try:
-                    campaign_id = int(parsed.path.split("/")[-2])
-                    result = send_email_campaign(campaign_id)
-                    json_response(self, result, 200 if result.get("ok") else 400)
-                except (ValueError, IndexError):
-                    json_response(self, {"ok": False, "error": "ID inválido"}, 400)
-                return
-            if parsed.path == "/api/email/send":
-                result = send_single_email(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
             if parsed.path == "/api/invoice/create":
                 result = create_invoice(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
@@ -5400,33 +4929,9 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 result = update_invoice_status(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
-            if parsed.path == "/api/invoice/proof":
-                result = upload_payment_proof(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
-            if parsed.path == "/api/bank-account/update":
-                result = update_bank_account(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
-            if parsed.path == "/api/invoice/assistant":
-                result = invoice_assistant_reply(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
-            if parsed.path == "/api/notification/mark":
-                notification_id = payload.get("notification_id")
-                if notification_id:
-                    result = mark_notification_sent(int(notification_id))
-                    json_response(self, result, 200 if result.get("ok") else 400)
-                else:
-                    json_response(self, {"ok": False, "error": "Falta notification_id"}, 400)
-                return
             if parsed.path == "/api/demo/step":
                 result = run_demo_step(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
-                return
-            if parsed.path.startswith("/api/demo/data/"):
-                demo_id = parsed.path.split("/")[-1]
-                json_response(self, get_demo_data(demo_id))
                 return
             if parsed.path == "/api/smartstacks/demo/step":
                 result = run_smartstacks_demo_step(payload)
@@ -5456,15 +4961,15 @@ class SabrinaHandler(BaseHTTPRequestHandler):
             json_response(self, {"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
+# ============================================
+# MAIN
+# ============================================
+
 def main() -> None:
     init_db()
     server = ThreadingHTTPServer((HOST, PORT), SabrinaHandler)
     print(f"Sabrina AI Lab listo en http://{HOST}:{PORT}")
     print(f"Base de datos: {DB_PATH}")
-    print(f"Cuentas bancarias configuradas: {len(BANK_ACCOUNTS)}")
-    print(f"🏪 Caso 1 - SmartStacks de Cercanía disponible en la pestaña 'Caso 1'")
-    print(f"🤖 Caso 2 - Automatización con Empatía disponible en la pestaña 'Caso 2'")
-    print(f"🚀 Simulación de Proyectos disponible en la pestaña 'Proyectos'")
     print("Ctrl+C para detener.")
     try:
         server.serve_forever()
