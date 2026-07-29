@@ -10,8 +10,9 @@ Servidor web sin dependencias externas:
 - Asistente estratégico local con integración opcional Azure OpenAI / LiteLLM compatible.
 - Sistema de inventario con asistente conversacional para smartstacks.
 - Sistema de facturación completo con integración bancaria.
-- SIMULACIÓN DE PROYECTOS LLAVE EN MANO (NUEVO)
+- CASO 1: SIMULACIÓN DE SMARTSTACKS DE CERCANÍA
 - CASO 2: SIMULACIÓN DE AUTOMATIZACIÓN CON EMPATÍA (LiteLLM Middleware)
+- SIMULACIÓN DE PROYECTOS LLAVE EN MANO
 
 Ejecutar:
     python3 proyectos/sabrina_ai_lab/app.py
@@ -1256,6 +1257,502 @@ def get_consulting_state() -> dict[str, Any]:
 
 
 # ============================================
+# CASO 1: SMARTSTACKS DE CERCANÍA - ASISTENTE EXPERTO
+# ============================================
+
+SMARTSTACKS_DEMO = {
+    "id": "smartstacks",
+    "name": "🏪 SmartStacks de Cercanía",
+    "description": "Asistente conversacional para negocios locales que responde preguntas de inventario al instante.",
+    "icon": "🏪",
+    "steps": [
+        {
+            "title": "1. Cargar el Inventario Local",
+            "desc": "Subimos los datos de tu negocio: productos, códigos, precios y descripciones.",
+            "details": [
+                "✅ 42 GiB de RAM para almacenar todo el inventario localmente",
+                "✅ Sistema de búsqueda rápida por código y nombre",
+                "✅ Base de datos con productos, stock y precios",
+                "✅ Historial de consultas para mejorar el asistente"
+            ],
+            "action": "Cargar Inventario"
+        },
+        {
+            "title": "2. Conectar el Asistente",
+            "desc": "Vinculamos el asistente IA a los canales de comunicación de tu negocio.",
+            "details": [
+                "✅ WhatsApp Business API conectada",
+                "✅ Tablet en tienda con interfaz amigable",
+                "✅ Web para consultas remotas",
+                "✅ Sistema de respuestas en lenguaje natural"
+            ],
+            "action": "Conectar Asistente"
+        },
+        {
+            "title": "3. Entrenar con Preguntas Reales",
+            "desc": "El asistente aprende a entender las preguntas típicas de tus clientes y vendedores.",
+            "details": [
+                "✅ Análisis de preguntas frecuentes",
+                "✅ Entrenamiento con lenguaje coloquial",
+                "✅ Reconocimiento de productos por nombre común",
+                "✅ Respuestas en menos de 1 segundo"
+            ],
+            "action": "Entrenar Asistente"
+        },
+        {
+            "title": "4. ¡Asistente en Vivo!",
+            "desc": "El sistema ya está funcionando. Aquí puedes ver cómo responde a preguntas reales:",
+            "action": "Ver Asistente en Acción"
+        }
+    ],
+    "example_products": [
+        {"code": "PER-001", "name": "Perno de Anclaje 3/8\"", "price": 2500, "stock": 45, "description": "Perno de anclaje galvanizado, ideal para fijaciones en hormigón."},
+        {"code": "TUB-002", "name": "Tubería PVC 1/2\"", "price": 3800, "stock": 120, "description": "Tubería PVC para instalaciones eléctricas y sanitarias."},
+        {"code": "MART-003", "name": "Martillo de Peña", "price": 15900, "stock": 12, "description": "Martillo de peña profesional, mango de fibra de vidrio."},
+        {"code": "CIN-004", "name": "Cinta Métrica 5m", "price": 4500, "stock": 28, "description": "Cinta métrica de 5 metros con sistema de freno."},
+        {"code": "LLAVE-005", "name": "Llave Francesa 12\"", "price": 8900, "stock": 15, "description": "Llave francesa ajustable, acero cromado."},
+        {"code": "DIS-006", "name": "Disco de Corte 4\"", "price": 3200, "stock": 80, "description": "Disco de corte para metal, diámetro 4 pulgadas."},
+        {"code": "PINT-007", "name": "Pintura Esmalte Rojo", "price": 12500, "stock": 6, "description": "Pintura esmalte sintético color rojo, 1 litro."},
+        {"code": "CLAV-008", "name": "Clavos 2\" Caja x 100", "price": 4800, "stock": 35, "description": "Clavos de 2 pulgadas, caja con 100 unidades."},
+        {"code": "SIER-009", "name": "Sierra Manual", "price": 18900, "stock": 8, "description": "Sierra manual para madera, hoja de 24 dientes."},
+        {"code": "TAL-010", "name": "Taladro Percutor", "price": 45900, "stock": 4, "description": "Taladro percutor 600W, 13mm, incluye maletín."}
+    ],
+    "example_questions": [
+        {"question": "¿Tienes pernos de anclaje 3/8?", "answer": "Sí, tenemos el Perno de Anclaje 3/8 (Código: PER-001). Disponemos de 45 unidades a $2.500 cada uno. ¿Necesitas que te reserve algunos? 🔩"},
+        {"question": "¿Cuánto cuesta la tubería PVC?", "answer": "Tenemos Tubería PVC 1/2\" (Código: TUB-002) a $3.800 cada una. Tenemos 120 unidades en stock. ¿Cuántas necesitas? 🏗️"},
+        {"question": "Necesito un martillo bueno", "answer": "Tenemos el Martillo de Peña profesional (Código: MART-003) a $15.900. Es de mango de fibra de vidrio y tenemos 12 unidades disponibles. ¿Te lo llevas? 🔨"},
+        {"question": "¿Tienes pintura roja?", "answer": "Sí, tenemos Pintura Esmalte Rojo (Código: PINT-007) a $12.500 el litro. Actualmente tenemos 6 unidades disponibles. ¿Cuántos litros necesitas? 🎨"}
+    ],
+    "stats": {
+        "total_products": 10,
+        "total_stock": 353,
+        "avg_response_time": 0.8,
+        "questions_answered": 0,
+        "hours_saved": 0,
+        "customer_satisfaction": 0
+    }
+}
+
+
+def get_smartstacks_demo_state() -> dict[str, Any]:
+    """Obtiene el estado de la demostración del caso 1."""
+    return {
+        "ok": True,
+        "demo": SMARTSTACKS_DEMO,
+        "current_step": 0,
+        "is_complete": False,
+        "stats": {
+            "questions_answered": 0,
+            "hours_saved": 0,
+            "customer_satisfaction": 0
+        }
+    }
+
+
+def run_smartstacks_demo_step(payload: dict[str, Any]) -> dict[str, Any]:
+    """Ejecuta un paso de la demostración de SmartStacks."""
+    step_index = payload.get("step_index", 0)
+    user_data = payload.get("user_data", {})
+    
+    demo = SMARTSTACKS_DEMO
+    steps = demo["steps"]
+    
+    if step_index >= len(steps):
+        return {"ok": False, "error": "Paso fuera de rango"}
+    
+    step = steps[step_index]
+    result = {
+        "ok": True,
+        "step_index": step_index,
+        "step": step,
+        "completed": False,
+        "message": f"✅ Paso '{step['title']}' completado",
+        "data": {}
+    }
+    
+    if step_index == 3:  # Último paso - mostrar asistente en acción
+        result["data"]["dashboard"] = {
+            "stats": demo["stats"],
+            "products": demo["example_products"],
+            "recent_questions": [
+                {"question": "¿Tienes pernos de anclaje 3/8?", "answer": "Sí, tenemos 45 unidades a $2.500 cada uno.", "time": "hace 1 min"},
+                {"question": "¿Cuánto cuesta la tubería PVC?", "answer": "Tubería PVC 1/2\" a $3.800. Tenemos 120 unidades.", "time": "hace 3 min"},
+                {"question": "Necesito un martillo bueno", "answer": "Martillo de Peña a $15.900. Tenemos 12 unidades.", "time": "hace 5 min"}
+            ],
+            "impact": {
+                "questions_answered": demo["stats"]["questions_answered"],
+                "hours_saved": demo["stats"]["hours_saved"],
+                "customer_satisfaction": demo["stats"]["customer_satisfaction"]
+            }
+        }
+        result["completed"] = True
+        result["message"] = "🎉 ¡Asistente en vivo! Los vendedores ahora responden en segundos."
+    
+    return result
+
+
+def simulate_smartstacks_question(payload: dict[str, Any]) -> dict[str, Any]:
+    """Simula una pregunta al asistente de inventario."""
+    import random
+    
+    question = payload.get("question", "").strip()
+    
+    if not question:
+        return {"ok": False, "error": "Escribe una pregunta sobre el inventario."}
+    
+    products = SMARTSTACKS_DEMO["example_products"]
+    question_lower = question.lower()
+    
+    matches = []
+    for product in products:
+        if product["name"].lower() in question_lower or product["code"].lower() in question_lower:
+            matches.append(product)
+        elif any(word in question_lower for word in product["name"].lower().split()[:2]):
+            matches.append(product)
+    
+    if not matches:
+        categories = {
+            "perno": "PER-001",
+            "tuberia": "TUB-002",
+            "martillo": "MART-003",
+            "cinta": "CIN-004",
+            "llave": "LLAVE-005",
+            "disco": "DIS-006",
+            "pintura": "PINT-007",
+            "clavo": "CLAV-008",
+            "sierra": "SIER-009",
+            "taladro": "TAL-010"
+        }
+        
+        for key, code in categories.items():
+            if key in question_lower:
+                product = next((p for p in products if p["code"] == code), None)
+                if product:
+                    matches.append(product)
+    
+    if not matches:
+        responses = [
+            "No encontré ese producto en nuestro inventario. ¿Podrías darme más detalles? 🤔",
+            "Hmm, no reconozco ese producto. ¿Qué estás buscando exactamente? 🛠️",
+            "Lo siento, no tengo información sobre ese producto. ¿Puedes describirlo mejor? 📋"
+        ]
+        return {
+            "ok": True,
+            "answer": random.choice(responses),
+            "matches": [],
+            "response_time": round(random.uniform(0.3, 1.2), 1),
+            "tokens": estimate_tokens(question) + estimate_tokens(responses[0])
+        }
+    
+    if len(matches) == 1:
+        p = matches[0]
+        stock_emoji = "✅" if p["stock"] > 10 else "⚠️" if p["stock"] > 0 else "❌"
+        stock_text = f"{stock_emoji} Stock: {p['stock']} unidades" if p["stock"] > 0 else "❌ Sin stock disponible"
+        
+        answer = f"Sí, tenemos {p['name']} (Código: {p['code']}). {stock_text}. Precio: ${p['price']}."
+        
+        if p["description"]:
+            answer += f"\n\n📋 {p['description']}"
+        
+        if p["stock"] > 10:
+            answer += f"\n\n💡 ¿Te gustaría que te reserve algunos? Tenemos buena disponibilidad."
+        elif p["stock"] > 0:
+            answer += f"\n\n⚠️ Solo quedan {p['stock']} unidades. ¡Te recomiendo reservar pronto!"
+        else:
+            answer += f"\n\n🔄 Este producto está agotado. Podemos pedirlo en 24 horas."
+        
+        answer += " 😊"
+        
+        response_time = round(random.uniform(0.2, 1.2), 1)
+        tokens = estimate_tokens(question) + estimate_tokens(answer)
+        
+        return {
+            "ok": True,
+            "answer": answer,
+            "matches": [dict(p) for p in matches],
+            "response_time": response_time,
+            "tokens": tokens,
+            "source": "inventory_match"
+        }
+    
+    else:
+        answer = f"Encontré {len(matches)} productos que coinciden con tu búsqueda:\n\n"
+        for p in matches:
+            stock_emoji = "✅" if p["stock"] > 10 else "⚠️" if p["stock"] > 0 else "❌"
+            answer += f"📌 {p['name']} (Código: {p['code']}) - ${p['price']} - {stock_emoji} Stock: {p['stock']}\n"
+        
+        answer += "\n¿Cuál te interesa? Dime el código o el nombre y te doy más detalles. 🛒"
+        
+        response_time = round(random.uniform(0.3, 1.5), 1)
+        tokens = estimate_tokens(question) + estimate_tokens(answer)
+        
+        return {
+            "ok": True,
+            "answer": answer,
+            "matches": [dict(p) for p in matches],
+            "response_time": response_time,
+            "tokens": tokens,
+            "source": "multi_match"
+        }
+
+
+def add_custom_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
+    """Agrega un producto personalizado al inventario de demostración."""
+    missing = validate_required(payload, ["code", "name", "stock", "price"])
+    if missing:
+        return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
+    
+    try:
+        product = {
+            "code": str(payload["code"]).strip(),
+            "name": str(payload["name"]).strip(),
+            "stock": int(payload["stock"]),
+            "price": float(payload["price"]),
+            "description": str(payload.get("description", "")).strip() or "Sin descripción"
+        }
+        
+        if any(p["code"] == product["code"] for p in SMARTSTACKS_DEMO["example_products"]):
+            return {"ok": False, "error": f"El código {product['code']} ya existe"}
+        
+        SMARTSTACKS_DEMO["example_products"].append(product)
+        SMARTSTACKS_DEMO["stats"]["total_products"] += 1
+        SMARTSTACKS_DEMO["stats"]["total_stock"] += product["stock"]
+        
+        return {
+            "ok": True,
+            "message": f"Producto {product['name']} agregado correctamente",
+            "product": product
+        }
+    except ValueError as e:
+        return {"ok": False, "error": f"Error en los datos: {str(e)}"}
+
+
+# ============================================
+# CASO 2: SIMULACIÓN DE AUTOMATIZACIÓN CON EMPATÍA (LiteLLM Middleware)
+# ============================================
+
+MIDDLEWARE_DEMO = {
+    "id": "middleware",
+    "name": "🤖 Automatización de Respuestas con Empatía",
+    "description": "Proxy unificado que centraliza respuestas para múltiples canales con tono empático personalizado.",
+    "icon": "🤖",
+    "steps": [
+        {
+            "title": "1. Configurar el Proxy LiteLLM",
+            "desc": "Instalamos y configuramos LiteLLM como proxy unificado para administrar múltiples modelos GPT.",
+            "details": [
+                "✅ LiteLLM instalado en la VM con 42 GiB de RAM",
+                "✅ 3 modelos GPT configurados (GPT-4, GPT-3.5, GPT-4o-mini)",
+                "✅ Balanceo de carga automático configurado",
+                "✅ Control de costos por token activado"
+            ],
+            "action": "Configurar Proxy"
+        },
+        {
+            "title": "2. Conectar Canales",
+            "desc": "Conectamos tus canales de comunicación al proxy unificado.",
+            "details": [
+                "✅ WhatsApp Business API conectada",
+                "✅ Instagram Messenger integrado",
+                "✅ Email (IMAP/SMTP) configurado",
+                "✅ Web Chat conectado"
+            ],
+            "action": "Conectar Canales"
+        },
+        {
+            "title": "3. Definir Tono y Personalidad",
+            "desc": "Configuramos el tono de voz para cada canal según tu marca.",
+            "channels": [
+                {"name": "WhatsApp", "tone": "Cercano y breve", "emoji": "💬", "example": "¡Hola! ¿En qué te ayudo hoy? 😊"},
+                {"name": "Instagram", "tone": "Casual y con emojis", "emoji": "📸", "example": "Hey! Gracias por tu mensaje 🌟 ¿Cómo puedo ayudarte?"},
+                {"name": "Email", "tone": "Formal y estructurado", "emoji": "📧", "example": "Estimado/a, agradecemos su consulta..."},
+                {"name": "Web", "tone": "Profesional y directo", "emoji": "🌐", "example": "Bienvenido. ¿En qué podemos ayudarle hoy?"}
+            ],
+            "action": "Configurar Tono"
+        },
+        {
+            "title": "4. ¡Sistema en Vivo!",
+            "desc": "El sistema ya está respondiendo con empatía en todos tus canales. Aquí puedes ver ejemplos:",
+            "action": "Ver Dashboard"
+        }
+    ],
+    "example_messages": [
+        {"channel": "whatsapp", "message": "Hola, ¿tienen envío a domicilio?", "response": "¡Hola! Sí, realizamos envíos a todo el país. ¿Me indicas tu código postal para darte el costo exacto? 😊"},
+        {"channel": "instagram", "message": "Me encantó el producto, ¿hay descuento por primera compra?", "response": "¡Gracias! Me alegra que te haya gustado 🌟 Para primera compra tenemos un 10% de descuento. ¿Te interesa? 🛍️"},
+        {"channel": "email", "message": "Quisiera una cotización para 50 unidades.", "response": "Estimado/a, gracias por su consulta. Con gusto le enviamos una cotización detallada en las próximas 2 horas. Quedamos atentos."},
+        {"channel": "web", "message": "¿Cómo funciona el sistema de garantía?", "response": "Nuestro sistema de garantía cubre 12 meses. Puedes revisar los detalles en nuestra página de políticas o contactarnos para más información."}
+    ],
+    "stats": {
+        "total_messages": 1250,
+        "avg_response_time": 2.3,
+        "tokens_used": 450000,
+        "total_cost": 1.35,
+        "hours_saved": 48,
+        "response_rate": 98.5
+    },
+    "channel_stats": [
+        {"channel": "WhatsApp", "messages": 450, "avg_time": 1.8, "cost": 0.48},
+        {"channel": "Instagram", "messages": 380, "avg_time": 2.1, "cost": 0.41},
+        {"channel": "Email", "messages": 220, "avg_time": 3.2, "cost": 0.28},
+        {"channel": "Web", "messages": 200, "avg_time": 2.5, "cost": 0.18}
+    ]
+}
+
+
+def get_middleware_demo_state() -> dict[str, Any]:
+    """Obtiene el estado de la demostración del caso 2."""
+    return {
+        "ok": True,
+        "demo": MIDDLEWARE_DEMO,
+        "current_step": 0,
+        "is_complete": False
+    }
+
+
+def run_middleware_demo_step(payload: dict[str, Any]) -> dict[str, Any]:
+    """Ejecuta un paso de la demostración del middleware."""
+    step_index = payload.get("step_index", 0)
+    user_data = payload.get("user_data", {})
+    
+    demo = MIDDLEWARE_DEMO
+    steps = demo["steps"]
+    
+    if step_index >= len(steps):
+        return {"ok": False, "error": "Paso fuera de rango"}
+    
+    step = steps[step_index]
+    result = {
+        "ok": True,
+        "step_index": step_index,
+        "step": step,
+        "completed": False,
+        "message": f"✅ Paso '{step['title']}' completado",
+        "data": {}
+    }
+    
+    if step_index == 3:
+        result["data"]["dashboard"] = {
+            "stats": demo["stats"],
+            "recent_messages": [
+                {
+                    "channel": "WhatsApp",
+                    "message": "Hola, ¿tienen stock de martillos?",
+                    "response": "¡Sí! Tenemos martillos en stock. ¿Cuántos necesitas? Tenemos diferentes tamaños. 🔨",
+                    "time": "hace 2 min",
+                    "tokens": 45,
+                    "cost": 0.00018
+                },
+                {
+                    "channel": "Instagram",
+                    "message": "Me encantó la promoción!",
+                    "response": "¡Qué bien! Me alegra que te guste 🌟 La promo termina este viernes, ¿quieres que te reserve algo? 💫",
+                    "time": "hace 15 min",
+                    "tokens": 38,
+                    "cost": 0.00015
+                },
+                {
+                    "channel": "Email",
+                    "message": "Solicito información sobre precios mayoristas",
+                    "response": "Estimado/a, con gusto le enviamos nuestra lista de precios mayoristas. ¿Podría indicarnos qué productos le interesan?",
+                    "time": "hace 1 hora",
+                    "tokens": 62,
+                    "cost": 0.00025
+                }
+            ],
+            "channel_stats": demo["channel_stats"]
+        }
+        result["completed"] = True
+        result["message"] = "🎉 ¡Sistema completo! Puedes ver el dashboard en vivo."
+    
+    elif step_index == 2:
+        if user_data.get("custom_tone"):
+            result["data"]["custom_tone"] = user_data["custom_tone"]
+            result["message"] = "✅ Tono personalizado aplicado para todos los canales."
+        else:
+            result["data"]["channels"] = step["channels"]
+    
+    return result
+
+
+def simulate_middleware_message(payload: dict[str, Any]) -> dict[str, Any]:
+    """Simula el envío de un mensaje y genera una respuesta."""
+    import random
+    
+    channel = payload.get("channel", "web")
+    message = payload.get("message", "").strip()
+    custom_tone = payload.get("tone", "")
+    
+    if not message:
+        return {"ok": False, "error": "Escribe un mensaje para simular"}
+    
+    example_messages = MIDDLEWARE_DEMO["example_messages"]
+    matched_example = None
+    
+    for example in example_messages:
+        if example["channel"].lower() == channel.lower():
+            example_words = set(example["message"].lower().split())
+            message_words = set(message.lower().split())
+            if len(example_words.intersection(message_words)) >= 2:
+                matched_example = example
+                break
+    
+    if not matched_example:
+        responses = {
+            "whatsapp": [
+                "¡Gracias por tu mensaje! 😊 ¿En qué más puedo ayudarte?",
+                "Entendido, te ayudo con eso 💪 Déjame revisar la información.",
+                "¡Claro! Déjame revisarlo 📋 y te respondo en un momento."
+            ],
+            "instagram": [
+                "¡Hola! Gracias por escribir 🌟 Cuéntame más sobre lo que necesitas.",
+                "Qué interesante, cuéntame más detalles 💫 para poder ayudarte mejor.",
+                "¡Me encanta! Vamos a ver eso 🎯 y te doy una respuesta."
+            ],
+            "email": [
+                "Estimado/a, gracias por su consulta. Le responderemos a la brevedad.",
+                "Agradecemos su mensaje, le responderemos pronto con la información solicitada.",
+                "Hemos recibido su solicitud, le contactaremos en las próximas horas."
+            ],
+            "web": [
+                "Gracias por tu consulta. ¿En qué más puedo ayudarte?",
+                "Entendido, te ayudaremos con eso. ¿Algo más que necesites?",
+                "Procesando tu solicitud. Te responderemos en breve."
+            ]
+        }
+        
+        response = random.choice(responses.get(channel.lower(), ["Gracias por tu mensaje."]))
+        
+        if custom_tone:
+            response = f"({custom_tone}) {response}"
+        
+        tokens = estimate_tokens(message) + estimate_tokens(response)
+        cost = round((tokens / 1000) * 0.002, 5)
+        
+        return {
+            "ok": True,
+            "response": response,
+            "channel": channel,
+            "tokens": tokens,
+            "cost": cost,
+            "response_time": round(random.uniform(0.8, 2.5), 1),
+            "source": "simulated"
+        }
+    
+    tokens = estimate_tokens(message) + estimate_tokens(matched_example["response"])
+    cost = round((tokens / 1000) * 0.002, 5)
+    
+    return {
+        "ok": True,
+        "response": matched_example["response"],
+        "channel": channel,
+        "tokens": tokens,
+        "cost": cost,
+        "response_time": round(random.uniform(0.8, 2.5), 1),
+        "source": "example"
+    }
+
+
+# ============================================
 # NUEVO MÓDULO: SIMULACIÓN DE PROYECTO "LLAVE EN MANO"
 # ============================================
 
@@ -1423,236 +1920,6 @@ def get_demo_data(demo_id: str) -> dict[str, Any]:
     if demo_id in AUTOMATION_DEMOS:
         return {"ok": True, "data": AUTOMATION_DEMOS[demo_id]["example_data"]}
     return {"ok": False, "error": "Demo no encontrado"}
-
-
-# ============================================
-# CASO 2: SIMULACIÓN DE AUTOMATIZACIÓN CON EMPATÍA (LiteLLM Middleware)
-# ============================================
-
-MIDDLEWARE_DEMO = {
-    "id": "middleware",
-    "name": "🤖 Automatización de Respuestas con Empatía",
-    "description": "Proxy unificado que centraliza respuestas para múltiples canales con tono empático personalizado.",
-    "icon": "🤖",
-    "steps": [
-        {
-            "title": "1. Configurar el Proxy LiteLLM",
-            "desc": "Instalamos y configuramos LiteLLM como proxy unificado para administrar múltiples modelos GPT.",
-            "details": [
-                "✅ LiteLLM instalado en la VM con 42 GiB de RAM",
-                "✅ 3 modelos GPT configurados (GPT-4, GPT-3.5, GPT-4o-mini)",
-                "✅ Balanceo de carga automático configurado",
-                "✅ Control de costos por token activado"
-            ],
-            "action": "Configurar Proxy"
-        },
-        {
-            "title": "2. Conectar Canales",
-            "desc": "Conectamos tus canales de comunicación al proxy unificado.",
-            "details": [
-                "✅ WhatsApp Business API conectada",
-                "✅ Instagram Messenger integrado",
-                "✅ Email (IMAP/SMTP) configurado",
-                "✅ Web Chat conectado"
-            ],
-            "action": "Conectar Canales"
-        },
-        {
-            "title": "3. Definir Tono y Personalidad",
-            "desc": "Configuramos el tono de voz para cada canal según tu marca.",
-            "channels": [
-                {"name": "WhatsApp", "tone": "Cercano y breve", "emoji": "💬", "example": "¡Hola! ¿En qué te ayudo hoy? 😊"},
-                {"name": "Instagram", "tone": "Casual y con emojis", "emoji": "📸", "example": "Hey! Gracias por tu mensaje 🌟 ¿Cómo puedo ayudarte?"},
-                {"name": "Email", "tone": "Formal y estructurado", "emoji": "📧", "example": "Estimado/a, agradecemos su consulta..."},
-                {"name": "Web", "tone": "Profesional y directo", "emoji": "🌐", "example": "Bienvenido. ¿En qué podemos ayudarle hoy?"}
-            ],
-            "action": "Configurar Tono"
-        },
-        {
-            "title": "4. ¡Sistema en Vivo!",
-            "desc": "El sistema ya está respondiendo con empatía en todos tus canales. Aquí puedes ver ejemplos:",
-            "action": "Ver Dashboard"
-        }
-    ],
-    "example_messages": [
-        {"channel": "whatsapp", "message": "Hola, ¿tienen envío a domicilio?", "response": "¡Hola! Sí, realizamos envíos a todo el país. ¿Me indicas tu código postal para darte el costo exacto? 😊"},
-        {"channel": "instagram", "message": "Me encantó el producto, ¿hay descuento por primera compra?", "response": "¡Gracias! Me alegra que te haya gustado 🌟 Para primera compra tenemos un 10% de descuento. ¿Te interesa? 🛍️"},
-        {"channel": "email", "message": "Quisiera una cotización para 50 unidades.", "response": "Estimado/a, gracias por su consulta. Con gusto le enviamos una cotización detallada en las próximas 2 horas. Quedamos atentos."},
-        {"channel": "web", "message": "¿Cómo funciona el sistema de garantía?", "response": "Nuestro sistema de garantía cubre 12 meses. Puedes revisar los detalles en nuestra página de políticas o contactarnos para más información."}
-    ],
-    "stats": {
-        "total_messages": 1250,
-        "avg_response_time": 2.3,
-        "tokens_used": 450000,
-        "total_cost": 1.35,
-        "hours_saved": 48,
-        "response_rate": 98.5
-    },
-    "channel_stats": [
-        {"channel": "WhatsApp", "messages": 450, "avg_time": 1.8, "cost": 0.48},
-        {"channel": "Instagram", "messages": 380, "avg_time": 2.1, "cost": 0.41},
-        {"channel": "Email", "messages": 220, "avg_time": 3.2, "cost": 0.28},
-        {"channel": "Web", "messages": 200, "avg_time": 2.5, "cost": 0.18}
-    ]
-}
-
-
-def get_middleware_demo_state() -> dict[str, Any]:
-    """Obtiene el estado de la demostración del caso 2."""
-    return {
-        "ok": True,
-        "demo": MIDDLEWARE_DEMO,
-        "current_step": 0,
-        "is_complete": False
-    }
-
-
-def run_middleware_demo_step(payload: dict[str, Any]) -> dict[str, Any]:
-    """Ejecuta un paso de la demostración del middleware."""
-    step_index = payload.get("step_index", 0)
-    user_data = payload.get("user_data", {})
-    
-    demo = MIDDLEWARE_DEMO
-    steps = demo["steps"]
-    
-    if step_index >= len(steps):
-        return {"ok": False, "error": "Paso fuera de rango"}
-    
-    step = steps[step_index]
-    result = {
-        "ok": True,
-        "step_index": step_index,
-        "step": step,
-        "completed": False,
-        "message": f"✅ Paso '{step['title']}' completado",
-        "data": {}
-    }
-    
-    if step_index == 3:  # Último paso - mostrar dashboard
-        result["data"]["dashboard"] = {
-            "stats": demo["stats"],
-            "recent_messages": [
-                {
-                    "channel": "WhatsApp",
-                    "message": "Hola, ¿tienen stock de martillos?",
-                    "response": "¡Sí! Tenemos martillos en stock. ¿Cuántos necesitas? Tenemos diferentes tamaños. 🔨",
-                    "time": "hace 2 min",
-                    "tokens": 45,
-                    "cost": 0.00018
-                },
-                {
-                    "channel": "Instagram",
-                    "message": "Me encantó la promoción!",
-                    "response": "¡Qué bien! Me alegra que te guste 🌟 La promo termina este viernes, ¿quieres que te reserve algo? 💫",
-                    "time": "hace 15 min",
-                    "tokens": 38,
-                    "cost": 0.00015
-                },
-                {
-                    "channel": "Email",
-                    "message": "Solicito información sobre precios mayoristas",
-                    "response": "Estimado/a, con gusto le enviamos nuestra lista de precios mayoristas. ¿Podría indicarnos qué productos le interesan?",
-                    "time": "hace 1 hora",
-                    "tokens": 62,
-                    "cost": 0.00025
-                }
-            ],
-            "channel_stats": demo["channel_stats"]
-        }
-        result["completed"] = True
-        result["message"] = "🎉 ¡Sistema completo! Puedes ver el dashboard en vivo."
-    
-    elif step_index == 2:  # Paso 3 - Configurar tono
-        if user_data.get("custom_tone"):
-            result["data"]["custom_tone"] = user_data["custom_tone"]
-            result["message"] = "✅ Tono personalizado aplicado para todos los canales."
-        else:
-            result["data"]["channels"] = step["channels"]
-    
-    return result
-
-
-def simulate_middleware_message(payload: dict[str, Any]) -> dict[str, Any]:
-    """Simula el envío de un mensaje y genera una respuesta."""
-    import random
-    
-    channel = payload.get("channel", "web")
-    message = payload.get("message", "").strip()
-    custom_tone = payload.get("tone", "")
-    
-    if not message:
-        return {"ok": False, "error": "Escribe un mensaje para simular"}
-    
-    # Buscar mensajes de ejemplo similares
-    example_messages = MIDDLEWARE_DEMO["example_messages"]
-    matched_example = None
-    
-    for example in example_messages:
-        if example["channel"].lower() == channel.lower():
-            # Buscar coincidencia por palabras clave
-            example_words = set(example["message"].lower().split())
-            message_words = set(message.lower().split())
-            if len(example_words.intersection(message_words)) >= 2:
-                matched_example = example
-                break
-    
-    # Si no hay coincidencia, usar el primer ejemplo del canal o generar una respuesta genérica
-    if not matched_example:
-        responses = {
-            "whatsapp": [
-                "¡Gracias por tu mensaje! 😊 ¿En qué más puedo ayudarte?",
-                "Entendido, te ayudo con eso 💪 Déjame revisar la información.",
-                "¡Claro! Déjame revisarlo 📋 y te respondo en un momento."
-            ],
-            "instagram": [
-                "¡Hola! Gracias por escribir 🌟 Cuéntame más sobre lo que necesitas.",
-                "Qué interesante, cuéntame más detalles 💫 para poder ayudarte mejor.",
-                "¡Me encanta! Vamos a ver eso 🎯 y te doy una respuesta."
-            ],
-            "email": [
-                "Estimado/a, gracias por su consulta. Le responderemos a la brevedad.",
-                "Agradecemos su mensaje, le responderemos pronto con la información solicitada.",
-                "Hemos recibido su solicitud, le contactaremos en las próximas horas."
-            ],
-            "web": [
-                "Gracias por tu consulta. ¿En qué más puedo ayudarte?",
-                "Entendido, te ayudaremos con eso. ¿Algo más que necesites?",
-                "Procesando tu solicitud. Te responderemos en breve."
-            ]
-        }
-        
-        response = random.choice(responses.get(channel.lower(), ["Gracias por tu mensaje."]))
-        
-        # Personalizar el tono si se especificó
-        if custom_tone:
-            response = f"({custom_tone}) {response}"
-        
-        tokens = estimate_tokens(message) + estimate_tokens(response)
-        cost = round((tokens / 1000) * 0.002, 5)
-        
-        return {
-            "ok": True,
-            "response": response,
-            "channel": channel,
-            "tokens": tokens,
-            "cost": cost,
-            "response_time": round(random.uniform(0.8, 2.5), 1),
-            "source": "simulated"
-        }
-    
-    # Usar la respuesta del ejemplo
-    tokens = estimate_tokens(message) + estimate_tokens(matched_example["response"])
-    cost = round((tokens / 1000) * 0.002, 5)
-    
-    return {
-        "ok": True,
-        "response": matched_example["response"],
-        "channel": channel,
-        "tokens": tokens,
-        "cost": cost,
-        "response_time": round(random.uniform(0.8, 2.5), 1),
-        "source": "example"
-    }
 
 
 # ============================================
@@ -2577,6 +2844,7 @@ def process_purchase_request(question: str, channel: str) -> dict[str, Any]:
 
 def render_index() -> str:
     state_json = json.dumps(get_dashboard_state(), ensure_ascii=False)
+    smartstacks_demo_json = json.dumps(SMARTSTACKS_DEMO, ensure_ascii=False)
     middleware_demo_json = json.dumps(MIDDLEWARE_DEMO, ensure_ascii=False)
     
     return f"""<!doctype html>
@@ -2761,8 +3029,9 @@ def render_index() -> str:
           <a onclick="showSection('middleware')">Automatización</a>
           <a onclick="showSection('consulting')">Llave en Mano</a>
           <a onclick="showSection('invoicing')">Facturación</a>
-          <a onclick="showSection('demo')">🚀 Proyectos</a>
+          <a onclick="showSection('smartstacks-demo')">🏪 Caso 1</a>
           <a onclick="showSection('middleware-demo')">🤖 Caso 2</a>
+          <a onclick="showSection('demo')">🚀 Proyectos</a>
           <a onclick="showSection('faqs')">FAQs</a>
         </div>
       </nav>
@@ -3115,49 +3384,126 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
         </div>
       </section>
 
-      <section id="demo">
-        <h2>🚀 Simulación de Proyecto Llave en Mano</h2>
+      <!-- CASO 1: SMARTSTACKS DE CERCANÍA -->
+      <section id="smartstacks-demo">
+        <h2>🏪 Simulación: SmartStacks de Cercanía</h2>
         <p class="muted" style="max-width:640px; margin-top:-6px;">
-          Elige un proyecto y te mostraremos paso a paso cómo se construye y funciona. 
-          ¡Interactúa con datos de ejemplo o ingresa los tuyos!
+          Experimenta cómo un asistente IA responde preguntas de inventario en tiempo real, 
+          reduciendo filas y estrés en tu negocio local.
         </p>
+
         <div class="grid two" style="margin-bottom: 20px;">
           <div class="card">
-            <h3>Selecciona tu Proyecto</h3>
-            <div id="demoSelector">
-              <button onclick="selectDemo('correo')" class="btn" style="margin: 4px;">📬 Correo</button>
-              <button onclick="selectDemo('agenda')" class="btn" style="margin: 4px;">📅 Agenda</button>
-              <button onclick="selectDemo('whatsapp')" class="btn" style="margin: 4px;">💬 WhatsApp</button>
-              <button onclick="selectDemo('facturacion')" class="btn" style="margin: 4px;">🧾 Facturación</button>
+            <h3>📊 Impacto en tu Negocio</h3>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+              <div style="background: rgba(0,0,0,.2); padding: 12px; border-radius: 12px; text-align: center;">
+                <div style="font-size: 11px; color: var(--muted);">Consultas Respondidas</div>
+                <div style="font-size: 24px; font-weight: 800; color: var(--brand2);" id="ssQuestions">0</div>
+              </div>
+              <div style="background: rgba(0,0,0,.2); padding: 12px; border-radius: 12px; text-align: center;">
+                <div style="font-size: 11px; color: var(--muted);">Horas Ahorradas</div>
+                <div style="font-size: 24px; font-weight: 800; color: var(--brand);" id="ssHours">0h</div>
+              </div>
+              <div style="background: rgba(0,0,0,.2); padding: 12px; border-radius: 12px; text-align: center;">
+                <div style="font-size: 11px; color: var(--muted);">Satisfacción</div>
+                <div style="font-size: 24px; font-weight: 800; color: var(--brand2);" id="ssSatisfaction">0%</div>
+              </div>
             </div>
-            <div id="demoDescription" style="margin-top: 12px; color: var(--muted);">
-              <p>Selecciona un proyecto para comenzar la simulación.</p>
+            <div style="margin-top: 12px; background: rgba(0,0,0,.2); border-radius: 8px; padding: 8px; text-align: center;">
+              <span style="font-size: 12px; color: var(--muted);">⏱ Tiempo promedio de respuesta: <strong id="ssAvgTime">0s</strong></span>
             </div>
           </div>
-          <div class="card" id="demoProgressPanel">
-            <h3>Progreso del Proyecto</h3>
-            <div id="demoProgress">
-              <p style="color: var(--muted);">Esperando selección de proyecto...</p>
+          <div class="card">
+            <h3>📦 Inventario Rápido</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 120px; overflow-y: auto;">
+              <div id="ssInventoryPreview">
+                <p style="color: var(--muted); font-size: 12px;">Cargando productos...</p>
+              </div>
             </div>
+            <button onclick="showFullInventory()" class="btn secondary" style="width: 100%; margin-top: 8px; font-size: 12px;">
+              📋 Ver Inventario Completo
+            </button>
           </div>
         </div>
-        <div class="card" id="demoSimulation" style="display: none;">
-          <div id="demoStepContent">
-            <h3 id="demoStepTitle">Paso 1: Conectar Bandeja de Entrada</h3>
-            <p id="demoStepDesc">Simulamos la conexión a tu correo.</p>
-            <div id="demoDataArea" style="background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0;">
-              <p style="color: var(--muted);">Cargando datos de ejemplo...</p>
+
+        <div class="card">
+          <h3>💬 Pregunta al Asistente</h3>
+          <p class="muted">Escribe como si fueras un cliente o vendedor preguntando por productos:</p>
+          
+          <div style="display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap;">
+            <button onclick="loadSmartExample('default')" class="btn secondary" style="font-size: 12px;">📋 Ejemplo</button>
+            <button onclick="loadSmartExample('stock')" class="btn secondary" style="font-size: 12px;">📦 Stock</button>
+            <button onclick="loadSmartExample('precio')" class="btn secondary" style="font-size: 12px;">💰 Precio</button>
+            <button onclick="loadSmartExample('descripcion')" class="btn secondary" style="font-size: 12px;">📝 Descripción</button>
+          </div>
+          
+          <div style="margin: 10px 0;">
+            <textarea id="ssQuestion" rows="3" placeholder="Ej: ¿Tienes pernos de anclaje 3/8?">¿Cuánto cuesta la tubería PVC?</textarea>
+          </div>
+          
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button onclick="askSmartAssistant()" class="btn">🚀 Preguntar</button>
+            <button onclick="clearSmartConversation()" class="btn secondary">🗑️ Limpiar</button>
+          </div>
+          
+          <div id="ssConversation" style="margin-top: 16px; max-height: 400px; overflow-y: auto;">
+            <p style="color: var(--muted); text-align: center;">Haz una pregunta para ver cómo responde el asistente.</p>
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 20px;">
+          <div class="card">
+            <h3>🔄 Progreso de Implementación</h3>
+            <div style="margin: 14px 0;">
+              <div style="background: rgba(0,0,0,.2); border-radius: 12px; padding: 4px;">
+                <div id="ssProgressBar" style="width: 0%; height: 8px; background: linear-gradient(90deg, var(--brand), var(--brand2)); border-radius: 12px; transition: width 0.5s ease;"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--muted);">
+                <span>Inicio</span>
+                <span id="ssStepIndicator">Paso 1/4</span>
+                <span>Completo</span>
+              </div>
             </div>
-            <div style="display: flex; gap: 10px; margin-top: 14px;">
-              <button id="demoStepActionBtn" class="btn" onclick="runDemoStep()">Continuar</button>
-              <button id="demoResetBtn" class="btn secondary" onclick="resetDemo()">Reiniciar</button>
-              <button id="demoEditBtn" class="btn secondary" onclick="toggleDemoEdit()">✏️ Usar mis datos</button>
+            
+            <div id="ssCurrentStep">
+              <h4 id="ssStepTitle">1. Cargar el Inventario Local</h4>
+              <p id="ssStepDesc">Subimos los datos de tu negocio: productos, códigos, precios y descripciones.</p>
+              <div id="ssStepDetails">
+                <ul style="color: var(--muted); list-style: none; padding: 0;">
+                  <li style="padding: 4px 0;">⏳ Cargando detalles del paso...</li>
+                </ul>
+              </div>
             </div>
-            <div id="demoUserInput" style="display: none; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px;">
-              <h4>Ingresa tus propios datos</h4>
-              <textarea id="demoUserDataInput" rows="4" style="width: 100%;" placeholder="Escribe tus datos aquí..."></textarea>
-              <button onclick="applyUserData()" class="btn" style="margin-top: 8px;">Aplicar mis datos</button>
+            
+            <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+              <button onclick="runSmartstacksStep()" class="btn" id="ssStepBtn">▶️ Ejecutar Paso</button>
+              <button onclick="resetSmartstacksDemo()" class="btn secondary">🔄 Reiniciar</button>
             </div>
+          </div>
+          
+          <div class="card">
+            <h3>➕ Agregar Producto Personalizado</h3>
+            <p class="muted" style="font-size: 12px;">Simula cómo agregarías productos reales de tu negocio:</p>
+            <form id="ssProductForm" class="formgrid" style="margin-top: 10px;">
+              <div><label>Código</label><input id="ssProductCode" placeholder="PER-001" required></div>
+              <div><label>Nombre</label><input id="ssProductName" placeholder="Perno de Anclaje" required></div>
+              <div><label>Stock</label><input id="ssProductStock" type="number" placeholder="50" required></div>
+              <div><label>Precio</label><input id="ssProductPrice" type="number" step="0.01" placeholder="2500" required></div>
+              <div class="full"><label>Descripción</label><textarea id="ssProductDesc" rows="2" placeholder="Descripción del producto..."></textarea></div>
+              <div class="full"><button type="submit" class="btn">➕ Agregar Producto</button></div>
+            </form>
+            <div id="ssProductResult" style="margin-top: 8px;"></div>
+          </div>
+        </div>
+
+        <!-- Modal de Inventario Completo -->
+        <div id="ssFullInventoryModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.85); z-index: 1000; padding: 40px; overflow-y: auto;">
+          <div style="max-width: 800px; margin: 0 auto; background: var(--bg); border-radius: 24px; padding: 30px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+              <h2 style="margin: 0;">📦 Inventario Completo</h2>
+              <button onclick="closeFullInventory()" style="background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer;">✕</button>
+            </div>
+            <div id="ssFullInventoryContent" style="max-height: 70vh; overflow-y: auto;"></div>
           </div>
         </div>
       </section>
@@ -3226,7 +3572,7 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
             <textarea id="mdMessage" rows="3" placeholder="Escribe un mensaje como si fuera un cliente real...">Hola, ¿tienen stock de martillos?</textarea>
           </div>
           
-          <div style="display: flex; gap: 10px;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button onclick="simulateMiddlewareMessage()" class="btn">🚀 Enviar y Simular</button>
             <button onclick="loadMiddlewareExample()" class="btn secondary">📋 Cargar Ejemplo</button>
           </div>
@@ -3276,7 +3622,7 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
               </div>
             </div>
             
-            <div style="display: flex; gap: 10px; margin-top: 14px;">
+            <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
               <button onclick="runMiddlewareStep()" class="btn" id="mdStepBtn">▶️ Ejecutar Paso</button>
               <button onclick="resetMiddlewareDemo()" class="btn secondary">🔄 Reiniciar</button>
             </div>
@@ -3311,6 +3657,53 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
                 <strong>🤖 Respuesta:</strong>
                 <p>"Estimado/a, gracias por su consulta. Con gusto le enviamos una cotización detallada en las próximas 2 horas. Quedamos atentos."</p>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="demo">
+        <h2>🚀 Simulación de Proyecto Llave en Mano</h2>
+        <p class="muted" style="max-width:640px; margin-top:-6px;">
+          Elige un proyecto y te mostraremos paso a paso cómo se construye y funciona. 
+          ¡Interactúa con datos de ejemplo o ingresa los tuyos!
+        </p>
+        <div class="grid two" style="margin-bottom: 20px;">
+          <div class="card">
+            <h3>Selecciona tu Proyecto</h3>
+            <div id="demoSelector">
+              <button onclick="selectDemo('correo')" class="btn" style="margin: 4px;">📬 Correo</button>
+              <button onclick="selectDemo('agenda')" class="btn" style="margin: 4px;">📅 Agenda</button>
+              <button onclick="selectDemo('whatsapp')" class="btn" style="margin: 4px;">💬 WhatsApp</button>
+              <button onclick="selectDemo('facturacion')" class="btn" style="margin: 4px;">🧾 Facturación</button>
+            </div>
+            <div id="demoDescription" style="margin-top: 12px; color: var(--muted);">
+              <p>Selecciona un proyecto para comenzar la simulación.</p>
+            </div>
+          </div>
+          <div class="card" id="demoProgressPanel">
+            <h3>Progreso del Proyecto</h3>
+            <div id="demoProgress">
+              <p style="color: var(--muted);">Esperando selección de proyecto...</p>
+            </div>
+          </div>
+        </div>
+        <div class="card" id="demoSimulation" style="display: none;">
+          <div id="demoStepContent">
+            <h3 id="demoStepTitle">Paso 1: Conectar Bandeja de Entrada</h3>
+            <p id="demoStepDesc">Simulamos la conexión a tu correo.</p>
+            <div id="demoDataArea" style="background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0;">
+              <p style="color: var(--muted);">Cargando datos de ejemplo...</p>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+              <button id="demoStepActionBtn" class="btn" onclick="runDemoStep()">Continuar</button>
+              <button id="demoResetBtn" class="btn secondary" onclick="resetDemo()">Reiniciar</button>
+              <button id="demoEditBtn" class="btn secondary" onclick="toggleDemoEdit()">✏️ Usar mis datos</button>
+            </div>
+            <div id="demoUserInput" style="display: none; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px;">
+              <h4>Ingresa tus propios datos</h4>
+              <textarea id="demoUserDataInput" rows="4" style="width: 100%;" placeholder="Escribe tus datos aquí..."></textarea>
+              <button onclick="applyUserData()" class="btn" style="margin-top: 8px;">Aplicar mis datos</button>
             </div>
           </div>
         </div>
@@ -3423,6 +3816,9 @@ function showSection(id) {{
   }}
   if (id === 'consulting') {{
     refreshConsulting();
+  }}
+  if (id === 'smartstacks-demo') {{
+    loadSmartstacksDemo();
   }}
   if (id === 'middleware-demo') {{
     loadMiddlewareDemo();
@@ -3743,225 +4139,334 @@ async function loadProductsForInvoice() {{
 }}
 
 // ============================================
-// DEMO DE PROYECTOS - JavaScript
+// CASO 1: SMARTSTACKS DEMO - JavaScript
 // ============================================
 
-let currentDemoId = null;
-let currentStep = 0;
-let demoData = [];
-let isUsingUserData = false;
-
-async function selectDemo(demoId) {{
-  currentDemoId = demoId;
-  currentStep = 0;
-  isUsingUserData = false;
-  
-  const res = await fetch(`/api/demo/data/${{demoId}}`);
-  const data = await res.json();
-  if (data.ok) {{
-    demoData = data.data;
-  }}
-  
-  const demoSection = $('#demoSimulation');
-  if (demoSection) demoSection.style.display = 'block';
-  
-  await refreshDemoState();
-  
-  const desc = $('#demoDescription');
-  if (desc) {{
-    const demos = window.demoConfig || (await (await fetch('/api/demo/state')).json()).demos;
-    if (demos && demos[demoId]) {{
-      desc.innerHTML = `<h4>${{demos[demoId].icon}} ${{demos[demoId].name}}</h4>
-                        <p>${{demos[demoId].description}}</p>`;
+let smartstacksDemoState = {{
+    currentStep: 0,
+    isComplete: false,
+    stats: {{
+        questions_answered: 0,
+        hours_saved: 0,
+        customer_satisfaction: 0
     }}
-  }}
-  
-  await runDemoStep();
+}};
+
+let ssConversationHistory = [];
+const smartstacksDemo = {smartstacks_demo_json};
+
+async function loadSmartstacksDemo() {{
+    try {{
+        const res = await fetch('/api/smartstacks/demo/state');
+        const data = await res.json();
+        if (data.ok) {{
+            smartstacksDemoState.currentStep = data.current_step || 0;
+            smartstacksDemoState.isComplete = data.is_complete || false;
+            if (data.stats) {{
+                smartstacksDemoState.stats = data.stats;
+            }}
+            updateSmartstacksUI(data);
+            renderSmartstacksInventory(data.demo?.example_products || []);
+        }}
+    }} catch (e) {{
+        console.error('Error loading smartstacks demo:', e);
+    }}
 }}
 
-async function refreshDemoState() {{
-  try {{
-    const res = await fetch('/api/demo/state');
-    const state = await res.json();
-  }} catch (e) {{
-    console.error('Error refreshing demo state:', e);
-  }}
+function updateSmartstacksUI(data) {{
+    const demo = data.demo || {{}};
+    const step = demo.steps && demo.steps[smartstacksDemoState.currentStep];
+    const totalSteps = (demo.steps || []).length;
+    
+    const progress = ((smartstacksDemoState.currentStep) / totalSteps) * 100;
+    const progressBar = $('#ssProgressBar');
+    if (progressBar) progressBar.style.width = Math.min(progress, 100) + '%';
+    
+    const indicator = $('#ssStepIndicator');
+    if (indicator) {{
+        if (smartstacksDemoState.isComplete) {{
+            indicator.textContent = '✅ Completado';
+        }} else {{
+            indicator.textContent = `Paso ${{smartstacksDemoState.currentStep + 1}}/${{totalSteps}}`;
+        }}
+    }}
+    
+    const stats = smartstacksDemoState.stats;
+    const questionsEl = $('#ssQuestions');
+    const hoursEl = $('#ssHours');
+    const satisfactionEl = $('#ssSatisfaction');
+    const avgTimeEl = $('#ssAvgTime');
+    
+    if (questionsEl) questionsEl.textContent = stats.questions_answered || 0;
+    if (hoursEl) hoursEl.textContent = (stats.hours_saved || 0).toFixed(1) + 'h';
+    if (satisfactionEl) satisfactionEl.textContent = (stats.customer_satisfaction || 0) + '%';
+    if (avgTimeEl) avgTimeEl.textContent = (demo.stats?.avg_response_time || 0) + 's';
+    
+    if (step) {{
+        const title = $('#ssStepTitle');
+        const desc = $('#ssStepDesc');
+        const details = $('#ssStepDetails');
+        
+        if (title) title.textContent = step.title;
+        if (desc) desc.textContent = step.desc;
+        
+        if (details) {{
+            let html = '<ul style="color: var(--muted); list-style: none; padding: 0;">';
+            if (step.details) {{
+                step.details.forEach(d => {{
+                    html += `<li style="padding: 4px 0;">✅ ${{d}}</li>`;
+                }});
+            }}
+            html += '</ul>';
+            details.innerHTML = html;
+        }}
+        
+        const btn = $('#ssStepBtn');
+        if (btn) {{
+            if (smartstacksDemoState.isComplete) {{
+                btn.textContent = '🔄 Reiniciar Demo';
+                btn.onclick = resetSmartstacksDemo;
+            }} else {{
+                btn.textContent = `▶️ ${{step.action}}`;
+                btn.onclick = runSmartstacksStep;
+            }}
+        }}
+    }}
 }}
 
-async function runDemoStep() {{
-  if (!currentDemoId) {{
-    toast('Selecciona un proyecto primero.');
-    return;
-  }}
-  
-  const userData = {{}};
-  if (isUsingUserData && currentDemoId === 'whatsapp') {{
-    const input = $('#demoUserDataInput');
-    if (input && input.value) {{
-      try {{
-        const parsed = JSON.parse(input.value);
-        userData.messages = Array.isArray(parsed) ? parsed : [parsed];
-      }} catch (e) {{
-        userData.messages = [{{ message: input.value }}];
-      }}
+function renderSmartstacksInventory(products) {{
+    const preview = $('#ssInventoryPreview');
+    if (preview && products && products.length) {{
+        const display = products.slice(0, 6);
+        let html = '';
+        display.forEach(p => {{
+            const emoji = p.stock > 10 ? '✅' : p.stock > 0 ? '⚠️' : '❌';
+            html += `<div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12px;">
+                <span><strong>${{p.code}}</strong> ${{p.name}}</span>
+                <span style="color: var(--muted);">${{emoji}} ${{p.stock}}</span>
+            </div>`;
+        }});
+        if (products.length > 6) {{
+            html += `<div style="text-align: center; font-size: 11px; color: var(--muted); padding: 4px;">+ ${{products.length - 6}} productos más</div>`;
+        }}
+        preview.innerHTML = html;
     }}
-  }} else if (isUsingUserData && currentDemoId === 'facturacion') {{
-    const input = $('#demoUserDataInput');
-    if (input && input.value) {{
-      try {{
-        const parsed = JSON.parse(input.value);
-        userData.client = parsed.client || 'Cliente Personalizado';
-        userData.products = parsed.products || [];
-      }} catch (e) {{
-        toast('Error: Los datos deben estar en formato JSON válido.');
+}}
+
+function showFullInventory() {{
+    const modal = $('#ssFullInventoryModal');
+    const content = $('#ssFullInventoryContent');
+    if (!modal || !content) return;
+    
+    const products = smartstacksDemo.example_products || [];
+    let html = '<table><thead><tr><th>Código</th><th>Nombre</th><th>Stock</th><th>Precio</th><th>Descripción</th></tr></thead><tbody>';
+    products.forEach(p => {{
+        html += `<tr>
+            <td><strong>${{p.code}}</strong></td>
+            <td>${{p.name}}</td>
+            <td>${{p.stock}}</td>
+            <td>$${{p.price}}</td>
+            <td style="font-size: 12px;">${{p.description || 'Sin descripción'}}</td>
+        </tr>`;
+    }});
+    html += '</tbody></table>';
+    content.innerHTML = html;
+    modal.style.display = 'block';
+}}
+
+function closeFullInventory() {{
+    const modal = $('#ssFullInventoryModal');
+    if (modal) modal.style.display = 'none';
+}}
+
+async function runSmartstacksStep() {{
+    if (smartstacksDemoState.isComplete) {{
+        resetSmartstacksDemo();
         return;
-      }}
-    }}
-  }}
-  
-  const payload = {{
-    demo_id: currentDemoId,
-    step_index: currentStep,
-    user_data: userData
-  }};
-  
-  const result = await api('/api/demo/step', payload);
-  
-  if (!result.ok) {{
-    toast('Error en la simulación: ' + result.error);
-    return;
-  }}
-  
-  renderDemoStep(result);
-  currentStep = result.step_index + 1;
-  
-  if (result.completed) {{
-    toast('🎉 ¡Proyecto completado! Revisa los resultados.');
-    const actionBtn = $('#demoStepActionBtn');
-    if (actionBtn) {{
-      actionBtn.textContent = '🔄 Reiniciar Demo';
-      actionBtn.onclick = resetDemo;
-    }}
-  }}
-}}
-
-function renderDemoStep(result) {{
-  const title = $('#demoStepTitle');
-  const desc = $('#demoStepDesc');
-  const dataArea = $('#demoDataArea');
-  const actionBtn = $('#demoStepActionBtn');
-  
-  if (title) title.textContent = result.step.title;
-  if (desc) desc.textContent = result.step.desc;
-  if (actionBtn) actionBtn.textContent = 'Continuar';
-  
-  if (dataArea) {{
-    let html = '';
-    
-    if (result.data && result.data.classified_emails) {{
-      html = '<h4>📬 Correos Clasificados</h4><table><thead><tr><th>Asunto</th><th>Categoría</th><th>Prioridad</th><th>Acción</th></tr></thead><tbody>';
-      result.data.classified_emails.forEach(email => {{
-        html += `<tr><td>${{email.subject}}</td>
-                 <td><span class="status-badge cat-${{email.category}}">${{email.category}}</span></td>
-                 <td><span class="status-badge priority-${{email.priority}}">${{email.priority}}</span></td>
-                 <td>${{email.action}}</td></tr>`;
-      }});
-      html += '</tbody></table>';
-    }} else if (result.data && result.data.appointments) {{
-      html = '<h4>📅 Citas Agendadas</h4><table><thead><tr><th>Cliente</th><th>Fecha</th><th>Hora</th><th>Estado</th></tr></thead><tbody>';
-      result.data.appointments.forEach(apt => {{
-        html += `<tr><td>${{apt.client}}</td>
-                 <td>${{apt.date}}</td>
-                 <td>${{apt.time}}</td>
-                 <td><span class="status-badge status-${{apt.status}}">${{apt.status}}</span></td></tr>`;
-      }});
-      html += '</tbody></table>';
-    }} else if (result.data && result.data.responses) {{
-      html = '<h4>💬 Respuestas del Asistente</h4>';
-      result.data.responses.forEach(item => {{
-        html += `<div class="conversation user"><strong>Cliente:</strong><p>${{item.message}}</p></div>
-                 <div class="conversation"><strong>Asistente IA:</strong><p>${{item.response}}</p></div>`;
-      }});
-    }} else if (result.data && result.data.invoice) {{
-      const inv = result.data.invoice;
-      html = `<h4>🧾 Factura Generada</h4>
-              <p><strong>Número:</strong> ${{inv.number}}</p>
-              <p><strong>Cliente:</strong> ${{inv.client}}</p>
-              <p><strong>Subtotal:</strong> $${{inv.subtotal.toFixed(2)}}</p>
-              <p><strong>IVA (19%):</strong> $${{inv.tax.toFixed(2)}}</p>
-              <p><strong>Total:</strong> <span class="metric">$${{inv.total.toFixed(2)}}</span></p>
-              <p><strong>Estado:</strong> <span class="status-badge status-paid">${{inv.status}}</span></p>`;
-    }} else {{
-      html = `<p style="color: var(--muted);">En este paso, el sistema ${{result.step.action.toLowerCase()}}.</p>
-              <p><small>💡 Usa el botón "Usar mis datos" para personalizar esta simulación.</small></p>`;
     }}
     
-    dataArea.innerHTML = html;
-  }}
-}}
-
-function resetDemo() {{
-  currentStep = 0;
-  isUsingUserData = false;
-  const userInput = $('#demoUserDataInput');
-  if (userInput) userInput.value = '';
-  const editBtn = $('#demoEditBtn');
-  if (editBtn) editBtn.textContent = '✏️ Usar mis datos';
-  const userInputArea = $('#demoUserInput');
-  if (userInputArea) userInputArea.style.display = 'none';
-  const actionBtn = $('#demoStepActionBtn');
-  if (actionBtn) {{
-    actionBtn.textContent = 'Continuar';
-    actionBtn.onclick = runDemoStep;
-  }}
-  runDemoStep();
-  toast('🔄 Demo reiniciada');
-}}
-
-function toggleDemoEdit() {{
-  const userInputArea = $('#demoUserInput');
-  const editBtn = $('#demoEditBtn');
-  if (userInputArea.style.display === 'none') {{
-    userInputArea.style.display = 'block';
-    if (editBtn) editBtn.textContent = '✖ Cerrar';
-    const input = $('#demoUserDataInput');
-    if (input && currentDemoId) {{
-      if (currentDemoId === 'whatsapp') {{
-        input.value = JSON.stringify(demoData, null, 2);
-      }} else if (currentDemoId === 'facturacion') {{
-        input.value = JSON.stringify({{
-          client: "Mi Cliente Personalizado",
-          products: [
-            {{ name: "Producto X", price: 15000, qty: 2 }},
-            {{ name: "Producto Y", price: 25000, qty: 1 }}
-          ]
-        }}, null, 2);
-      }}
+    try {{
+        const res = await fetch('/api/smartstacks/demo/step', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{
+                step_index: smartstacksDemoState.currentStep
+            }})
+        }});
+        const data = await res.json();
+        
+        if (!data.ok) {{
+            toast('Error: ' + data.error);
+            return;
+        }}
+        
+        smartstacksDemoState.currentStep = data.step_index + 1;
+        smartstacksDemoState.isComplete = data.completed || false;
+        
+        if (data.data && data.data.dashboard) {{
+            smartstacksDemoState.stats.questions_answered = data.data.dashboard.impact.questions_answered || 0;
+            smartstacksDemoState.stats.hours_saved = data.data.dashboard.impact.hours_saved || 0;
+            smartstacksDemoState.stats.customer_satisfaction = data.data.dashboard.impact.customer_satisfaction || 0;
+        }}
+        
+        toast(data.message);
+        loadSmartstacksDemo();
+        
+    }} catch (e) {{
+        console.error('Error running smartstacks step:', e);
+        toast('Error al ejecutar el paso');
     }}
-  }} else {{
-    userInputArea.style.display = 'none';
-    if (editBtn) editBtn.textContent = '✏️ Usar mis datos';
-  }}
 }}
 
-function applyUserData() {{
-  const input = $('#demoUserDataInput');
-  if (!input || !input.value.trim()) {{
-    toast('Escribe o pega tus datos primero.');
-    return;
-  }}
-  isUsingUserData = true;
-  toast('✅ Datos aplicados. Ahora puedes ejecutar el paso.');
-  runDemoStep();
+function resetSmartstacksDemo() {{
+    smartstacksDemoState.currentStep = 0;
+    smartstacksDemoState.isComplete = false;
+    smartstacksDemoState.stats = {{
+        questions_answered: 0,
+        hours_saved: 0,
+        customer_satisfaction: 0
+    }};
+    ssConversationHistory = [];
+    const conversation = $('#ssConversation');
+    if (conversation) {{
+        conversation.innerHTML = '<p style="color: var(--muted); text-align: center;">Haz una pregunta para ver cómo responde el asistente.</p>';
+    }}
+    toast('🔄 Demo reiniciada');
+    loadSmartstacksDemo();
 }}
 
-window.demoConfig = null;
-fetch('/api/demo/state')
-  .then(res => res.json())
-  .then(data => {{
-    window.demoConfig = data.demos;
-  }})
-  .catch(e => console.error('Error loading demo config:', e));
+async function askSmartAssistant() {{
+    const question = $('#ssQuestion').value.trim();
+    if (!question) {{
+        toast('Escribe una pregunta primero');
+        return;
+    }}
+    
+    try {{
+        const res = await fetch('/api/smartstacks/demo/simulate', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{ question: question }})
+        }});
+        const data = await res.json();
+        
+        if (!data.ok) {{
+            toast('Error: ' + data.error);
+            return;
+        }}
+        
+        smartstacksDemoState.stats.questions_answered += 1;
+        smartstacksDemoState.stats.hours_saved += 0.05;
+        smartstacksDemoState.stats.customer_satisfaction = Math.min(100, 
+            smartstacksDemoState.stats.customer_satisfaction + 0.5
+        );
+        
+        $('#ssQuestions').textContent = smartstacksDemoState.stats.questions_answered;
+        $('#ssHours').textContent = smartstacksDemoState.stats.hours_saved.toFixed(1) + 'h';
+        $('#ssSatisfaction').textContent = Math.round(smartstacksDemoState.stats.customer_satisfaction) + '%';
+        
+        const conversation = $('#ssConversation');
+        if (conversation) {{
+            let html = '';
+            ssConversationHistory.push({{ question: question, answer: data.answer, time: data.response_time }});
+            if (ssConversationHistory.length > 5) {{
+                ssConversationHistory.shift();
+            }}
+            
+            ssConversationHistory.slice().reverse().forEach(item => {{
+                html += `
+                    <div class="conversation user">
+                        <strong>👤 Tú:</strong>
+                        <p>"${{item.question}}"</p>
+                        <span style="font-size: 11px; color: var(--muted);">⏱ ${{item.time}}s</span>
+                    </div>
+                    <div class="conversation">
+                        <strong>🤖 Asistente IA:</strong>
+                        <p>${{item.answer.replace(/\\n/g, '<br>')}}</p>
+                    </div>
+                `;
+            }});
+            conversation.innerHTML = html;
+            conversation.scrollTop = 0;
+        }}
+        
+        toast('✅ Respuesta generada en ' + data.response_time + 's');
+        $('#ssQuestion').value = '';
+        
+    }} catch (e) {{
+        console.error('Error asking assistant:', e);
+        toast('Error al procesar la pregunta');
+    }}
+}}
+
+function loadSmartExample(type) {{
+    const examples = {{
+        default: "¿Tienes pernos de anclaje 3/8?",
+        stock: "¿Cuántos martillos tienen en stock?",
+        precio: "¿Cuánto cuesta la tubería PVC?",
+        descripcion: "Dame más información sobre el taladro percutor"
+    }};
+    
+    const questionInput = $('#ssQuestion');
+    if (questionInput) {{
+        questionInput.value = examples[type] || examples.default;
+    }}
+}}
+
+function clearSmartConversation() {{
+    ssConversationHistory = [];
+    const conversation = $('#ssConversation');
+    if (conversation) {{
+        conversation.innerHTML = '<p style="color: var(--muted); text-align: center;">Haz una pregunta para ver cómo responde el asistente.</p>';
+    }}
+    toast('🗑️ Conversación limpiada');
+}}
+
+const ssProductForm = $('#ssProductForm');
+if (ssProductForm) {{
+    ssProductForm.addEventListener('submit', async (e) => {{
+        e.preventDefault();
+        
+        const code = $('#ssProductCode').value.trim();
+        const name = $('#ssProductName').value.trim();
+        const stock = parseInt($('#ssProductStock').value);
+        const price = parseFloat($('#ssProductPrice').value);
+        const description = $('#ssProductDesc').value.trim();
+        
+        if (!code || !name || isNaN(stock) || isNaN(price)) {{
+            toast('Completa todos los campos requeridos');
+            return;
+        }}
+        
+        try {{
+            const res = await fetch('/api/smartstacks/demo/product/add', {{
+                method: 'POST',
+                headers: {{'Content-Type': 'application/json'}},
+                body: JSON.stringify({{ code, name, stock, price, description }})
+            }});
+            const data = await res.json();
+            
+            if (!data.ok) {{
+                toast('Error: ' + data.error);
+                return;
+            }}
+            
+            toast('✅ ' + data.message);
+            ssProductForm.reset();
+            $('#ssProductResult').innerHTML = `
+                <div style="background: rgba(51,214,166,.15); padding: 10px; border-radius: 8px; color: var(--brand2);">
+                    ✅ Producto "${name}" agregado correctamente
+                </div>
+            `;
+            setTimeout(() => $('#ssProductResult').innerHTML = '', 3000);
+            loadSmartstacksDemo();
+            
+        }} catch (e) {{
+            console.error('Error adding product:', e);
+            toast('Error al agregar producto');
+        }}
+    }});
+}}
 
 // ============================================
 // CASO 2: MIDDLEWARE DEMO - JavaScript
@@ -4242,6 +4747,227 @@ function loadMiddlewareExample() {{
     
     toast('📋 Ejemplo cargado');
 }}
+
+// ============================================
+// DEMO DE PROYECTOS - JavaScript
+// ============================================
+
+let currentDemoId = null;
+let currentStep = 0;
+let demoData = [];
+let isUsingUserData = false;
+
+async function selectDemo(demoId) {{
+  currentDemoId = demoId;
+  currentStep = 0;
+  isUsingUserData = false;
+  
+  const res = await fetch(`/api/demo/data/${{demoId}}`);
+  const data = await res.json();
+  if (data.ok) {{
+    demoData = data.data;
+  }}
+  
+  const demoSection = $('#demoSimulation');
+  if (demoSection) demoSection.style.display = 'block';
+  
+  await refreshDemoState();
+  
+  const desc = $('#demoDescription');
+  if (desc) {{
+    const demos = window.demoConfig || (await (await fetch('/api/demo/state')).json()).demos;
+    if (demos && demos[demoId]) {{
+      desc.innerHTML = `<h4>${{demos[demoId].icon}} ${{demos[demoId].name}}</h4>
+                        <p>${{demos[demoId].description}}</p>`;
+    }}
+  }}
+  
+  await runDemoStep();
+}}
+
+async function refreshDemoState() {{
+  try {{
+    const res = await fetch('/api/demo/state');
+    const state = await res.json();
+  }} catch (e) {{
+    console.error('Error refreshing demo state:', e);
+  }}
+}}
+
+async function runDemoStep() {{
+  if (!currentDemoId) {{
+    toast('Selecciona un proyecto primero.');
+    return;
+  }}
+  
+  const userData = {{}};
+  if (isUsingUserData && currentDemoId === 'whatsapp') {{
+    const input = $('#demoUserDataInput');
+    if (input && input.value) {{
+      try {{
+        const parsed = JSON.parse(input.value);
+        userData.messages = Array.isArray(parsed) ? parsed : [parsed];
+      }} catch (e) {{
+        userData.messages = [{{ message: input.value }}];
+      }}
+    }}
+  }} else if (isUsingUserData && currentDemoId === 'facturacion') {{
+    const input = $('#demoUserDataInput');
+    if (input && input.value) {{
+      try {{
+        const parsed = JSON.parse(input.value);
+        userData.client = parsed.client || 'Cliente Personalizado';
+        userData.products = parsed.products || [];
+      }} catch (e) {{
+        toast('Error: Los datos deben estar en formato JSON válido.');
+        return;
+      }}
+    }}
+  }}
+  
+  const payload = {{
+    demo_id: currentDemoId,
+    step_index: currentStep,
+    user_data: userData
+  }};
+  
+  const result = await api('/api/demo/step', payload);
+  
+  if (!result.ok) {{
+    toast('Error en la simulación: ' + result.error);
+    return;
+  }}
+  
+  renderDemoStep(result);
+  currentStep = result.step_index + 1;
+  
+  if (result.completed) {{
+    toast('🎉 ¡Proyecto completado! Revisa los resultados.');
+    const actionBtn = $('#demoStepActionBtn');
+    if (actionBtn) {{
+      actionBtn.textContent = '🔄 Reiniciar Demo';
+      actionBtn.onclick = resetDemo;
+    }}
+  }}
+}}
+
+function renderDemoStep(result) {{
+  const title = $('#demoStepTitle');
+  const desc = $('#demoStepDesc');
+  const dataArea = $('#demoDataArea');
+  const actionBtn = $('#demoStepActionBtn');
+  
+  if (title) title.textContent = result.step.title;
+  if (desc) desc.textContent = result.step.desc;
+  if (actionBtn) actionBtn.textContent = 'Continuar';
+  
+  if (dataArea) {{
+    let html = '';
+    
+    if (result.data && result.data.classified_emails) {{
+      html = '<h4>📬 Correos Clasificados</h4><table><thead><tr><th>Asunto</th><th>Categoría</th><th>Prioridad</th><th>Acción</th></tr></thead><tbody>';
+      result.data.classified_emails.forEach(email => {{
+        html += `<tr><td>${{email.subject}}</td>
+                 <td><span class="status-badge cat-${{email.category}}">${{email.category}}</span></td>
+                 <td><span class="status-badge priority-${{email.priority}}">${{email.priority}}</span></td>
+                 <td>${{email.action}}</td></tr>`;
+      }});
+      html += '</tbody></table>';
+    }} else if (result.data && result.data.appointments) {{
+      html = '<h4>📅 Citas Agendadas</h4><table><thead><tr><th>Cliente</th><th>Fecha</th><th>Hora</th><th>Estado</th></tr></thead><tbody>';
+      result.data.appointments.forEach(apt => {{
+        html += `<tr><td>${{apt.client}}</td>
+                 <td>${{apt.date}}</td>
+                 <td>${{apt.time}}</td>
+                 <td><span class="status-badge status-${{apt.status}}">${{apt.status}}</span></td></tr>`;
+      }});
+      html += '</tbody></table>';
+    }} else if (result.data && result.data.responses) {{
+      html = '<h4>💬 Respuestas del Asistente</h4>';
+      result.data.responses.forEach(item => {{
+        html += `<div class="conversation user"><strong>Cliente:</strong><p>${{item.message}}</p></div>
+                 <div class="conversation"><strong>Asistente IA:</strong><p>${{item.response}}</p></div>`;
+      }});
+    }} else if (result.data && result.data.invoice) {{
+      const inv = result.data.invoice;
+      html = `<h4>🧾 Factura Generada</h4>
+              <p><strong>Número:</strong> ${{inv.number}}</p>
+              <p><strong>Cliente:</strong> ${{inv.client}}</p>
+              <p><strong>Subtotal:</strong> $${{inv.subtotal.toFixed(2)}}</p>
+              <p><strong>IVA (19%):</strong> $${{inv.tax.toFixed(2)}}</p>
+              <p><strong>Total:</strong> <span class="metric">$${{inv.total.toFixed(2)}}</span></p>
+              <p><strong>Estado:</strong> <span class="status-badge status-paid">${{inv.status}}</span></p>`;
+    }} else {{
+      html = `<p style="color: var(--muted);">En este paso, el sistema ${{result.step.action.toLowerCase()}}.</p>
+              <p><small>💡 Usa el botón "Usar mis datos" para personalizar esta simulación.</small></p>`;
+    }}
+    
+    dataArea.innerHTML = html;
+  }}
+}}
+
+function resetDemo() {{
+  currentStep = 0;
+  isUsingUserData = false;
+  const userInput = $('#demoUserDataInput');
+  if (userInput) userInput.value = '';
+  const editBtn = $('#demoEditBtn');
+  if (editBtn) editBtn.textContent = '✏️ Usar mis datos';
+  const userInputArea = $('#demoUserInput');
+  if (userInputArea) userInputArea.style.display = 'none';
+  const actionBtn = $('#demoStepActionBtn');
+  if (actionBtn) {{
+    actionBtn.textContent = 'Continuar';
+    actionBtn.onclick = runDemoStep;
+  }}
+  runDemoStep();
+  toast('🔄 Demo reiniciada');
+}}
+
+function toggleDemoEdit() {{
+  const userInputArea = $('#demoUserInput');
+  const editBtn = $('#demoEditBtn');
+  if (userInputArea.style.display === 'none') {{
+    userInputArea.style.display = 'block';
+    if (editBtn) editBtn.textContent = '✖ Cerrar';
+    const input = $('#demoUserDataInput');
+    if (input && currentDemoId) {{
+      if (currentDemoId === 'whatsapp') {{
+        input.value = JSON.stringify(demoData, null, 2);
+      }} else if (currentDemoId === 'facturacion') {{
+        input.value = JSON.stringify({{
+          client: "Mi Cliente Personalizado",
+          products: [
+            {{ name: "Producto X", price: 15000, qty: 2 }},
+            {{ name: "Producto Y", price: 25000, qty: 1 }}
+          ]
+        }}, null, 2);
+      }}
+    }}
+  }} else {{
+    userInputArea.style.display = 'none';
+    if (editBtn) editBtn.textContent = '✏️ Usar mis datos';
+  }}
+}}
+
+function applyUserData() {{
+  const input = $('#demoUserDataInput');
+  if (!input || !input.value.trim()) {{
+    toast('Escribe o pega tus datos primero.');
+    return;
+  }}
+  isUsingUserData = true;
+  toast('✅ Datos aplicados. Ahora puedes ejecutar el paso.');
+  runDemoStep();
+}}
+
+window.demoConfig = null;
+fetch('/api/demo/state')
+  .then(res => res.json())
+  .then(data => {{
+    window.demoConfig = data.demos;
+  }})
+  .catch(e => console.error('Error loading demo config:', e));
 
 // ============================================
 // EVENT HANDLERS
@@ -4529,12 +5255,11 @@ renderState();
 refreshSmartStacks();
 refreshBankAccounts();
 loadProductsForInvoice();
+loadSmartstacksDemo();
+loadMiddlewareDemo();
 
 setInterval(refreshSmartStacks, 30000);
 setInterval(refreshInvoices, 30000);
-
-// Cargar middleware demo cuando la página esté lista
-loadMiddlewareDemo();
 </script>
 </body>
 </html>"""
@@ -4590,6 +5315,9 @@ class SabrinaHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/demo/state":
             json_response(self, get_demo_state())
+            return
+        if parsed.path == "/api/smartstacks/demo/state":
+            json_response(self, get_smartstacks_demo_state())
             return
         if parsed.path == "/api/middleware/demo/state":
             json_response(self, get_middleware_demo_state())
@@ -4700,6 +5428,18 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 demo_id = parsed.path.split("/")[-1]
                 json_response(self, get_demo_data(demo_id))
                 return
+            if parsed.path == "/api/smartstacks/demo/step":
+                result = run_smartstacks_demo_step(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/smartstacks/demo/simulate":
+                result = simulate_smartstacks_question(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/smartstacks/demo/product/add":
+                result = add_custom_inventory_product(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
             if parsed.path == "/api/middleware/demo/step":
                 result = run_middleware_demo_step(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
@@ -4722,8 +5462,9 @@ def main() -> None:
     print(f"Sabrina AI Lab listo en http://{HOST}:{PORT}")
     print(f"Base de datos: {DB_PATH}")
     print(f"Cuentas bancarias configuradas: {len(BANK_ACCOUNTS)}")
-    print(f"🚀 Simulación de Proyectos disponible en la pestaña 'Proyectos'")
+    print(f"🏪 Caso 1 - SmartStacks de Cercanía disponible en la pestaña 'Caso 1'")
     print(f"🤖 Caso 2 - Automatización con Empatía disponible en la pestaña 'Caso 2'")
+    print(f"🚀 Simulación de Proyectos disponible en la pestaña 'Proyectos'")
     print("Ctrl+C para detener.")
     try:
         server.serve_forever()
