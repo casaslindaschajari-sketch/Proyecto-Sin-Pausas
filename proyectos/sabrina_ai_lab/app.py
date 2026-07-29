@@ -11,6 +11,7 @@ Servidor web sin dependencias externas:
 - Sistema de inventario con asistente conversacional para smartstacks.
 - Sistema de facturación completo con integración bancaria.
 - SIMULACIÓN DE PROYECTOS LLAVE EN MANO (NUEVO)
+- CASO 2: SIMULACIÓN DE AUTOMATIZACIÓN CON EMPATÍA (LiteLLM Middleware)
 
 Ejecutar:
     python3 proyectos/sabrina_ai_lab/app.py
@@ -1425,6 +1426,236 @@ def get_demo_data(demo_id: str) -> dict[str, Any]:
 
 
 # ============================================
+# CASO 2: SIMULACIÓN DE AUTOMATIZACIÓN CON EMPATÍA (LiteLLM Middleware)
+# ============================================
+
+MIDDLEWARE_DEMO = {
+    "id": "middleware",
+    "name": "🤖 Automatización de Respuestas con Empatía",
+    "description": "Proxy unificado que centraliza respuestas para múltiples canales con tono empático personalizado.",
+    "icon": "🤖",
+    "steps": [
+        {
+            "title": "1. Configurar el Proxy LiteLLM",
+            "desc": "Instalamos y configuramos LiteLLM como proxy unificado para administrar múltiples modelos GPT.",
+            "details": [
+                "✅ LiteLLM instalado en la VM con 42 GiB de RAM",
+                "✅ 3 modelos GPT configurados (GPT-4, GPT-3.5, GPT-4o-mini)",
+                "✅ Balanceo de carga automático configurado",
+                "✅ Control de costos por token activado"
+            ],
+            "action": "Configurar Proxy"
+        },
+        {
+            "title": "2. Conectar Canales",
+            "desc": "Conectamos tus canales de comunicación al proxy unificado.",
+            "details": [
+                "✅ WhatsApp Business API conectada",
+                "✅ Instagram Messenger integrado",
+                "✅ Email (IMAP/SMTP) configurado",
+                "✅ Web Chat conectado"
+            ],
+            "action": "Conectar Canales"
+        },
+        {
+            "title": "3. Definir Tono y Personalidad",
+            "desc": "Configuramos el tono de voz para cada canal según tu marca.",
+            "channels": [
+                {"name": "WhatsApp", "tone": "Cercano y breve", "emoji": "💬", "example": "¡Hola! ¿En qué te ayudo hoy? 😊"},
+                {"name": "Instagram", "tone": "Casual y con emojis", "emoji": "📸", "example": "Hey! Gracias por tu mensaje 🌟 ¿Cómo puedo ayudarte?"},
+                {"name": "Email", "tone": "Formal y estructurado", "emoji": "📧", "example": "Estimado/a, agradecemos su consulta..."},
+                {"name": "Web", "tone": "Profesional y directo", "emoji": "🌐", "example": "Bienvenido. ¿En qué podemos ayudarle hoy?"}
+            ],
+            "action": "Configurar Tono"
+        },
+        {
+            "title": "4. ¡Sistema en Vivo!",
+            "desc": "El sistema ya está respondiendo con empatía en todos tus canales. Aquí puedes ver ejemplos:",
+            "action": "Ver Dashboard"
+        }
+    ],
+    "example_messages": [
+        {"channel": "whatsapp", "message": "Hola, ¿tienen envío a domicilio?", "response": "¡Hola! Sí, realizamos envíos a todo el país. ¿Me indicas tu código postal para darte el costo exacto? 😊"},
+        {"channel": "instagram", "message": "Me encantó el producto, ¿hay descuento por primera compra?", "response": "¡Gracias! Me alegra que te haya gustado 🌟 Para primera compra tenemos un 10% de descuento. ¿Te interesa? 🛍️"},
+        {"channel": "email", "message": "Quisiera una cotización para 50 unidades.", "response": "Estimado/a, gracias por su consulta. Con gusto le enviamos una cotización detallada en las próximas 2 horas. Quedamos atentos."},
+        {"channel": "web", "message": "¿Cómo funciona el sistema de garantía?", "response": "Nuestro sistema de garantía cubre 12 meses. Puedes revisar los detalles en nuestra página de políticas o contactarnos para más información."}
+    ],
+    "stats": {
+        "total_messages": 1250,
+        "avg_response_time": 2.3,
+        "tokens_used": 450000,
+        "total_cost": 1.35,
+        "hours_saved": 48,
+        "response_rate": 98.5
+    },
+    "channel_stats": [
+        {"channel": "WhatsApp", "messages": 450, "avg_time": 1.8, "cost": 0.48},
+        {"channel": "Instagram", "messages": 380, "avg_time": 2.1, "cost": 0.41},
+        {"channel": "Email", "messages": 220, "avg_time": 3.2, "cost": 0.28},
+        {"channel": "Web", "messages": 200, "avg_time": 2.5, "cost": 0.18}
+    ]
+}
+
+
+def get_middleware_demo_state() -> dict[str, Any]:
+    """Obtiene el estado de la demostración del caso 2."""
+    return {
+        "ok": True,
+        "demo": MIDDLEWARE_DEMO,
+        "current_step": 0,
+        "is_complete": False
+    }
+
+
+def run_middleware_demo_step(payload: dict[str, Any]) -> dict[str, Any]:
+    """Ejecuta un paso de la demostración del middleware."""
+    step_index = payload.get("step_index", 0)
+    user_data = payload.get("user_data", {})
+    
+    demo = MIDDLEWARE_DEMO
+    steps = demo["steps"]
+    
+    if step_index >= len(steps):
+        return {"ok": False, "error": "Paso fuera de rango"}
+    
+    step = steps[step_index]
+    result = {
+        "ok": True,
+        "step_index": step_index,
+        "step": step,
+        "completed": False,
+        "message": f"✅ Paso '{step['title']}' completado",
+        "data": {}
+    }
+    
+    if step_index == 3:  # Último paso - mostrar dashboard
+        result["data"]["dashboard"] = {
+            "stats": demo["stats"],
+            "recent_messages": [
+                {
+                    "channel": "WhatsApp",
+                    "message": "Hola, ¿tienen stock de martillos?",
+                    "response": "¡Sí! Tenemos martillos en stock. ¿Cuántos necesitas? Tenemos diferentes tamaños. 🔨",
+                    "time": "hace 2 min",
+                    "tokens": 45,
+                    "cost": 0.00018
+                },
+                {
+                    "channel": "Instagram",
+                    "message": "Me encantó la promoción!",
+                    "response": "¡Qué bien! Me alegra que te guste 🌟 La promo termina este viernes, ¿quieres que te reserve algo? 💫",
+                    "time": "hace 15 min",
+                    "tokens": 38,
+                    "cost": 0.00015
+                },
+                {
+                    "channel": "Email",
+                    "message": "Solicito información sobre precios mayoristas",
+                    "response": "Estimado/a, con gusto le enviamos nuestra lista de precios mayoristas. ¿Podría indicarnos qué productos le interesan?",
+                    "time": "hace 1 hora",
+                    "tokens": 62,
+                    "cost": 0.00025
+                }
+            ],
+            "channel_stats": demo["channel_stats"]
+        }
+        result["completed"] = True
+        result["message"] = "🎉 ¡Sistema completo! Puedes ver el dashboard en vivo."
+    
+    elif step_index == 2:  # Paso 3 - Configurar tono
+        if user_data.get("custom_tone"):
+            result["data"]["custom_tone"] = user_data["custom_tone"]
+            result["message"] = "✅ Tono personalizado aplicado para todos los canales."
+        else:
+            result["data"]["channels"] = step["channels"]
+    
+    return result
+
+
+def simulate_middleware_message(payload: dict[str, Any]) -> dict[str, Any]:
+    """Simula el envío de un mensaje y genera una respuesta."""
+    import random
+    
+    channel = payload.get("channel", "web")
+    message = payload.get("message", "").strip()
+    custom_tone = payload.get("tone", "")
+    
+    if not message:
+        return {"ok": False, "error": "Escribe un mensaje para simular"}
+    
+    # Buscar mensajes de ejemplo similares
+    example_messages = MIDDLEWARE_DEMO["example_messages"]
+    matched_example = None
+    
+    for example in example_messages:
+        if example["channel"].lower() == channel.lower():
+            # Buscar coincidencia por palabras clave
+            example_words = set(example["message"].lower().split())
+            message_words = set(message.lower().split())
+            if len(example_words.intersection(message_words)) >= 2:
+                matched_example = example
+                break
+    
+    # Si no hay coincidencia, usar el primer ejemplo del canal o generar una respuesta genérica
+    if not matched_example:
+        responses = {
+            "whatsapp": [
+                "¡Gracias por tu mensaje! 😊 ¿En qué más puedo ayudarte?",
+                "Entendido, te ayudo con eso 💪 Déjame revisar la información.",
+                "¡Claro! Déjame revisarlo 📋 y te respondo en un momento."
+            ],
+            "instagram": [
+                "¡Hola! Gracias por escribir 🌟 Cuéntame más sobre lo que necesitas.",
+                "Qué interesante, cuéntame más detalles 💫 para poder ayudarte mejor.",
+                "¡Me encanta! Vamos a ver eso 🎯 y te doy una respuesta."
+            ],
+            "email": [
+                "Estimado/a, gracias por su consulta. Le responderemos a la brevedad.",
+                "Agradecemos su mensaje, le responderemos pronto con la información solicitada.",
+                "Hemos recibido su solicitud, le contactaremos en las próximas horas."
+            ],
+            "web": [
+                "Gracias por tu consulta. ¿En qué más puedo ayudarte?",
+                "Entendido, te ayudaremos con eso. ¿Algo más que necesites?",
+                "Procesando tu solicitud. Te responderemos en breve."
+            ]
+        }
+        
+        response = random.choice(responses.get(channel.lower(), ["Gracias por tu mensaje."]))
+        
+        # Personalizar el tono si se especificó
+        if custom_tone:
+            response = f"({custom_tone}) {response}"
+        
+        tokens = estimate_tokens(message) + estimate_tokens(response)
+        cost = round((tokens / 1000) * 0.002, 5)
+        
+        return {
+            "ok": True,
+            "response": response,
+            "channel": channel,
+            "tokens": tokens,
+            "cost": cost,
+            "response_time": round(random.uniform(0.8, 2.5), 1),
+            "source": "simulated"
+        }
+    
+    # Usar la respuesta del ejemplo
+    tokens = estimate_tokens(message) + estimate_tokens(matched_example["response"])
+    cost = round((tokens / 1000) * 0.002, 5)
+    
+    return {
+        "ok": True,
+        "response": matched_example["response"],
+        "channel": channel,
+        "tokens": tokens,
+        "cost": cost,
+        "response_time": round(random.uniform(0.8, 2.5), 1),
+        "source": "example"
+    }
+
+
+# ============================================
 # FUNCIONES DE INVENTARIO
 # ============================================
 
@@ -2341,11 +2572,13 @@ def process_purchase_request(question: str, channel: str) -> dict[str, Any]:
 
 
 # ============================================
-# RENDER HTML - Versión completa con DEMO
+# RENDER HTML - Versión completa
 # ============================================
 
 def render_index() -> str:
     state_json = json.dumps(get_dashboard_state(), ensure_ascii=False)
+    middleware_demo_json = json.dumps(MIDDLEWARE_DEMO, ensure_ascii=False)
+    
     return f"""<!doctype html>
 <html lang="es">
 <head>
@@ -2529,6 +2762,7 @@ def render_index() -> str:
           <a onclick="showSection('consulting')">Llave en Mano</a>
           <a onclick="showSection('invoicing')">Facturación</a>
           <a onclick="showSection('demo')">🚀 Proyectos</a>
+          <a onclick="showSection('middleware-demo')">🤖 Caso 2</a>
           <a onclick="showSection('faqs')">FAQs</a>
         </div>
       </nav>
@@ -2559,9 +2793,8 @@ def render_index() -> str:
       <section id="diagnostic">
         <h2>🧭 ¿Qué necesita tu negocio?</h2>
         <p class="muted" style="max-width:640px; margin-top:-6px;">
-          Responde 5 preguntas rápidas y te decimos cuál de nuestras soluciones encaja mejor con tu caso: SmartStacks, Automatización Empática o Digitalización Llave en Mano.
+          Responde 5 preguntas rápidas y te decimos cuál de nuestras soluciones encaja mejor con tu caso.
         </p>
-
         <div class="card">
           <form id="diagnosticForm">
             <div class="qcard">
@@ -2570,45 +2803,38 @@ def render_index() -> str:
               <label class="qoption"><input type="radio" name="q1" value="middleware"><span>Recibo las mismas preguntas todo el día por WhatsApp, redes o email</span></label>
               <label class="qoption"><input type="radio" name="q1" value="llave-en-mano"><span>Quiero digitalizar procesos completos y no sé por dónde empezar</span></label>
             </div>
-
             <div class="qcard">
               <label>2. ¿Cuántas interacciones o consultas maneja tu negocio al mes?</label>
               <label class="qoption"><input type="radio" name="q2" value="smartstacks" required><span>Menos de 500 — negocio pequeño, pocos vendedores</span></label>
               <label class="qoption"><input type="radio" name="q2" value="middleware"><span>Entre 500 y 5,000 — varios canales, volumen alto</span></label>
               <label class="qoption"><input type="radio" name="q2" value="llave-en-mano"><span>Miles, y sigue creciendo — necesito algo robusto</span></label>
             </div>
-
             <div class="qcard">
               <label>3. ¿Qué tan importante es tener control total y datos propios?</label>
               <label class="qoption"><input type="radio" name="q3" value="smartstacks" required><span>No es prioridad, solo quiero resolver el problema rápido</span></label>
               <label class="qoption"><input type="radio" name="q3" value="middleware"><span>Me importa el tono y la consistencia de las respuestas</span></label>
               <label class="qoption"><input type="radio" name="q3" value="llave-en-mano"><span>Muy importante, quiero un sistema transferible con mis datos</span></label>
             </div>
-
             <div class="qcard">
               <label>4. ¿Cuál es tu presupuesto mensual aproximado para esta solución?</label>
               <label class="qoption"><input type="radio" name="q4" value="smartstacks" required><span>Menos de USD 350</span></label>
               <label class="qoption"><input type="radio" name="q4" value="middleware"><span>Entre USD 350 y 500</span></label>
               <label class="qoption"><input type="radio" name="q4" value="llave-en-mano"><span>Más de USD 500, busco una implementación completa</span></label>
             </div>
-
             <div class="qcard">
               <label>5. ¿Ya tienes canales digitales activos con muchas consultas repetidas?</label>
               <label class="qoption"><input type="radio" name="q5" value="smartstacks" required><span>Tengo mostrador físico principalmente</span></label>
               <label class="qoption"><input type="radio" name="q5" value="middleware"><span>Sí, varios canales digitales simultáneos</span></label>
               <label class="qoption"><input type="radio" name="q5" value="llave-en-mano"><span>Quiero implementar todo desde cero, de forma integral</span></label>
             </div>
-
             <button type="submit">Ver resultado</button>
           </form>
-
           <div id="diagnosticResult"></div>
         </div>
       </section>
 
       <section id="leads">
         <h2>📋 Leads y Campañas</h2>
-
         <h3 style="margin-top:0; color: var(--muted); font-weight:600; font-size:13px; letter-spacing:.04em; text-transform:uppercase;">1. Registro de leads</h3>
         <div class="grid two">
           <div class="card">
@@ -2634,7 +2860,6 @@ def render_index() -> str:
             </form>
           </div>
         </div>
-
         <h3 style="margin-top:32px; color: var(--muted); font-weight:600; font-size:13px; letter-spacing:.04em; text-transform:uppercase;">2. Envío de campañas</h3>
         <div class="grid two">
           <div class="card">
@@ -2890,14 +3115,12 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
         </div>
       </section>
 
-      <!-- NUEVA SECCIÓN: DEMO DE PROYECTOS -->
       <section id="demo">
         <h2>🚀 Simulación de Proyecto Llave en Mano</h2>
         <p class="muted" style="max-width:640px; margin-top:-6px;">
           Elige un proyecto y te mostraremos paso a paso cómo se construye y funciona. 
           ¡Interactúa con datos de ejemplo o ingresa los tuyos!
         </p>
-
         <div class="grid two" style="margin-bottom: 20px;">
           <div class="card">
             <h3>Selecciona tu Proyecto</h3>
@@ -2911,7 +3134,6 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
               <p>Selecciona un proyecto para comenzar la simulación.</p>
             </div>
           </div>
-          
           <div class="card" id="demoProgressPanel">
             <h3>Progreso del Proyecto</h3>
             <div id="demoProgress">
@@ -2919,26 +3141,176 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
             </div>
           </div>
         </div>
-
         <div class="card" id="demoSimulation" style="display: none;">
           <div id="demoStepContent">
             <h3 id="demoStepTitle">Paso 1: Conectar Bandeja de Entrada</h3>
             <p id="demoStepDesc">Simulamos la conexión a tu correo.</p>
-            
             <div id="demoDataArea" style="background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0;">
               <p style="color: var(--muted);">Cargando datos de ejemplo...</p>
             </div>
-
             <div style="display: flex; gap: 10px; margin-top: 14px;">
               <button id="demoStepActionBtn" class="btn" onclick="runDemoStep()">Continuar</button>
               <button id="demoResetBtn" class="btn secondary" onclick="resetDemo()">Reiniciar</button>
               <button id="demoEditBtn" class="btn secondary" onclick="toggleDemoEdit()">✏️ Usar mis datos</button>
             </div>
-            
             <div id="demoUserInput" style="display: none; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px;">
               <h4>Ingresa tus propios datos</h4>
               <textarea id="demoUserDataInput" rows="4" style="width: 100%;" placeholder="Escribe tus datos aquí..."></textarea>
               <button onclick="applyUserData()" class="btn" style="margin-top: 8px;">Aplicar mis datos</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CASO 2: SIMULACIÓN MIDDLEWARE -->
+      <section id="middleware-demo">
+        <h2>🤖 Simulación: Automatización de Respuestas con Empatía</h2>
+        <p class="muted" style="max-width:640px; margin-top:-6px;">
+          Experimenta cómo funciona el proxy unificado LiteLLM que centraliza respuestas para múltiples canales con tono empático.
+        </p>
+
+        <div class="grid two" style="margin-bottom: 20px;">
+          <div class="card">
+            <h3>📊 Dashboard en Vivo</h3>
+            <div id="middlewareDashboard">
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px;">
+                <div style="background: rgba(0,0,0,.2); padding: 12px; border-radius: 12px;">
+                  <div style="font-size: 11px; color: var(--muted);">Mensajes Totales</div>
+                  <div style="font-size: 24px; font-weight: 800;" id="mdTotalMessages">0</div>
+                </div>
+                <div style="background: rgba(0,0,0,.2); padding: 12px; border-radius: 12px;">
+                  <div style="font-size: 11px; color: var(--muted);">Tiempo Promedio</div>
+                  <div style="font-size: 24px; font-weight: 800;" id="mdAvgTime">0s</div>
+                </div>
+                <div style="background: rgba(0,0,0,.2); padding: 12px; border-radius: 12px;">
+                  <div style="font-size: 11px; color: var(--muted);">Costo Total</div>
+                  <div style="font-size: 24px; font-weight: 800; color: var(--brand2);" id="mdTotalCost">$0.00</div>
+                </div>
+                <div style="background: rgba(0,0,0,.2); padding: 12px; border-radius: 12px;">
+                  <div style="font-size: 11px; color: var(--muted);">Horas Ahorradas</div>
+                  <div style="font-size: 24px; font-weight: 800; color: var(--brand);" id="mdHoursSaved">0h</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>📈 Estadísticas por Canal</h3>
+            <div id="mdChannelStats" style="overflow:auto; max-height: 200px;">
+              <p style="color: var(--muted);">Completa la simulación para ver estadísticas.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>🎯 Simulador de Mensajes</h3>
+          <p class="muted">Prueba el sistema con diferentes canales y tonos:</p>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0;">
+            <div>
+              <label>Canal</label>
+              <select id="mdChannel">
+                <option value="whatsapp">💬 WhatsApp</option>
+                <option value="instagram">📸 Instagram</option>
+                <option value="email">📧 Email</option>
+                <option value="web">🌐 Web</option>
+              </select>
+            </div>
+            <div>
+              <label>Tono Personalizado (opcional)</label>
+              <input id="mdTone" placeholder="Ej: Formal, amigable, divertido..." />
+            </div>
+          </div>
+          
+          <div style="margin: 10px 0;">
+            <label>Mensaje del Cliente</label>
+            <textarea id="mdMessage" rows="3" placeholder="Escribe un mensaje como si fuera un cliente real...">Hola, ¿tienen stock de martillos?</textarea>
+          </div>
+          
+          <div style="display: flex; gap: 10px;">
+            <button onclick="simulateMiddlewareMessage()" class="btn">🚀 Enviar y Simular</button>
+            <button onclick="loadMiddlewareExample()" class="btn secondary">📋 Cargar Ejemplo</button>
+          </div>
+          
+          <div id="mdSimulationResult" style="margin-top: 16px; display: none;">
+            <div style="background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 12px; color: var(--muted);">Canal: <strong id="mdResultChannel">WhatsApp</strong></span>
+                <span style="font-size: 12px; color: var(--muted);">⏱ <span id="mdResultTime">0</span>s · 💰 $<span id="mdResultCost">0</span></span>
+              </div>
+              <div class="conversation user">
+                <strong>Cliente:</strong>
+                <p id="mdResultMessage">Mensaje del cliente</p>
+              </div>
+              <div class="conversation">
+                <strong>🤖 Asistente IA:</strong>
+                <p id="mdResultResponse">Respuesta generada</p>
+              </div>
+              <div style="margin-top: 8px; font-size: 11px; color: var(--muted);">
+                🔗 Fuente: <span id="mdResultSource">simulada</span> · 🧠 Tokens: <span id="mdResultTokens">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top: 20px;">
+          <div class="card">
+            <h3>🔄 Progreso de Implementación</h3>
+            <div style="margin: 14px 0;">
+              <div style="background: rgba(0,0,0,.2); border-radius: 12px; padding: 4px;">
+                <div id="mdProgressBar" style="width: 0%; height: 8px; background: linear-gradient(90deg, var(--brand), var(--brand2)); border-radius: 12px; transition: width 0.5s ease;"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--muted);">
+                <span>Inicio</span>
+                <span id="mdStepIndicator">Paso 1/4</span>
+                <span>Completo</span>
+              </div>
+            </div>
+            
+            <div id="mdCurrentStep">
+              <h4 id="mdStepTitle">1. Configurar el Proxy LiteLLM</h4>
+              <p id="mdStepDesc">Instalamos y configuramos LiteLLM como proxy unificado para administrar múltiples modelos GPT.</p>
+              <div id="mdStepDetails">
+                <ul style="color: var(--muted); list-style: none; padding: 0;">
+                  <li style="padding: 4px 0;">⏳ Cargando detalles del paso...</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 14px;">
+              <button onclick="runMiddlewareStep()" class="btn" id="mdStepBtn">▶️ Ejecutar Paso</button>
+              <button onclick="resetMiddlewareDemo()" class="btn secondary">🔄 Reiniciar</button>
+            </div>
+          </div>
+          
+          <div class="card">
+            <h3>💡 Ejemplos de Mensajes Reales</h3>
+            <div id="mdExamples" style="max-height: 400px; overflow-y: auto;">
+              <div class="conversation user">
+                <strong>📱 WhatsApp:</strong>
+                <p>"Hola, ¿tienen envío a domicilio?"</p>
+              </div>
+              <div class="conversation">
+                <strong>🤖 Respuesta:</strong>
+                <p>"¡Hola! Sí, realizamos envíos a todo el país. ¿Me indicas tu código postal para darte el costo exacto? 😊"</p>
+              </div>
+              <hr style="border-color: var(--line); margin: 12px 0;">
+              <div class="conversation user">
+                <strong>📸 Instagram:</strong>
+                <p>"Me encantó el producto, ¿hay descuento por primera compra?"</p>
+              </div>
+              <div class="conversation">
+                <strong>🤖 Respuesta:</strong>
+                <p>"¡Gracias! Me alegra que te haya gustado 🌟 Para primera compra tenemos un 10% de descuento. ¿Te interesa? 🛍️"</p>
+              </div>
+              <hr style="border-color: var(--line); margin: 12px 0;">
+              <div class="conversation user">
+                <strong>📧 Email:</strong>
+                <p>"Quisiera una cotización para 50 unidades."</p>
+              </div>
+              <div class="conversation">
+                <strong>🤖 Respuesta:</strong>
+                <p>"Estimado/a, gracias por su consulta. Con gusto le enviamos una cotización detallada en las próximas 2 horas. Quedamos atentos."</p>
+              </div>
             </div>
           </div>
         </div>
@@ -2949,152 +3321,60 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
         <p class="muted" style="max-width:640px; margin-top:-6px;">
           Todo lo que necesitas saber sobre Sin Pausas: qué hacemos, cuánto cuesta y cómo empezar.
         </p>
-
         <div class="card" style="padding: 10px;">
-
           <details>
             <summary>🙋 ¿Qué es exactamente Sin Pausas?</summary>
             <div class="faq-body">
-              <p>Sin Pausas es una agencia especializada en bajar la Inteligencia Artificial a la realidad cotidiana de las empresas. No somos un laboratorio de ciencia ficción ni una consultora abstracta. Somos un equipo que entiende que la tecnología solo tiene sentido cuando resuelve problemas humanos concretos: reducir el estrés de los vendedores, responder más rápido a los clientes o automatizar tareas repetitivas que roban tiempo valioso.</p>
-              <p>Nuestra filosofía es simple: usamos el poder de la IA (42 GiB de RAM y modelos GPT de Azure Foundry) para que las personas trabajen mejor, no para reemplazarlas.</p>
+              <p>Sin Pausas es una agencia especializada en bajar la Inteligencia Artificial a la realidad cotidiana de las empresas.</p>
+              <p>Nuestra filosofía es simple: usamos el poder de la IA para que las personas trabajen mejor, no para reemplazarlas.</p>
             </div>
           </details>
-
           <details>
             <summary>🎯 ¿A qué nos dedicamos realmente?</summary>
             <div class="faq-body">
-              <p>Nos dedicamos a diseñar, implementar y desplegar soluciones técnicas con IA para la digitalización y automatización de procesos empresariales. Pero no lo hacemos desde lo abstracto: lo hacemos desde la trinchera del día a día.</p>
-              <p>Nuestro enfoque se centra en tres áreas concretas:</p>
+              <p>Nos dedicamos a diseñar, implementar y desplegar soluciones técnicas con IA para la digitalización y automatización de procesos empresariales.</p>
               <table>
                 <thead><tr><th>Área</th><th>¿Qué hacemos?</th></tr></thead>
                 <tbody>
-                  <tr><td>Asistentes inteligentes para comercios</td><td>Convertimos el inventario, los manuales y los catálogos de una tienda en un asistente conversacional que responde al instante por WhatsApp o tablet.</td></tr>
-                  <tr><td>Automatización de respuestas con empatía</td><td>Centralizamos y gestionamos las interacciones de redes sociales y páginas web con un tono humano, personalizado y eficiente, usando un proxy unificado (LiteLLM) que administra múltiples modelos GPT.</td></tr>
-                  <tr><td>Digitalización 'llave en mano'</td><td>Creamos sistemas modulares (con Docker) para flujos como filtrado de correos, gestión de agendas o atención al cliente, y los dejamos funcionando de forma nativa en los equipos de nuestros clientes.</td></tr>
+                  <tr><td>Asistentes inteligentes para comercios</td><td>Convertimos el inventario en un asistente conversacional que responde al instante por WhatsApp o tablet.</td></tr>
+                  <tr><td>Automatización de respuestas con empatía</td><td>Centralizamos y gestionamos las interacciones de redes sociales con un tono humano y personalizado.</td></tr>
+                  <tr><td>Digitalización 'llave en mano'</td><td>Creamos sistemas modulares para flujos como filtrado de correos, gestión de agendas o atención al cliente.</td></tr>
                 </tbody>
               </table>
             </div>
           </details>
-
-          <details>
-            <summary>🧰 ¿Qué servicios concretos pueden contratar con nosotros?</summary>
-            <div class="faq-body">
-              <p>Nuestra cartera de servicios está diseñada para adaptarse a diferentes necesidades y presupuestos. Estos son nuestros modelos comerciales:</p>
-              <p><strong>1. SaaS de Asistente Experto (SmartStacks de Cercanía)</strong><br>
-              ¿Qué es? Una suscripción mensual que convierte los datos de tu negocio (inventario, precios, manuales) en un asistente de IA accesible por WhatsApp o dispositivo en tienda.<br>
-              ¿Para quién? Pymes, comercios locales, ferreterías industriales, almacenes y cualquier negocio con catálogo de productos.<br>
-              Beneficio clave: Tus vendedores dejan de buscar códigos y hojas técnicas. Preguntan en lenguaje natural y obtienen respuestas en 1 segundo. Menos filas, menos estrés, más ventas.</p>
-              <p><strong>2. Infraestructura Centralizada de Respuestas (LiteLLM Middleware)</strong><br>
-              ¿Qué es? Un motor unificado que conecta tus canales (web, WhatsApp, redes sociales) a los modelos GPT más avanzados, administrando el consumo de tokens para optimizar costos.<br>
-              ¿Para quién? Agencias de marketing, equipos de community management o desarrolladores que quieran ofrecer respuestas inteligentes a sus clientes sin lidiar con la complejidad técnica.<br>
-              Beneficio clave: Respondes con empatía y personalización a gran escala, sin descuidar tu negocio principal ni tu tiempo libre.</p>
-              <p><strong>3. Consultorías de Implementación 'Llave en Mano'</strong><br>
-              ¿Qué es? Un proyecto único donde diseñamos y configuramos un sistema a medida para tu empresa: desde el filtrado automático de correos hasta la gestión de agendas con IA.<br>
-              ¿Para quién? Empresas tradicionales que quieren dar el salto a la IA pero necesitan acompañamiento total y soluciones que funcionen "de cajón" en su propio entorno.<br>
-              Beneficio clave: Te olvidas de la complejidad técnica. Nosotros instalamos, configuramos y te formamos. Tú solo usas la solución.</p>
-            </div>
-          </details>
-
           <details>
             <summary>⏳ ¿Por qué el plazo de 6 semanas es importante?</summary>
             <div class="faq-body">
-              <p>Nuestro modelo de trabajo tiene un límite estricto de 6 semanas porque operamos en un entorno de aprendizaje intensivo con recursos de alto rendimiento (los 42 GiB de RAM y los modelos GPT de Azure Foundry). Este es nuestro "laboratorio vivo".</p>
-              <p>El proceso es el siguiente:</p>
-              <p>Semanas 1-2: Aprendemos a fondo tu negocio y configuramos el entorno técnico.<br>
-              Semanas 3-4: Desarrollamos un MVP (producto mínimo viable) funcional.<br>
-              Semanas 5-6: Lo probamos en vivo contigo, recogemos feedback y armamos la propuesta comercial definitiva.</p>
-              <p>Pasado este plazo, los accesos expiran. La única forma de continuar es que la solución haya demostrado su valor real y consolidemos una propuesta de negocio con sentido para ambas partes. Esto nos asegura que solo trabajamos en proyectos que realmente marcan la diferencia.</p>
+              <p>Nuestro modelo de trabajo tiene un límite estricto de 6 semanas porque operamos en un entorno de aprendizaje intensivo con recursos de alto rendimiento.</p>
+              <p>Semanas 1-2: Aprendemos a fondo tu negocio.<br>
+              Semanas 3-4: Desarrollamos un MVP funcional.<br>
+              Semanas 5-6: Lo probamos en vivo y armamos la propuesta comercial.</p>
             </div>
           </details>
-
           <details>
             <summary>💰 ¿Cuánto cuesta trabajar con Sin Pausas?</summary>
             <div class="faq-body">
-              <p>Nuestros precios varían según el modelo de servicio:</p>
               <table>
-                <thead><tr><th>Servicio</th><th>Modelo de Pago</th><th>Rango Aproximado</th></tr></thead>
+                <thead><tr><th>Servicio</th><th>Modelo de Pago</th></tr></thead>
                 <tbody>
-                  <tr><td>SaaS Asistente Experto</td><td>Suscripción mensual</td><td>Desde $99/mes (dependiendo del volumen de datos y consultas)</td></tr>
-                  <tr><td>Middleware LiteLLM</td><td>Membresía fija o fee por interacción</td><td>Desde $199/mes por volumen básico</td></tr>
-                  <tr><td>Consultoría Llave en Mano</td><td>Pago único (setup + implementación)</td><td>Desde $1,500 (según complejidad del flujo)</td></tr>
+                  <tr><td>SaaS Asistente Experto</td><td>Desde $99/mes</td></tr>
+                  <tr><td>Middleware LiteLLM</td><td>Desde $199/mes</td></tr>
+                  <tr><td>Consultoría Llave en Mano</td><td>Desde $1,500</td></tr>
                 </tbody>
               </table>
-              <p>Nota: Los precios son referenciales y se ajustan en la propuesta comercial final, que se construye durante las 6 semanas de trabajo conjunto.</p>
             </div>
           </details>
-
-          <details>
-            <summary>🛡️ ¿Qué pasa con la seguridad y privacidad de mis datos?</summary>
-            <div class="faq-body">
-              <p>Es una prioridad absoluta. Al trabajar con nosotros:</p>
-              <p><strong>Datos locales:</strong> Tu información (inventarios, manuales, correos) se almacena de forma local en la VM o en tus propios servidores. No compartimos tus datos con terceros.</p>
-              <p><strong>Cifrado:</strong> Todas las comunicaciones con los modelos GPT de Azure se realizan bajo estándares de seguridad empresarial (HTTPS, tokens cifrados).</p>
-              <p><strong>Control total:</strong> En los proyectos 'llave en mano', el sistema se despliega en tu propia infraestructura, dándote el control absoluto de tus datos.</p>
-            </div>
-          </details>
-
-          <details>
-            <summary>🤝 ¿Cómo empiezo a trabajar con Sin Pausas?</summary>
-            <div class="faq-body">
-              <p>El proceso es sencillo y directo:</p>
-              <p>Contacto inicial: Nos cuentas tu negocio, tus dolores y tus objetivos. Sin compromiso.<br>
-              Diagnóstico rápido: Evaluamos si nuestro modelo de 6 semanas es adecuado para ti.<br>
-              Firma de acuerdo: Definimos alcance, fechas y condiciones.<br>
-              Comenzamos el laboratorio: Entramos en las 6 semanas de trabajo intensivo.<br>
-              Evaluación y continuidad: Al finalizar, decidimos juntos si la solución escala a un contrato comercial formal.</p>
-            </div>
-          </details>
-
-          <details>
-            <summary>📞 ¿Puedo probar la solución antes de comprometerme?</summary>
-            <div class="faq-body">
-              <p>¡Sí! Durante las semanas 5 y 6 del laboratorio, montamos una interfaz web con protección HTTPS para que puedas probar la solución en vivo con tus propios datos y usuarios reales. Recogemos sus opiniones y las usamos para ajustar la propuesta final. Es una prueba de concepto real antes de cualquier compromiso económico.</p>
-            </div>
-          </details>
-
-          <details>
-            <summary>❓ ¿Qué tipo de empresas se benefician más con Sin Pausas?</summary>
-            <div class="faq-body">
-              <p>Principalmente:</p>
-              <p>Comercios minoristas y mayoristas (ferreterías, tiendas de ropa, almacenes de suministros).<br>
-              Empresas de servicios (consultorías, estudios legales, agencias de marketing).<br>
-              Negocios tradicionales que quieren digitalizarse pero no saben por dónde empezar.<br>
-              Startups y emprendedores que necesitan automatizar su atención al cliente sin perder el toque humano.</p>
-            </div>
-          </details>
-
-          <details>
-            <summary>🧠 ¿Qué tecnología usan exactamente?</summary>
-            <div class="faq-body">
-              <p>Nuestro stack tecnológico está diseñado para ser potente y escalable:</p>
-              <p><strong>Hardware:</strong> Máquina virtual con 42 GiB de RAM, ideal para almacenar y procesar grandes volúmenes de datos locales (inventarios, históricos, documentos).</p>
-              <p><strong>Modelos de IA:</strong> Acceso a 3 modelos GPT de Azure Foundry, lo que nos permite elegir el mejor modelo para cada tarea (velocidad, costo o calidad de respuesta).</p>
-              <p><strong>Orquestación:</strong> Usamos LiteLLM como proxy unificado para administrar los modelos y balancear el consumo de tokens.</p>
-              <p><strong>Despliegue:</strong> Contenedores Docker para sistemas modulares y portables.</p>
-              <p><strong>Interfaces:</strong> Integración con WhatsApp Business API, web con HTTPS y tablets en tienda.</p>
-            </div>
-          </details>
-
           <details>
             <summary>🚀 ¿Qué diferencia a Sin Pausas de otras agencias de IA?</summary>
             <div class="faq-body">
               <p>Lo que nos hace únicos es nuestra visión humana y nuestro modelo de validación comercial:</p>
-              <p><strong>No vendemos humo:</strong> Solo trabajamos en proyectos que han sido probados y validados en el mundo real durante nuestras 6 semanas de laboratorio.</p>
-              <p><strong>Enfoque en la persona:</strong> Medimos el éxito en reducción de estrés, tiempo recuperado y mejora de la calidad de vida de los equipos, no solo en métricas técnicas.</p>
-              <p><strong>Transparencia total:</strong> Te mostramos los costos reales de cada respuesta de IA (consumo de tokens) para que tomes decisiones informadas.</p>
-              <p><strong>Compromiso con la continuidad:</strong> Si la solución no demuestra su valor, no forzamos una relación comercial. Tu éxito es el nuestro.</p>
+              <p><strong>No vendemos humo:</strong> Solo trabajamos en proyectos validados en el mundo real.<br>
+              <strong>Enfoque en la persona:</strong> Medimos el éxito en reducción de estrés y tiempo recuperado.<br>
+              <strong>Transparencia total:</strong> Mostramos los costos reales de cada respuesta de IA.</p>
             </div>
           </details>
-
-          <details>
-            <summary>📬 ¿Cómo puedo contactarlos?</summary>
-            <div class="faq-body">
-              <p>Puedes escribirnos a través del formulario de contacto en nuestra página web, o directamente a nuestro correo: contacto@sinpausas.ia (ejemplo). También puedes seguirnos en nuestras redes sociales para estar al día de nuestros casos de éxito y novedades.</p>
-            </div>
-          </details>
-
         </div>
-
         <p class="closing">¿Tienes más preguntas? Estamos aquí para escucharte y construir juntos la solución que tu negocio necesita. ¡Sin pausas, pero con propósito! 🤖💙</p>
       </section>
 
@@ -3143,6 +3423,9 @@ function showSection(id) {{
   }}
   if (id === 'consulting') {{
     refreshConsulting();
+  }}
+  if (id === 'middleware-demo') {{
+    loadMiddlewareDemo();
   }}
 }}
 
@@ -3460,7 +3743,7 @@ async function loadProductsForInvoice() {{
 }}
 
 // ============================================
-// JAVASCRIPT PARA SIMULACIÓN DE PROYECTOS
+// DEMO DE PROYECTOS - JavaScript
 // ============================================
 
 let currentDemoId = null;
@@ -3672,7 +3955,6 @@ function applyUserData() {{
   runDemoStep();
 }}
 
-// Cargar la configuración de demos al inicio
 window.demoConfig = null;
 fetch('/api/demo/state')
   .then(res => res.json())
@@ -3681,7 +3963,289 @@ fetch('/api/demo/state')
   }})
   .catch(e => console.error('Error loading demo config:', e));
 
-// Event Handlers
+// ============================================
+// CASO 2: MIDDLEWARE DEMO - JavaScript
+// ============================================
+
+let middlewareDemoState = {{
+    currentStep: 0,
+    isComplete: false,
+    stats: {{
+        totalMessages: 0,
+        avgTime: 0,
+        totalCost: 0,
+        hoursSaved: 0
+    }}
+}};
+
+async function loadMiddlewareDemo() {{
+    try {{
+        const res = await fetch('/api/middleware/demo/state');
+        const data = await res.json();
+        if (data.ok) {{
+            middlewareDemoState.currentStep = data.current_step || 0;
+            middlewareDemoState.isComplete = data.is_complete || false;
+            updateMiddlewareUI(data);
+        }}
+    }} catch (e) {{
+        console.error('Error loading middleware demo:', e);
+    }}
+}}
+
+function updateMiddlewareUI(data) {{
+    const demo = data.demo || {{}};
+    const step = demo.steps && demo.steps[middlewareDemoState.currentStep];
+    const totalSteps = (demo.steps || []).length;
+    
+    const progress = ((middlewareDemoState.currentStep) / totalSteps) * 100;
+    const progressBar = $('#mdProgressBar');
+    if (progressBar) progressBar.style.width = Math.min(progress, 100) + '%';
+    
+    const indicator = $('#mdStepIndicator');
+    if (indicator) {{
+        if (middlewareDemoState.isComplete) {{
+            indicator.textContent = '✅ Completado';
+        }} else {{
+            indicator.textContent = `Paso ${{middlewareDemoState.currentStep + 1}}/${{totalSteps}}`;
+        }}
+    }}
+    
+    if (step) {{
+        const title = $('#mdStepTitle');
+        const desc = $('#mdStepDesc');
+        const details = $('#mdStepDetails');
+        
+        if (title) title.textContent = step.title;
+        if (desc) desc.textContent = step.desc;
+        
+        if (details) {{
+            let html = '<ul style="color: var(--muted); list-style: none; padding: 0;">';
+            if (step.details) {{
+                step.details.forEach(d => {{
+                    html += `<li style="padding: 4px 0;">✅ ${{d}}</li>`;
+                }});
+            }} else if (step.channels) {{
+                step.channels.forEach(ch => {{
+                    html += `<li style="padding: 4px 0;">${{ch.emoji}} <strong>${{ch.name}}</strong>: ${{ch.tone}}</li>`;
+                    html += `<li style="padding: 4px 0 4px 20px; font-size: 13px; color: var(--muted);">"${{ch.example}}"</li>`;
+                }});
+            }}
+            html += '</ul>';
+            details.innerHTML = html;
+        }}
+        
+        const btn = $('#mdStepBtn');
+        if (btn) {{
+            if (middlewareDemoState.isComplete) {{
+                btn.textContent = '🔄 Reiniciar Demo';
+                btn.onclick = resetMiddlewareDemo;
+            }} else {{
+                btn.textContent = `▶️ ${{step.action}}`;
+                btn.onclick = runMiddlewareStep;
+            }}
+        }}
+    }}
+    
+    if (data.demo && data.demo.stats) {{
+        const stats = data.demo.stats;
+        const totalMessages = $('#mdTotalMessages');
+        const avgTime = $('#mdAvgTime');
+        const totalCost = $('#mdTotalCost');
+        const hoursSaved = $('#mdHoursSaved');
+        
+        if (totalMessages) totalMessages.textContent = stats.total_messages || 0;
+        if (avgTime) avgTime.textContent = (stats.avg_response_time || 0) + 's';
+        if (totalCost) totalCost.textContent = '$' + (stats.total_cost || 0).toFixed(2);
+        if (hoursSaved) hoursSaved.textContent = (stats.hours_saved || 0) + 'h';
+        
+        const channelStats = $('#mdChannelStats');
+        if (channelStats && data.demo.channel_stats) {{
+            let html = '<table><thead><tr><th>Canal</th><th>Mensajes</th><th>Tiempo Prom.</th><th>Costo</th></tr></thead><tbody>';
+            data.demo.channel_stats.forEach(ch => {{
+                html += `<tr><td>${{ch.channel}}</td><td>${{ch.messages}}</td><td>${{ch.avg_time}}s</td><td>$${{ch.cost.toFixed(2)}}</td></tr>`;
+            }});
+            html += '</tbody></table>';
+            channelStats.innerHTML = html;
+        }}
+    }}
+}}
+
+async function runMiddlewareStep() {{
+    if (middlewareDemoState.isComplete) {{
+        resetMiddlewareDemo();
+        return;
+    }}
+    
+    try {{
+        const res = await fetch('/api/middleware/demo/step', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{
+                step_index: middlewareDemoState.currentStep
+            }})
+        }});
+        const data = await res.json();
+        
+        if (!data.ok) {{
+            toast('Error: ' + data.error);
+            return;
+        }}
+        
+        middlewareDemoState.currentStep = data.step_index + 1;
+        middlewareDemoState.isComplete = data.completed || false;
+        
+        if (data.data && data.data.dashboard) {{
+            updateMiddlewareDashboard(data.data.dashboard);
+        }}
+        
+        toast(data.message);
+        loadMiddlewareDemo();
+        
+    }} catch (e) {{
+        console.error('Error running middleware step:', e);
+        toast('Error al ejecutar el paso');
+    }}
+}}
+
+function updateMiddlewareDashboard(dashboard) {{
+    if (dashboard.stats) {{
+        const stats = dashboard.stats;
+        $('#mdTotalMessages').textContent = stats.total_messages || 0;
+        $('#mdAvgTime').textContent = (stats.avg_response_time || 0) + 's';
+        $('#mdTotalCost').textContent = '$' + (stats.total_cost || 0).toFixed(2);
+        $('#mdHoursSaved').textContent = (stats.hours_saved || 0) + 'h';
+    }}
+    
+    if (dashboard.channel_stats) {{
+        const channelStats = $('#mdChannelStats');
+        if (channelStats) {{
+            let html = '<table><thead><tr><th>Canal</th><th>Mensajes</th><th>Tiempo Prom.</th><th>Costo</th></tr></thead><tbody>';
+            dashboard.channel_stats.forEach(ch => {{
+                html += `<tr><td>${{ch.channel}}</td><td>${{ch.messages}}</td><td>${{ch.avg_time}}s</td><td>$${{ch.cost.toFixed(2)}}</td></tr>`;
+            }});
+            html += '</tbody></table>';
+            channelStats.innerHTML = html;
+        }}
+    }}
+    
+    if (dashboard.recent_messages) {{
+        const examples = $('#mdExamples');
+        if (examples) {{
+            let html = '';
+            dashboard.recent_messages.forEach((msg, index) => {{
+                const emojis = {{'WhatsApp': '📱', 'Instagram': '📸', 'Email': '📧', 'Web': '🌐'}};
+                const emoji = emojis[msg.channel] || '💬';
+                html += `
+                    <div class="conversation user">
+                        <strong>${{emoji}} ${{msg.channel}}:</strong>
+                        <p>"${{msg.message}}"</p>
+                        <span style="font-size: 11px; color: var(--muted);">${{msg.time}}</span>
+                    </div>
+                    <div class="conversation">
+                        <strong>🤖 Respuesta:</strong>
+                        <p>"${{msg.response}}"</p>
+                        <span style="font-size: 11px; color: var(--muted);">🧠 ${{msg.tokens}} tokens · 💰 $${{msg.cost.toFixed(5)}}</span>
+                    </div>
+                `;
+                if (index < dashboard.recent_messages.length - 1) {{
+                    html += '<hr style="border-color: var(--line); margin: 12px 0;">';
+                }}
+            }});
+            examples.innerHTML = html;
+        }}
+    }}
+}}
+
+function resetMiddlewareDemo() {{
+    middlewareDemoState.currentStep = 0;
+    middlewareDemoState.isComplete = false;
+    toast('🔄 Demo reiniciada');
+    loadMiddlewareDemo();
+}}
+
+async function simulateMiddlewareMessage() {{
+    const channel = $('#mdChannel').value;
+    const tone = $('#mdTone').value.trim();
+    const message = $('#mdMessage').value.trim();
+    
+    if (!message) {{
+        toast('Escribe un mensaje para simular');
+        return;
+    }}
+    
+    try {{
+        const res = await fetch('/api/middleware/demo/simulate', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{
+                channel: channel,
+                message: message,
+                tone: tone
+            }})
+        }});
+        const data = await res.json();
+        
+        if (!data.ok) {{
+            toast('Error: ' + data.error);
+            return;
+        }}
+        
+        const resultDiv = $('#mdSimulationResult');
+        if (resultDiv) {{
+            resultDiv.style.display = 'block';
+            $('#mdResultChannel').textContent = data.channel || 'WhatsApp';
+            $('#mdResultTime').textContent = data.response_time || 0;
+            $('#mdResultCost').textContent = data.cost || 0;
+            $('#mdResultMessage').textContent = message;
+            $('#mdResultResponse').textContent = data.response || 'No se pudo generar respuesta';
+            $('#mdResultSource').textContent = data.source || 'simulada';
+            $('#mdResultTokens').textContent = data.tokens || 0;
+            
+            if (data.tokens) {{
+                middlewareDemoState.stats.totalMessages += 1;
+                middlewareDemoState.stats.totalCost += data.cost || 0;
+                middlewareDemoState.stats.avgTime = (middlewareDemoState.stats.avgTime + (data.response_time || 0)) / 2;
+                middlewareDemoState.stats.hoursSaved += 0.05;
+                
+                const totalMessages = $('#mdTotalMessages');
+                const avgTime = $('#mdAvgTime');
+                const totalCost = $('#mdTotalCost');
+                const hoursSaved = $('#mdHoursSaved');
+                
+                if (totalMessages) totalMessages.textContent = middlewareDemoState.stats.totalMessages;
+                if (avgTime) avgTime.textContent = middlewareDemoState.stats.avgTime.toFixed(1) + 's';
+                if (totalCost) totalCost.textContent = '$' + middlewareDemoState.stats.totalCost.toFixed(4);
+                if (hoursSaved) hoursSaved.textContent = middlewareDemoState.stats.hoursSaved.toFixed(1) + 'h';
+            }}
+            
+            toast('✅ Respuesta generada exitosamente');
+        }}
+    }} catch (e) {{
+        console.error('Error simulating message:', e);
+        toast('Error al simular mensaje');
+    }}
+}}
+
+function loadMiddlewareExample() {{
+    const examples = [
+        "Hola, ¿tienen envío a domicilio?",
+        "Me encantó el producto, ¿hay descuento por primera compra?",
+        "Quisiera una cotización para 50 unidades.",
+        "¿Cómo funciona el sistema de garantía?",
+        "Necesito ayuda con mi pedido #1234",
+        "¿Qué horario tienen para atención al cliente?"
+    ];
+    
+    const randomExample = examples[Math.floor(Math.random() * examples.length)];
+    const messageInput = $('#mdMessage');
+    if (messageInput) messageInput.value = randomExample;
+    
+    toast('📋 Ejemplo cargado');
+}}
+
+// ============================================
+// EVENT HANDLERS
+// ============================================
 
 const diagnosticForm = $('#diagnosticForm');
 if (diagnosticForm) {{
@@ -3957,7 +4521,10 @@ if (singleEmailForm) {{
   }});
 }}
 
-// Inicialización
+// ============================================
+// INICIALIZACIÓN
+// ============================================
+
 renderState();
 refreshSmartStacks();
 refreshBankAccounts();
@@ -3965,6 +4532,9 @@ loadProductsForInvoice();
 
 setInterval(refreshSmartStacks, 30000);
 setInterval(refreshInvoices, 30000);
+
+// Cargar middleware demo cuando la página esté lista
+loadMiddlewareDemo();
 </script>
 </body>
 </html>"""
@@ -4020,6 +4590,9 @@ class SabrinaHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/demo/state":
             json_response(self, get_demo_state())
+            return
+        if parsed.path == "/api/middleware/demo/state":
+            json_response(self, get_middleware_demo_state())
             return
         if parsed.path == "/health":
             json_response(self, {"ok": True, "time": now_iso()})
@@ -4127,6 +4700,14 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 demo_id = parsed.path.split("/")[-1]
                 json_response(self, get_demo_data(demo_id))
                 return
+            if parsed.path == "/api/middleware/demo/step":
+                result = run_middleware_demo_step(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/middleware/demo/simulate":
+                result = simulate_middleware_message(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
                 
             json_response(self, {"ok": False, "error": "Ruta no encontrada"}, HTTPStatus.NOT_FOUND)
         except json.JSONDecodeError:
@@ -4142,6 +4723,7 @@ def main() -> None:
     print(f"Base de datos: {DB_PATH}")
     print(f"Cuentas bancarias configuradas: {len(BANK_ACCOUNTS)}")
     print(f"🚀 Simulación de Proyectos disponible en la pestaña 'Proyectos'")
+    print(f"🤖 Caso 2 - Automatización con Empatía disponible en la pestaña 'Caso 2'")
     print("Ctrl+C para detener.")
     try:
         server.serve_forever()
