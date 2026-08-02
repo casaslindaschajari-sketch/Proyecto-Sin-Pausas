@@ -94,6 +94,16 @@ USE_CASES = [
     },
 ]
 
+DEMO_INVENTORY_DEFAULT = {
+    "columns": ["Código", "Producto", "Cantidad", "Precio", "Tienda"],
+    "rows": [
+        {"Código": "SKU-101", "Producto": "Taladro inalámbrico 18V", "Cantidad": "12", "Precio": "89990", "Tienda": "Tienda A"},
+        {"Código": "SKU-118", "Producto": "Cinta métrica 5m", "Cantidad": "40", "Precio": "3990", "Tienda": "Tienda A"},
+        {"Código": "SKU-204", "Producto": "Set de llaves allen", "Cantidad": "18", "Precio": "12990", "Tienda": "Tienda B"},
+        {"Código": "SKU-330", "Producto": "Guantes de trabajo", "Cantidad": "60", "Precio": "4990", "Tienda": "Tienda C"},
+    ],
+}
+
 ROADMAP = [
     {
         "weeks": "1-2",
@@ -374,6 +384,18 @@ def init_db() -> None:
             """
         )
 
+        # NUEVA TABLA · Inventario demo tipo Excel para SmartStacks (simulación, columnas libres)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS demo_inventory (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                columns_json TEXT NOT NULL,
+                rows_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
         # Insertar datos iniciales de cuentas bancarias si no existen
         if not conn.execute("SELECT COUNT(*) FROM bank_accounts").fetchone()[0]:
             for account in BANK_ACCOUNTS:
@@ -397,6 +419,17 @@ def init_db() -> None:
                     """,
                     (now_iso(), method["name"], 1 if method.get("active", True) else 0)
                 )
+
+        # Sembrar inventario demo tipo Excel con datos de ejemplo si está vacío
+        if not conn.execute("SELECT COUNT(*) FROM demo_inventory").fetchone()[0]:
+            conn.execute(
+                "INSERT INTO demo_inventory (id, columns_json, rows_json, updated_at) VALUES (1, ?, ?, ?)",
+                (
+                    json.dumps(DEMO_INVENTORY_DEFAULT["columns"], ensure_ascii=False),
+                    json.dumps(DEMO_INVENTORY_DEFAULT["rows"], ensure_ascii=False),
+                    now_iso(),
+                ),
+            )
 
 
 def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
@@ -1339,21 +1372,78 @@ def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
         except ValueError:
             return {"ok": False, "error": "Fecha u hora inválida. Usa formato AAAA-MM-DD y HH:MM."}
 
-        with db_connect() as conn:
-            conflict = conn.execute(
-                """
-                SELECT id FROM appointments
-                WHERE appointment_date = ? AND appointment_time = ? AND status != 'cancelada'
-                """,
-                (appointment_date, appointment_time),
-            ).fetchone()
+        BUSINESS_HOURS = list(range(9, 18))  # 09:00 a 17:00, jornada de referencia para la agenda visual
 
-        availability_detail = (
-            f"El horario solicitado ({appointment_date} {appointment_time}) ya tiene una cita real agendada; "
-            "en un caso real el sistema habría ofrecido automáticamente el siguiente horario libre."
-            if conflict
-            else f"El horario {appointment_date} {appointment_time} está disponible. Se reserva de inmediato."
-        )
+        with db_connect() as conn:
+            day_appointments = conn.execute(
+                """
+                SELECT appointment_time FROM appointments
+                WHERE appointment_date = ? AND status != 'cancelada'
+                """,
+                (appointment_date,),
+            ).fetchall()
+
+        busy_hours = set()
+        for row in day_appointments:
+            try:
+                busy_hours.add(int(row["appointment_time"].split(":")[0]))
+            except (ValueError, IndexError):
+                continue
+
+        try:
+            requested_hour = int(appointment_time.split(":")[0])
+        except ValueError:
+            requested_hour = None
+
+        all_hours = sorted(set(BUSINESS_HOURS) | busy_hours | ({requested_hour} if requested_hour is not None else set()))
+        schedule = [
+            {
+                "hour": h,
+                "label": f"{h:02d}:00",
+                "busy": h in busy_hours,
+                "requested": h == requested_hour,
+            }
+            for h in all_hours
+        ]
+
+        is_busy = requested_hour in busy_hours
+
+        if is_busy:
+            alternatives = [h for h in all_hours if h not in busy_hours and h != requested_hour][:3]
+            alt_label = ", ".join(f"{h:02d}:00" for h in alternatives) if alternatives else "ningún otro horario libre ese día"
+            availability_detail = (
+                f"El horario solicitado ({appointment_date} {appointment_time}) ya tiene una cita real agendada. "
+                f"La IA revisa el resto del día y encuentra disponible: {alt_label}."
+            )
+            responder_detail = (
+                f"Hola {client_name.split(' ')[0] if client_name else ''}, gracias por escribir. "
+                f"El horario de las {appointment_time} del {appointment_date} ya está tomado, pero tengo libre: {alt_label}. "
+                "¿Te acomoda alguno de esos horarios?"
+            ).strip()
+            final_step = {
+                "icon": "⏳",
+                "title": "Esperando que el cliente elija un horario",
+                "detail": "El sistema NO agenda automáticamente sobre un horario ocupado; espera a que el cliente confirme una de las alternativas para recién crear la cita.",
+            }
+            summary = (
+                "Así reacciona el sistema cuando el horario pedido ya está ocupado: en vez de fallar o dejarlo esperando, "
+                "la contestadora revisa la agenda real y responde al toque con horarios alternativos."
+            )
+        else:
+            availability_detail = f"El horario {appointment_date} {appointment_time} está disponible. Se reserva de inmediato."
+            responder_detail = (
+                f"¡Perfecto, {client_name.split(' ')[0] if client_name else ''}! Quedas agendado para el "
+                f"{appointment_date} a las {appointment_time}. Te llega la confirmación a {contact}."
+            )
+            final_step = {
+                "icon": "🗓️",
+                "title": "Cita creada (simulación, no se guarda)",
+                "detail": f"Se generaría una reserva confirmada para {client_name}.",
+            }
+            summary = (
+                "Así de rápido se agenda una cita real: el cliente escribe, la IA revisa el calendario "
+                "real y confirma sin que nadie tenga que responder manualmente el mensaje."
+            )
 
         steps = [
             {
@@ -1362,26 +1452,24 @@ def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
                 "detail": f"Cliente: {client_name}\nContacto: {contact}\nFecha solicitada: {appointment_date} a las {appointment_time}\nNotas: {notes or '—'}",
             },
             {
-                "icon": "🤖",
-                "title": "La IA verifica disponibilidad",
+                "icon": "📋",
+                "title": "La IA revisa la agenda del día",
                 "detail": availability_detail,
             },
             {
-                "icon": "🗓️",
-                "title": "Cita creada (simulación, no se guarda)",
-                "detail": f"Se generaría una reserva confirmada para {client_name}.",
+                "icon": "🤖",
+                "title": "La contestadora responde",
+                "detail": responder_detail,
             },
-            {
-                "icon": "📧",
-                "title": "Confirmación enviada",
-                "detail": f"Se envía un mensaje de confirmación a {contact} con fecha, hora y datos de contacto de Sin Pausas.",
-            },
+            final_step,
         ]
-        summary = (
-            "Así de rápido se agenda una cita real: el cliente escribe, la IA revisa el calendario "
-            "real y confirma sin que nadie tenga que responder manualmente el mensaje."
-        )
-        return {"ok": True, "steps": steps, "summary": summary}
+        return {
+            "ok": True,
+            "steps": steps,
+            "summary": summary,
+            "schedule": schedule,
+            "schedule_date": appointment_date,
+        }
 
     if project_type == "whatsapp":
         message = str(payload.get("message", "")).strip()
@@ -1520,6 +1608,45 @@ def get_consulting_state() -> dict[str, Any]:
         return {"ok": False, "error": f"Error en los datos: {str(e)}"}
 
 
+def add_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
+    """Agrega un nuevo producto al inventario."""
+    missing = validate_required(payload, ["code", "name", "quantity"])
+    if missing:
+        return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
+
+    code = str(payload["code"]).strip()
+    name = str(payload["name"]).strip()
+    if not code or not name:
+        return {"ok": False, "error": "Código y nombre no pueden estar vacíos."}
+
+    try:
+        quantity = int(payload["quantity"])
+        price = float(payload["price"]) if payload.get("price") not in (None, "") else None
+        description = str(payload.get("description", "")).strip() or None
+        category = str(payload.get("category", "")).strip() or None
+    except (ValueError, TypeError):
+        return {"ok": False, "error": "Cantidad o precio inválido."}
+
+    try:
+        with db_connect() as conn:
+            existing = conn.execute("SELECT id FROM inventory_products WHERE code = ?", (code,)).fetchone()
+            if existing:
+                return {"ok": False, "error": f"Ya existe un producto con el código {code}."}
+
+            cursor = conn.execute(
+                """
+                INSERT INTO inventory_products (created_at, code, name, quantity, price, description, category)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (now_iso(), code, name, quantity, price, description, category),
+            )
+            product_id = cursor.lastrowid
+
+        return {"ok": True, "product_id": product_id, "message": f"Producto {code} agregado correctamente."}
+    except sqlite3.IntegrityError:
+        return {"ok": False, "error": f"Ya existe un producto con el código {code}."}
+
+
 def update_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
     """Actualiza un producto del inventario."""
     missing = validate_required(payload, ["product_id"])
@@ -1575,6 +1702,84 @@ def delete_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True, "message": "Producto eliminado correctamente."}
     except ValueError:
         return {"ok": False, "error": "ID inválido."}
+
+
+DEMO_INVENTORY_MAX_ROWS = 500
+DEMO_INVENTORY_MAX_COLUMNS = 30
+
+
+def get_demo_inventory() -> dict[str, Any]:
+    """Devuelve el inventario demo tipo Excel (columnas y filas libres) de SmartStacks."""
+    with db_connect() as conn:
+        row = conn.execute("SELECT columns_json, rows_json, updated_at FROM demo_inventory WHERE id = 1").fetchone()
+
+    if not row:
+        return {"ok": True, "columns": DEMO_INVENTORY_DEFAULT["columns"], "rows": DEMO_INVENTORY_DEFAULT["rows"], "updated_at": None}
+
+    return {
+        "ok": True,
+        "columns": json.loads(row["columns_json"]),
+        "rows": json.loads(row["rows_json"]),
+        "updated_at": row["updated_at"],
+    }
+
+
+def save_demo_inventory(payload: dict[str, Any]) -> dict[str, Any]:
+    """Guarda el inventario demo completo (usado al importar Excel/CSV o al editar a mano).
+
+    Se reemplaza todo el contenido de una vez porque la hoja se edita como un todo en el
+    navegador (agregar/quitar filas y columnas, editar celdas) y se guarda con un botón,
+    en vez de hacer una llamada por cada cambio de celda.
+    """
+    columns = payload.get("columns")
+    rows = payload.get("rows")
+
+    if not isinstance(columns, list) or not all(isinstance(c, str) for c in columns):
+        return {"ok": False, "error": "Las columnas deben ser una lista de nombres de texto."}
+    if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
+        return {"ok": False, "error": "Las filas deben ser una lista de objetos."}
+
+    columns = [str(c).strip() or "Columna" for c in columns][:DEMO_INVENTORY_MAX_COLUMNS]
+    if not columns:
+        return {"ok": False, "error": "Debe existir al menos una columna."}
+    if len(rows) > DEMO_INVENTORY_MAX_ROWS:
+        return {"ok": False, "error": f"Máximo {DEMO_INVENTORY_MAX_ROWS} filas en el inventario demo."}
+
+    clean_rows = []
+    for r in rows:
+        clean_rows.append({col: str(r.get(col, "")).strip() for col in columns})
+
+    with db_connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO demo_inventory (id, columns_json, rows_json, updated_at) VALUES (1, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET columns_json = excluded.columns_json,
+                                           rows_json = excluded.rows_json,
+                                           updated_at = excluded.updated_at
+            """,
+            (json.dumps(columns, ensure_ascii=False), json.dumps(clean_rows, ensure_ascii=False), now_iso()),
+        )
+
+    return {"ok": True, "columns": columns, "rows": clean_rows, "message": "Inventario demo guardado."}
+
+
+def reset_demo_inventory() -> dict[str, Any]:
+    """Restaura el inventario demo a los datos de ejemplo iniciales."""
+    with db_connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO demo_inventory (id, columns_json, rows_json, updated_at) VALUES (1, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET columns_json = excluded.columns_json,
+                                           rows_json = excluded.rows_json,
+                                           updated_at = excluded.updated_at
+            """,
+            (
+                json.dumps(DEMO_INVENTORY_DEFAULT["columns"], ensure_ascii=False),
+                json.dumps(DEMO_INVENTORY_DEFAULT["rows"], ensure_ascii=False),
+                now_iso(),
+            ),
+        )
+    return {"ok": True, "columns": DEMO_INVENTORY_DEFAULT["columns"], "rows": DEMO_INVENTORY_DEFAULT["rows"], "message": "Inventario demo restaurado."}
 
 
 def export_leads_csv() -> bytes:
@@ -2564,6 +2769,19 @@ def render_index() -> str:
     .priority-alta {{ background: rgba(255,107,122,.15); color: var(--danger); }}
     .priority-media {{ background: rgba(255,204,102,.15); color: var(--warn); }}
     .priority-baja {{ background: rgba(255,255,255,.1); color: var(--muted); }}
+    .sim-schedule {{ margin-top: 18px; padding: 18px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); opacity: 0; animation: simStepIn .5s ease forwards; }}
+    .sim-schedule h4 {{ margin: 0 0 12px; font-size: 14px; }}
+    .sim-schedule-grid {{ display: flex; flex-wrap: wrap; gap: 8px; }}
+    .sim-slot {{ padding: 9px 12px; border-radius: 12px; font-size: 12px; font-weight: 800; text-align: center; min-width: 58px; }}
+    .sim-slot.free {{ background: rgba(51,214,166,.12); color: var(--brand2); border: 1px solid rgba(51,214,166,.32); }}
+    .sim-slot.busy {{ background: rgba(255,107,122,.12); color: var(--danger); border: 1px solid rgba(255,107,122,.32); }}
+    .sim-slot.requested {{ box-shadow: 0 0 0 2px var(--brand) inset; }}
+    .sim-schedule-legend {{ display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--muted); }}
+    .sim-schedule-legend span {{ display: inline-flex; align-items: center; gap: 6px; }}
+    .sim-legend-dot {{ width: 10px; height: 10px; border-radius: 3px; display: inline-block; }}
+    .sim-legend-dot.free {{ background: var(--brand2); }}
+    .sim-legend-dot.busy {{ background: var(--danger); }}
+    .sim-legend-dot.requested {{ background: transparent; border: 2px solid var(--brand); }}
     .sim-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 18px 0 26px; }}
     .sim-card {{
       background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px;
@@ -2610,6 +2828,7 @@ def render_index() -> str:
       .navlinks {{ display:none; }}
     }}
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
   <div class="wrap">
@@ -2853,6 +3072,34 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
             </form>
           </div>
         </div>
+        <div class="grid" style="margin-top: 28px;">
+          <div class="card">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:space-between;">
+              <h3 style="margin:0;">📊 Inventario Demo tipo Excel <span class="tag" style="margin-left:6px;">DEMO</span></h3>
+              <span class="muted" style="font-size:12px;">Columnas libres · No afecta el inventario real de arriba</span>
+            </div>
+            <p class="muted" style="margin-top:6px;">
+              Importa una planilla (.xlsx/.csv) o arma la tabla a mano. Agrega las columnas que quieras
+              —por ejemplo "Tienda", para mostrar que un producto está disponible en Tienda A, B o C— y edita cualquier celda.
+            </p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin: 14px 0;">
+              <input type="file" id="demoInvFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleDemoInventoryFile(event)">
+              <button type="button" class="secondary" onclick="document.getElementById('demoInvFileInput').click()">📥 Importar Excel/CSV</button>
+              <button type="button" class="secondary" onclick="addDemoInventoryColumn()">➕ Columna</button>
+              <button type="button" class="secondary" onclick="addDemoInventoryRow()">➕ Fila</button>
+              <button type="button" onclick="saveDemoInventory()">💾 Guardar cambios</button>
+              <button type="button" class="secondary" onclick="resetDemoInventory()">↺ Restaurar ejemplo</button>
+              <input type="text" id="demoInvSearch" placeholder="🔎 Buscar en la tabla..." style="max-width:220px;" oninput="renderDemoInventoryTable()">
+            </div>
+            <div style="overflow:auto; max-height: 460px;">
+              <table id="demoInvTable">
+                <thead id="demoInvHead"></thead>
+                <tbody id="demoInvBody"></tbody>
+              </table>
+            </div>
+            <p class="muted" id="demoInvUpdatedAt" style="margin-top:10px; font-size:12px;"></p>
+          </div>
+        </div>
       </section>
 
       <section id="middleware">
@@ -2958,22 +3205,22 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
         <div class="sim-grid">
           <button type="button" class="sim-card active" data-sim="correo" onclick="selectSimProject('correo')">
             <span class="sim-icon">📬</span>
-            <h4>Filtrado de correos</h4>
+            <h4>Filtrado de correos <span class="tag" style="font-size:10px; padding:3px 7px;">DEMO</span></h4>
             <p class="muted">La IA lee, clasifica y decide la acción a seguir.</p>
           </button>
           <button type="button" class="sim-card" data-sim="agenda" onclick="selectSimProject('agenda')">
             <span class="sim-icon">📅</span>
-            <h4>Gestión de agenda</h4>
+            <h4>Gestión de agenda <span class="tag" style="font-size:10px; padding:3px 7px;">DEMO</span></h4>
             <p class="muted">Verifica disponibilidad y confirma la cita sola.</p>
           </button>
           <button type="button" class="sim-card" data-sim="whatsapp" onclick="selectSimProject('whatsapp')">
             <span class="sim-icon">💬</span>
-            <h4>Automatización Empática</h4>
+            <h4>Automatización Empática <span class="tag" style="font-size:10px; padding:3px 7px;">DEMO</span></h4>
             <p class="muted">Responde WhatsApp/redes con tono humano, al instante.</p>
           </button>
           <button type="button" class="sim-card" data-sim="facturacion" onclick="selectSimProject('facturacion')">
             <span class="sim-icon">🧾</span>
-            <h4>Facturación</h4>
+            <h4>Facturación <span class="tag" style="font-size:10px; padding:3px 7px;">DEMO</span></h4>
             <p class="muted">Convierte un pedido en factura calculada al segundo.</p>
           </button>
         </div>
@@ -3021,6 +3268,7 @@ Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</text
         <div class="sim-stage card" id="simStage">
           <h3 style="margin-bottom:16px;">📽️ Así se está construyendo tu simulación</h3>
           <div class="sim-timeline" id="simTimeline"></div>
+          <div id="simScheduleBox"></div>
           <div id="simSummaryBox"></div>
         </div>
       </section>
@@ -3272,6 +3520,9 @@ function showSection(id) {{
   }}
   if (id === 'consulting') {{
     refreshConsulting();
+  }}
+  if (id === 'smartstacks') {{
+    loadDemoInventory();
   }}
 }}
 
@@ -3874,6 +4125,7 @@ function selectSimProject(type) {{
   if (form) form.classList.add('active');
   $('#simStage').classList.remove('active');
   $('#simTimeline').innerHTML = '';
+  $('#simScheduleBox').innerHTML = '';
   $('#simSummaryBox').innerHTML = '';
 }}
 
@@ -3892,8 +4144,10 @@ async function runSimulation(event, type) {{
   const stage = $('#simStage');
   const timeline = $('#simTimeline');
   const summaryBox = $('#simSummaryBox');
+  const scheduleBox = $('#simScheduleBox');
   timeline.innerHTML = '<div class="sim-loading"><span class="sim-dot"></span><span class="sim-dot"></span><span class="sim-dot"></span> Conectando con el motor de automatización...</div>';
   summaryBox.innerHTML = '';
+  scheduleBox.innerHTML = '';
   stage.classList.add('active');
   stage.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
 
@@ -3920,6 +4174,24 @@ async function runSimulation(event, type) {{
       stepEl.querySelector('.sim-step-detail').textContent = step.detail;
       timeline.appendChild(stepEl);
       stepEl.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+
+      if (i === 1 && out.schedule) {{
+        await sleep(300);
+        scheduleBox.innerHTML = `
+          <div class="sim-schedule">
+            <h4>🗓️ Agenda visual del ${{out.schedule_date}}</h4>
+            <div class="sim-schedule-grid">
+              ${{out.schedule.map((slot) => `<div class="sim-slot ${{slot.busy ? 'busy' : 'free'}} ${{slot.requested ? 'requested' : ''}}">${{slot.label}}</div>`).join('')}}
+            </div>
+            <div class="sim-schedule-legend">
+              <span><i class="sim-legend-dot free"></i> Libre</span>
+              <span><i class="sim-legend-dot busy"></i> Ocupado</span>
+              <span><i class="sim-legend-dot requested"></i> Horario solicitado</span>
+            </div>
+          </div>
+        `;
+        scheduleBox.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+      }}
     }}
 
     await sleep(500);
@@ -3946,6 +4218,161 @@ async function runSimulation(event, type) {{
     dateInput.value = d.toISOString().slice(0, 10);
   }}
 }})();
+
+// ---------- Inventario Demo tipo Excel (SmartStacks) ----------
+let demoInvColumns = [];
+let demoInvRows = [];
+
+async function loadDemoInventory() {{
+  try {{
+    const res = await fetch('/api/smartstacks/demo-inventory');
+    const data = await res.json();
+    if (!data.ok) return;
+    demoInvColumns = data.columns;
+    demoInvRows = data.rows;
+    const updatedEl = $('#demoInvUpdatedAt');
+    if (updatedEl) {{
+      updatedEl.textContent = data.updated_at ? `Última actualización: ${{new Date(data.updated_at).toLocaleString()}}` : '';
+    }}
+    renderDemoInventoryTable();
+  }} catch (e) {{
+    console.error('Error cargando inventario demo:', e);
+  }}
+}}
+
+function renderDemoInventoryTable() {{
+  const head = $('#demoInvHead');
+  const body = $('#demoInvBody');
+  if (!head || !body) return;
+
+  head.innerHTML = `<tr>${{demoInvColumns.map((col, ci) => `
+    <th>
+      <input value="${{col.replace(/"/g, '&quot;')}}" onchange="renameDemoInventoryColumn(${{ci}}, this.value)" style="font-weight:700;">
+      <button type="button" class="secondary" style="padding:4px 7px; font-size:11px; margin-top:4px;" onclick="removeDemoInventoryColumn(${{ci}})">✕ columna</button>
+    </th>
+  `).join('')}}<th style="width:40px;"></th></tr>`;
+
+  const term = ($('#demoInvSearch')?.value || '').toLowerCase().trim();
+  const visibleIndices = demoInvRows
+    .map((row, ri) => ri)
+    .filter((ri) => {{
+      if (!term) return true;
+      return demoInvColumns.some((col) => String(demoInvRows[ri][col] || '').toLowerCase().includes(term));
+    }});
+
+  body.innerHTML = visibleIndices.length ? visibleIndices.map((ri) => `
+    <tr>
+      ${{demoInvColumns.map((col) => `
+        <td><input value="${{String(demoInvRows[ri][col] || '').replace(/"/g, '&quot;')}}" onchange="updateDemoInventoryCell(${{ri}}, '${{col.replace(/'/g, "\\\\'")}}', this.value)"></td>
+      `).join('')}}
+      <td><button type="button" class="secondary" style="padding:6px 8px; font-size:12px;" onclick="removeDemoInventoryRow(${{ri}})">✕</button></td>
+    </tr>
+  `).join('') : `<tr><td colspan="${{demoInvColumns.length + 1}}" style="text-align:center;">Sin filas${{term ? ' que coincidan con la búsqueda' : ''}}</td></tr>`;
+}}
+
+function updateDemoInventoryCell(rowIndex, column, value) {{
+  if (!demoInvRows[rowIndex]) return;
+  demoInvRows[rowIndex][column] = value;
+}}
+
+function addDemoInventoryColumn() {{
+  const name = prompt('Nombre de la nueva columna (ej: Tienda, Categoría, Proveedor):');
+  if (!name || !name.trim()) return;
+  const clean = name.trim();
+  if (demoInvColumns.includes(clean)) {{ toast('Ya existe una columna con ese nombre.'); return; }}
+  demoInvColumns.push(clean);
+  demoInvRows.forEach((row) => {{ row[clean] = ''; }});
+  renderDemoInventoryTable();
+}}
+
+function removeDemoInventoryColumn(index) {{
+  const col = demoInvColumns[index];
+  if (!confirm(`¿Eliminar la columna "${{col}}"? Se perderán sus datos en todas las filas.`)) return;
+  demoInvColumns.splice(index, 1);
+  demoInvRows.forEach((row) => {{ delete row[col]; }});
+  renderDemoInventoryTable();
+}}
+
+function renameDemoInventoryColumn(index, newName) {{
+  const clean = (newName || '').trim() || `Columna ${{index + 1}}`;
+  const oldName = demoInvColumns[index];
+  if (clean === oldName) return;
+  demoInvColumns[index] = clean;
+  demoInvRows.forEach((row) => {{
+    row[clean] = row[oldName];
+    if (clean !== oldName) delete row[oldName];
+  }});
+  renderDemoInventoryTable();
+}}
+
+function addDemoInventoryRow() {{
+  const newRow = {{}};
+  demoInvColumns.forEach((col) => {{ newRow[col] = ''; }});
+  demoInvRows.push(newRow);
+  renderDemoInventoryTable();
+}}
+
+function removeDemoInventoryRow(index) {{
+  if (!confirm('¿Eliminar esta fila?')) return;
+  demoInvRows.splice(index, 1);
+  renderDemoInventoryTable();
+}}
+
+function handleDemoInventoryFile(event) {{
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {{
+    try {{
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, {{ type: 'array' }});
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rowsAsArrays = XLSX.utils.sheet_to_json(firstSheet, {{ header: 1, defval: '' }});
+
+      if (!rowsAsArrays.length) {{ toast('El archivo está vacío.'); return; }}
+
+      const headers = rowsAsArrays[0].map((h, i) => String(h || '').trim() || `Columna ${{i + 1}}`);
+      const dataRows = rowsAsArrays.slice(1).map((r) => {{
+        const obj = {{}};
+        headers.forEach((h, i) => {{ obj[h] = String(r[i] ?? '').trim(); }});
+        return obj;
+      }});
+
+      demoInvColumns = headers;
+      demoInvRows = dataRows;
+      renderDemoInventoryTable();
+      toast(`Se importaron ${{dataRows.length}} filas. Revisa la tabla y dale "Guardar cambios".`);
+    }} catch (err) {{
+      console.error(err);
+      toast('No se pudo leer el archivo. Verifica que sea .xlsx, .xls o .csv.');
+    }} finally {{
+      event.target.value = '';
+    }}
+  }};
+  reader.readAsArrayBuffer(file);
+}}
+
+async function saveDemoInventory() {{
+  const out = await api('/api/smartstacks/demo-inventory/save', {{ columns: demoInvColumns, rows: demoInvRows }});
+  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+  demoInvColumns = out.columns;
+  demoInvRows = out.rows;
+  toast('Inventario demo guardado.');
+  renderDemoInventoryTable();
+  const updatedEl = $('#demoInvUpdatedAt');
+  if (updatedEl) updatedEl.textContent = `Última actualización: ${{new Date().toLocaleString()}}`;
+}}
+
+async function resetDemoInventory() {{
+  if (!confirm('¿Restaurar el inventario demo a los datos de ejemplo? Se perderán los cambios actuales.')) return;
+  const out = await api('/api/smartstacks/demo-inventory/reset', {{}});
+  if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+  demoInvColumns = out.columns;
+  demoInvRows = out.rows;
+  toast('Inventario demo restaurado.');
+  renderDemoInventoryTable();
+}}
 
 // Inicialización
 renderState();
@@ -3986,6 +4413,9 @@ class SabrinaHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/consulting/state":
             json_response(self, get_consulting_state())
+            return
+        if parsed.path == "/api/smartstacks/demo-inventory":
+            json_response(self, get_demo_inventory())
             return
         if parsed.path == "/api/leads/export/csv":
             csv_data = export_leads_csv()
@@ -4064,6 +4494,14 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/simulator/run":
                 result = run_simulation(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/smartstacks/demo-inventory/save":
+                result = save_demo_inventory(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/smartstacks/demo-inventory/reset":
+                result = reset_demo_inventory()
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
             if parsed.path == "/api/email/campaign/create":
