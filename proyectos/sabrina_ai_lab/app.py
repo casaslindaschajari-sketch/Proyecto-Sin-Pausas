@@ -10,39 +10,6 @@ Servidor web sin dependencias externas:
 - Asistente estratégico local con integración opcional Azure OpenAI / LiteLLM compatible.
 - Sistema de inventario con asistente conversacional para smartstacks.
 - Sistema de facturación completo con integración bancaria.
-- CASO 1: SIMULACIÓN DE SMARTSTACKS DE CERCANÍA
-- CASO 2: SIMULACIÓN DE AUTOMATIZACIÓN CON EMPATÍA (LiteLLM Middleware)
-- SIMULACIÓN DE PROYECTOS LLAVE EN MANO
-
-Ejecutar:
-    python3 proyectos/sabrina_ai_lab/app.py
-Abrir:
-    http://127.0.0.1:8000
-#!/usr/bin/env python3
-"""
-
-#!/usr/bin/env python3
-"""
-Sabrina AI Lab - MVP web funcional
-Ejecutar: python3 app.py
-Abrir: http://127.0.0.1:8000
-"""
-
-#!/usr/bin/env python3
-"""
-Sabrina AI Lab - MVP web funcional con backend real.
-
-Servidor web sin dependencias externas:
-- Frontend responsive embebido.
-- Backend HTTP/JSON con persistencia SQLite o PostgreSQL remoto.
-- Calculadora comercial para casos de IA.
-- Captura de oportunidades/leads con exportación y campañas de email.
-- Asistente estratégico local con integración opcional Azure OpenAI / LiteLLM compatible.
-- Sistema de inventario con asistente conversacional para smartstacks.
-- Sistema de facturación completo con integración bancaria.
-- CASO 1: SIMULACIÓN DE SMARTSTACKS DE CERCANÍA
-- CASO 2: SIMULACIÓN DE AUTOMATIZACIÓN CON EMPATÍA (LiteLLM Middleware)
-- SIMULACIÓN DE PROYECTOS LLAVE EN MANO
 
 Ejecutar:
     python3 proyectos/sabrina_ai_lab/app.py
@@ -75,7 +42,7 @@ from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "data" / "sabrina_lab.sqlite3"
-HOST = os.environ.get("SABRINA_HOST", "0.0.0.0")
+HOST = os.environ.get("SABRINA_HOST", "0.0.0.0")  # Cambiado a 0.0.0.0 para Codespaces
 PORT = int(os.environ.get("SABRINA_PORT", "8000"))
 
 # Email config (opcional)
@@ -174,6 +141,7 @@ BANK_ACCOUNTS = [
     }
 ]
 
+# Configuración de métodos de pago
 PAYMENT_METHODS = [
     {"id": "transferencia", "name": "Transferencia Bancaria", "active": True},
     {"id": "tarjeta", "name": "Tarjeta de Crédito/Débito", "active": True},
@@ -194,6 +162,7 @@ def db_connect() -> sqlite3.Connection:
 
 def init_db() -> None:
     with db_connect() as conn:
+        # Tablas existentes...
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS leads (
@@ -287,6 +256,8 @@ def init_db() -> None:
             )
             """
         )
+
+        # NUEVA TABLA · SERVICIO 2: Automatización Empática Multicanal (Middleware LiteLLM)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS channel_messages (
@@ -301,6 +272,8 @@ def init_db() -> None:
             )
             """
         )
+
+        # NUEVAS TABLAS · SERVICIO 3: Digitalización IA Llave en Mano
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS email_classifications (
@@ -330,6 +303,8 @@ def init_db() -> None:
             )
             """
         )
+
+        # NUEVAS TABLAS PARA FACTURACIÓN
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS invoices (
@@ -355,6 +330,7 @@ def init_db() -> None:
             )
             """
         )
+
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS bank_accounts (
@@ -371,6 +347,7 @@ def init_db() -> None:
             )
             """
         )
+
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS payment_methods (
@@ -381,6 +358,7 @@ def init_db() -> None:
             )
             """
         )
+
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS invoice_notifications (
@@ -396,6 +374,7 @@ def init_db() -> None:
             """
         )
 
+        # Insertar datos iniciales de cuentas bancarias si no existen
         if not conn.execute("SELECT COUNT(*) FROM bank_accounts").fetchone()[0]:
             for account in BANK_ACCOUNTS:
                 conn.execute(
@@ -408,6 +387,7 @@ def init_db() -> None:
                      account.get("phone"), 1 if account.get("active", True) else 0)
                 )
 
+        # Insertar métodos de pago iniciales
         if not conn.execute("SELECT COUNT(*) FROM payment_methods").fetchone()[0]:
             for method in PAYMENT_METHODS:
                 conn.execute(
@@ -525,6 +505,7 @@ def get_dashboard_state() -> dict[str, Any]:
 
 
 def get_smartstacks_state() -> dict[str, Any]:
+    """Obtiene el estado del módulo smartstacks (inventario + asistente)."""
     with db_connect() as conn:
         products = rows_to_dicts(
             conn.execute("SELECT * FROM inventory_products ORDER BY created_at DESC").fetchall()
@@ -667,6 +648,7 @@ def local_strategy_answer(question: str, channel: str) -> str:
 
 
 def get_inventory_products() -> list[dict[str, Any]]:
+    """Obtiene los productos actuales del inventario como lista de dicts."""
     with db_connect() as conn:
         return rows_to_dicts(
             conn.execute("SELECT id, code, name, quantity, price, description, category FROM inventory_products ORDER BY name").fetchall()
@@ -674,6 +656,7 @@ def get_inventory_products() -> list[dict[str, Any]]:
 
 
 def format_inventory_context(products: list[dict[str, Any]]) -> str:
+    """Convierte la lista de productos en un bloque de texto para dar contexto al modelo."""
     if not products:
         return "El inventario está vacío."
 
@@ -687,6 +670,7 @@ def format_inventory_context(products: list[dict[str, Any]]) -> str:
 
 
 def get_inventory_context() -> str:
+    """Obtiene un contexto de inventario para pasar al asistente."""
     return format_inventory_context(get_inventory_products())
 
 
@@ -701,17 +685,21 @@ _INVENTORY_STOPWORDS = {
 
 
 def _normalize_text(text: str) -> str:
+    """Minúsculas, sin tildes y sin signos de puntuación, para comparar de forma tolerante."""
     replacements = str.maketrans("áéíóúñü", "aeiounu")
     cleaned = text.lower().translate(replacements)
     for ch in "¿?¡!.,;:()[]{}\"'":
         cleaned = cleaned.replace(ch, " ")
     return cleaned
+
+
 def _extract_search_terms(question: str) -> list[str]:
     words = _normalize_text(question).split()
     return [w for w in words if w and w not in _INVENTORY_STOPWORDS]
 
 
 def _word_variants(word: str) -> set[str]:
+    """Genera variantes de un token (forma singular/plural simple) para comparar de forma tolerante."""
     variants = {word}
     for suffix in ("es", "s"):
         if word.endswith(suffix) and len(word) - len(suffix) >= 3:
@@ -720,6 +708,9 @@ def _word_variants(word: str) -> set[str]:
 
 
 def _term_matches(term: str, haystack_words: set[str]) -> bool:
+    """True si el término (o su forma singular/plural) coincide con alguna palabra COMPLETA
+    del producto. Se usa coincidencia por palabra (no subcadena) para poder distinguir
+    productos con nombres parecidos, por ejemplo 'Cinta Marca A' vs 'Cinta Marca B'."""
     term_variants = _word_variants(term)
     for word in haystack_words:
         if term_variants & _word_variants(word):
@@ -739,6 +730,7 @@ def _search_inventory_products(products: list[dict[str, Any]], terms: list[str])
 
 
 def local_inventory_answer(question: str, products: list[dict[str, Any]], channel: str) -> str:
+    """Respuesta local simulada basada en inventario, con búsqueda real por producto."""
     if not products:
         return "Nuestro inventario está vacío por ahora. Agrega productos desde el panel de SmartStacks para poder responder consultas."
 
@@ -770,6 +762,7 @@ def local_inventory_answer(question: str, products: list[dict[str, Any]], channe
 
 
 def smartstacks_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
+    """Asistente que responde consultando el inventario."""
     question = str(payload.get("question", "")).strip()
     channel = str(payload.get("channel", "web")).strip() or "web"
 
@@ -792,6 +785,7 @@ def smartstacks_assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def call_external_model_with_inventory(question: str, channel: str, products: list[dict[str, Any]]) -> tuple[str, str]:
+    """Llama al modelo externo con contexto de inventario."""
     inventory_context = format_inventory_context(products)
     litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
     litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
@@ -901,7 +895,7 @@ def assistant_reply(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 # ============================================
-# SERVICIO 2 · AUTOMATIZACIÓN EMPÁTICA MULTICANAL
+# SERVICIO 2 · AUTOMATIZACIÓN EMPÁTICA MULTICANAL (LiteLLM Middleware)
 # ============================================
 
 CHANNEL_COST_PER_1K_TOKENS = float(os.environ.get("CHANNEL_COST_PER_1K_TOKENS", "0.002"))
@@ -914,6 +908,7 @@ CHANNEL_TONE_HINTS = {
 
 
 def estimate_tokens(text: str) -> int:
+    """Estimación simple de tokens (~4 caracteres por token) para mostrar control de costos."""
     return max(1, round(len(text) / 4))
 
 
@@ -928,6 +923,12 @@ _SPANISH_NUMBER_WORDS = {
 
 
 def _extract_mentioned_quantity(normalized_text: str) -> str | None:
+    """Busca la mayor cantidad mencionada en el mensaje (dígitos o número escrito en español).
+
+    Se toma el número más grande entre todas las coincidencias (en vez del primero) porque
+    palabras como 'una' (de 'una empresa') no deben ganarle a la cifra de negocio real,
+    por ejemplo 'cien' en 'realizamos cien envíos diarios'.
+    """
     candidates = [int(n) for n in re.findall(r"\b(\d{1,6})\b", normalized_text)]
     for word, value in _SPANISH_NUMBER_WORDS.items():
         if re.search(rf"\b{word}\b", normalized_text):
@@ -935,6 +936,7 @@ def _extract_mentioned_quantity(normalized_text: str) -> str | None:
     return str(max(candidates)) if candidates else None
 
 
+# Intenciones ordenadas por prioridad: la primera que coincida gana.
 _CHANNEL_INTENTS = [
     (
         "urgente",
@@ -945,7 +947,7 @@ _CHANNEL_INTENTS = [
     (
         "logistica",
         ("envio", "envios", "despacho", "despachos", "logistica", "reparto", "repartos", "pedido", "pedidos", "tracking", "seguimiento de pedido", "distribucion", "delivery"),
-        None,
+        None,  # se arma dinámicamente más abajo
         None,
     ),
     (
@@ -976,6 +978,13 @@ _CHANNEL_INTENTS = [
 
 
 def local_channel_answer(message: str, channel: str) -> str:
+    """Respuesta empática simulada cuando no hay LiteLLM/Azure configurado.
+
+    A diferencia de una versión anterior más simple, esta detecta un conjunto amplio
+    de intenciones (reclamos, logística/automatización, agendar, precio, agradecimiento,
+    saludo) y, si no reconoce ninguna, arma una respuesta que sí hace referencia concreta
+    a lo que la persona escribió en vez de una plantilla genérica repetida.
+    """
     normalized = _normalize_text(message)
     tone = CHANNEL_TONE_HINTS.get(channel.lower(), "cercano y profesional")
 
@@ -996,6 +1005,8 @@ def local_channel_answer(message: str, channel: str) -> str:
 
         return f"{opening} (tono {tone})\n\n{closing}"
 
+    # Fallback: sin coincidencias claras, pero evitamos la respuesta genérica muerta.
+    # Referenciamos lo que la persona escribió para demostrar que sí se leyó el mensaje.
     trimmed = message.strip()
     excerpt = trimmed if len(trimmed) <= 140 else trimmed[:137].rstrip() + "..."
     return (
@@ -1007,6 +1018,7 @@ def local_channel_answer(message: str, channel: str) -> str:
 
 
 def call_external_model_channel(message: str, channel: str) -> tuple[str, str]:
+    """Llama al modelo externo (LiteLLM/Azure) con un prompt de atención al cliente multicanal."""
     litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
     litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
     azure_key = os.environ.get("AZURE_OPENAI_API_KEY")
@@ -1044,6 +1056,7 @@ def call_external_model_channel(message: str, channel: str) -> tuple[str, str]:
 
 
 def channel_reply(payload: dict[str, Any]) -> dict[str, Any]:
+    """Responde un mensaje entrante de cualquier canal y registra el costo estimado en tokens."""
     channel = str(payload.get("channel", "web")).strip() or "web"
     message = str(payload.get("message", "")).strip()
     if not message:
@@ -1098,6 +1111,7 @@ def get_middleware_state() -> dict[str, Any]:
 
 # ============================================
 # SERVICIO 3 · DIGITALIZACIÓN IA LLAVE EN MANO
+# (filtrado automático de correos + gestión de agendas)
 # ============================================
 
 _EMAIL_CATEGORY_RULES = [
@@ -1125,6 +1139,7 @@ _EMAIL_PRIORITY_BY_CATEGORY = {
 
 
 def classify_email_local(subject: str, body: str) -> tuple[str, str, str]:
+    """Clasificación local basada en reglas: categoría, prioridad y acción sugerida."""
     text = _normalize_text(f"{subject} {body}")
     category = "general"
     for cat, keywords in _EMAIL_CATEGORY_RULES:
@@ -1138,6 +1153,7 @@ def classify_email_local(subject: str, body: str) -> tuple[str, str, str]:
 
 
 def call_external_email_action(category: str, subject: str, body: str) -> tuple[str, str]:
+    """Pide al modelo externo (si está configurado) una acción sugerida más específica."""
     litellm_base = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
     litellm_key = os.environ.get("LITELLM_API_KEY", "sk-local")
     azure_key = os.environ.get("AZURE_OPENAI_API_KEY")
@@ -1261,6 +1277,194 @@ def cancel_appointment(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "message": "Cita cancelada."}
 
 
+def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
+    """Genera una simulación educativa, paso a paso, de un proceso de automatización.
+
+    Reutiliza la MISMA lógica de negocio real de la app (clasificación de correos,
+    respuestas empáticas, cálculo de IVA) para que el resultado sea creíble, pero
+    NUNCA escribe en las tablas de producción (correos, citas o facturas reales),
+    salvo una lectura de solo consulta para chequear choques de horario en agenda.
+    """
+    project_type = str(payload.get("project_type", "")).strip()
+
+    if project_type == "correo":
+        sender = str(payload.get("sender", "")).strip() or "cliente@ejemplo.com"
+        subject = str(payload.get("subject", "")).strip()
+        body = str(payload.get("body", "")).strip()
+        if not subject and not body:
+            return {"ok": False, "error": "Escribe al menos el asunto o el cuerpo del correo."}
+
+        category, priority, action = classify_email_local(subject, body)
+        steps = [
+            {
+                "icon": "📩",
+                "title": "Correo recibido",
+                "detail": f"De: {sender}\nAsunto: {subject}\n\n{body}",
+            },
+            {
+                "icon": "🔍",
+                "title": "La IA analiza el contenido",
+                "detail": "Se leen asunto y cuerpo buscando palabras clave para identificar el tipo de solicitud (venta, soporte, queja, administrativo, etc.).",
+            },
+            {
+                "icon": "🏷️",
+                "title": "Clasificación automática asignada",
+                "detail": f"Categoría: {category.upper()}\nPrioridad: {priority.upper()}",
+            },
+            {
+                "icon": "✅",
+                "title": "Acción ejecutada por el sistema",
+                "detail": action,
+            },
+        ]
+        summary = (
+            f"En un caso real, este correo habría quedado clasificado como '{category}' "
+            f"con prioridad {priority} en segundos, sin que nadie lo leyera manualmente primero."
+        )
+        return {"ok": True, "steps": steps, "summary": summary}
+
+    if project_type == "agenda":
+        client_name = str(payload.get("client_name", "")).strip()
+        contact = str(payload.get("contact", "")).strip()
+        appointment_date = str(payload.get("appointment_date", "")).strip()
+        appointment_time = str(payload.get("appointment_time", "")).strip()
+        notes = str(payload.get("notes", "")).strip()
+
+        if not client_name or not contact or not appointment_date or not appointment_time:
+            return {"ok": False, "error": "Completa nombre, contacto, fecha y hora."}
+
+        try:
+            datetime.strptime(appointment_date, "%Y-%m-%d")
+            datetime.strptime(appointment_time, "%H:%M")
+        except ValueError:
+            return {"ok": False, "error": "Fecha u hora inválida. Usa formato AAAA-MM-DD y HH:MM."}
+
+        with db_connect() as conn:
+            conflict = conn.execute(
+                """
+                SELECT id FROM appointments
+                WHERE appointment_date = ? AND appointment_time = ? AND status != 'cancelada'
+                """,
+                (appointment_date, appointment_time),
+            ).fetchone()
+
+        availability_detail = (
+            f"El horario solicitado ({appointment_date} {appointment_time}) ya tiene una cita real agendada; "
+            "en un caso real el sistema habría ofrecido automáticamente el siguiente horario libre."
+            if conflict
+            else f"El horario {appointment_date} {appointment_time} está disponible. Se reserva de inmediato."
+        )
+
+        steps = [
+            {
+                "icon": "📅",
+                "title": "Solicitud de cita recibida",
+                "detail": f"Cliente: {client_name}\nContacto: {contact}\nFecha solicitada: {appointment_date} a las {appointment_time}\nNotas: {notes or '—'}",
+            },
+            {
+                "icon": "🤖",
+                "title": "La IA verifica disponibilidad",
+                "detail": availability_detail,
+            },
+            {
+                "icon": "🗓️",
+                "title": "Cita creada (simulación, no se guarda)",
+                "detail": f"Se generaría una reserva confirmada para {client_name}.",
+            },
+            {
+                "icon": "📧",
+                "title": "Confirmación enviada",
+                "detail": f"Se envía un mensaje de confirmación a {contact} con fecha, hora y datos de contacto de Sin Pausas.",
+            },
+        ]
+        summary = (
+            "Así de rápido se agenda una cita real: el cliente escribe, la IA revisa el calendario "
+            "real y confirma sin que nadie tenga que responder manualmente el mensaje."
+        )
+        return {"ok": True, "steps": steps, "summary": summary}
+
+    if project_type == "whatsapp":
+        message = str(payload.get("message", "")).strip()
+        channel = str(payload.get("channel", "whatsapp")).strip() or "whatsapp"
+        if not message:
+            return {"ok": False, "error": "Escribe el mensaje del cliente."}
+
+        answer = local_channel_answer(message, channel)
+        steps = [
+            {
+                "icon": "💬",
+                "title": f"Mensaje recibido por {channel}",
+                "detail": message,
+            },
+            {
+                "icon": "🧠",
+                "title": "La IA interpreta la intención",
+                "detail": "Se detecta el tema (precio, soporte, logística, agenda, saludo, etc.) y el tono adecuado para responder.",
+            },
+            {
+                "icon": "✍️",
+                "title": "Respuesta generada",
+                "detail": answer,
+            },
+            {
+                "icon": "📤",
+                "title": f"Respuesta enviada por {channel}",
+                "detail": "El cliente recibe la respuesta en segundos, sin esperar a que alguien del equipo esté disponible.",
+            },
+        ]
+        summary = (
+            "Esto es exactamente lo que pasaría con tus mensajes reales de WhatsApp, Instagram o tu web, "
+            "centralizados en un solo panel."
+        )
+        return {"ok": True, "steps": steps, "summary": summary}
+
+    if project_type == "facturacion":
+        customer_name = str(payload.get("customer_name", "")).strip()
+        item_name = str(payload.get("item_name", "")).strip()
+        try:
+            quantity = max(1, int(payload.get("quantity", 1)))
+        except (TypeError, ValueError):
+            quantity = 1
+        try:
+            unit_price = max(0.0, float(payload.get("unit_price", 0)))
+        except (TypeError, ValueError):
+            unit_price = 0.0
+
+        if not customer_name or not item_name or unit_price <= 0:
+            return {"ok": False, "error": "Completa cliente, producto/servicio y precio unitario."}
+
+        subtotal = quantity * unit_price
+        tax = round(subtotal * 0.19, 2)
+        total = round(subtotal + tax, 2)
+
+        steps = [
+            {
+                "icon": "🧾",
+                "title": "Pedido detectado",
+                "detail": f"Cliente: {customer_name}\nÍtem: {item_name}\nCantidad: {quantity} x ${unit_price:,.2f}",
+            },
+            {
+                "icon": "🔎",
+                "title": "La IA calcula ítems y totales",
+                "detail": f"Subtotal: ${subtotal:,.2f}\nIVA (19%): ${tax:,.2f}",
+            },
+            {
+                "icon": "📄",
+                "title": "Factura generada (simulación, no se guarda)",
+                "detail": f"Total a pagar: ${total:,.2f}",
+            },
+            {
+                "icon": "📬",
+                "title": "Factura enviada al cliente",
+                "detail": f"Se envía por correo a {customer_name} con los datos de pago (transferencia o tarjeta) listos para usar.",
+            },
+        ]
+        summary = f"En segundos, un pedido se convierte en una factura formal de ${total:,.2f}, lista para enviar y cobrar."
+        return {"ok": True, "steps": steps, "summary": summary}
+
+    return {"ok": False, "error": "Tipo de proyecto no reconocido. Usa: correo, agenda, whatsapp o facturacion."}
+
+
 def get_consulting_state() -> dict[str, Any]:
     with db_connect() as conn:
         emails = rows_to_dicts(
@@ -1282,678 +1486,6 @@ def get_consulting_state() -> dict[str, Any]:
         "email_count": email_count,
         "upcoming_count": upcoming_count,
     }
-
-# ============================================
-# CASO 1: SMARTSTACKS DE CERCANÍA - ASISTENTE EXPERTO
-# ============================================
-
-SMARTSTACKS_DEMO = {
-    "id": "smartstacks",
-    "name": "🏪 SmartStacks de Cercanía",
-    "description": "Asistente conversacional para negocios locales que responde preguntas de inventario al instante.",
-    "icon": "🏪",
-    "steps": [
-        {
-            "title": "1. Cargar el Inventario Local",
-            "desc": "Subimos los datos de tu negocio: productos, códigos, precios y descripciones.",
-            "details": [
-                "✅ 42 GiB de RAM para almacenar todo el inventario localmente",
-                "✅ Sistema de búsqueda rápida por código y nombre",
-                "✅ Base de datos con productos, stock y precios",
-                "✅ Historial de consultas para mejorar el asistente"
-            ],
-            "action": "Cargar Inventario"
-        },
-        {
-            "title": "2. Conectar el Asistente",
-            "desc": "Vinculamos el asistente IA a los canales de comunicación de tu negocio.",
-            "details": [
-                "✅ WhatsApp Business API conectada",
-                "✅ Tablet en tienda con interfaz amigable",
-                "✅ Web para consultas remotas",
-                "✅ Sistema de respuestas en lenguaje natural"
-            ],
-            "action": "Conectar Asistente"
-        },
-        {
-            "title": "3. Entrenar con Preguntas Reales",
-            "desc": "El asistente aprende a entender las preguntas típicas de tus clientes y vendedores.",
-            "details": [
-                "✅ Análisis de preguntas frecuentes",
-                "✅ Entrenamiento con lenguaje coloquial",
-                "✅ Reconocimiento de productos por nombre común",
-                "✅ Respuestas en menos de 1 segundo"
-            ],
-            "action": "Entrenar Asistente"
-        },
-        {
-            "title": "4. ¡Asistente en Vivo!",
-            "desc": "El sistema ya está funcionando. Aquí puedes ver cómo responde a preguntas reales:",
-            "action": "Ver Asistente en Acción"
-        }
-    ],
-    "example_products": [
-        {"code": "PER-001", "name": "Perno de Anclaje 3/8\"", "price": 2500, "stock": 45, "description": "Perno de anclaje galvanizado, ideal para fijaciones en hormigón."},
-        {"code": "TUB-002", "name": "Tubería PVC 1/2\"", "price": 3800, "stock": 120, "description": "Tubería PVC para instalaciones eléctricas y sanitarias."},
-        {"code": "MART-003", "name": "Martillo de Peña", "price": 15900, "stock": 12, "description": "Martillo de peña profesional, mango de fibra de vidrio."},
-        {"code": "CIN-004", "name": "Cinta Métrica 5m", "price": 4500, "stock": 28, "description": "Cinta métrica de 5 metros con sistema de freno."},
-        {"code": "LLAVE-005", "name": "Llave Francesa 12\"", "price": 8900, "stock": 15, "description": "Llave francesa ajustable, acero cromado."},
-        {"code": "DIS-006", "name": "Disco de Corte 4\"", "price": 3200, "stock": 80, "description": "Disco de corte para metal, diámetro 4 pulgadas."},
-        {"code": "PINT-007", "name": "Pintura Esmalte Rojo", "price": 12500, "stock": 6, "description": "Pintura esmalte sintético color rojo, 1 litro."},
-        {"code": "CLAV-008", "name": "Clavos 2\" Caja x 100", "price": 4800, "stock": 35, "description": "Clavos de 2 pulgadas, caja con 100 unidades."},
-        {"code": "SIER-009", "name": "Sierra Manual", "price": 18900, "stock": 8, "description": "Sierra manual para madera, hoja de 24 dientes."},
-        {"code": "TAL-010", "name": "Taladro Percutor", "price": 45900, "stock": 4, "description": "Taladro percutor 600W, 13mm, incluye maletín."}
-    ],
-    "example_questions": [
-        {"question": "¿Tienes pernos de anclaje 3/8?", "answer": "Sí, tenemos el Perno de Anclaje 3/8 (Código: PER-001). Disponemos de 45 unidades a $2.500 cada uno. ¿Necesitas que te reserve algunos? 🔩"},
-        {"question": "¿Cuánto cuesta la tubería PVC?", "answer": "Tenemos Tubería PVC 1/2\" (Código: TUB-002) a $3.800 cada una. Tenemos 120 unidades en stock. ¿Cuántas necesitas? 🏗️"},
-        {"question": "Necesito un martillo bueno", "answer": "Tenemos el Martillo de Peña profesional (Código: MART-003) a $15.900. Es de mango de fibra de vidrio y tenemos 12 unidades disponibles. ¿Te lo llevas? 🔨"},
-        {"question": "¿Tienes pintura roja?", "answer": "Sí, tenemos Pintura Esmalte Rojo (Código: PINT-007) a $12.500 el litro. Actualmente tenemos 6 unidades disponibles. ¿Cuántos litros necesitas? 🎨"}
-    ],
-    "stats": {
-        "total_products": 10,
-        "total_stock": 353,
-        "avg_response_time": 0.8,
-        "questions_answered": 0,
-        "hours_saved": 0,
-        "customer_satisfaction": 0
-    }
-}
-
-
-def get_smartstacks_demo_state() -> dict[str, Any]:
-    """Obtiene el estado de la demostración del caso 1."""
-    return {
-        "ok": True,
-        "demo": SMARTSTACKS_DEMO,
-        "current_step": 0,
-        "is_complete": False,
-        "stats": {
-            "questions_answered": 0,
-            "hours_saved": 0,
-            "customer_satisfaction": 0
-        }
-    }
-
-
-def run_smartstacks_demo_step(payload: dict[str, Any]) -> dict[str, Any]:
-    """Ejecuta un paso de la demostración de SmartStacks."""
-    step_index = payload.get("step_index", 0)
-    user_data = payload.get("user_data", {})
-    
-    demo = SMARTSTACKS_DEMO
-    steps = demo["steps"]
-    
-    if step_index >= len(steps):
-        return {"ok": False, "error": "Paso fuera de rango"}
-    
-    step = steps[step_index]
-    result = {
-        "ok": True,
-        "step_index": step_index,
-        "step": step,
-        "completed": False,
-        "message": f"✅ Paso '{step['title']}' completado",
-        "data": {}
-    }
-    
-    if step_index == 3:  # Último paso - mostrar asistente en acción
-        result["data"]["dashboard"] = {
-            "stats": demo["stats"],
-            "products": demo["example_products"],
-            "recent_questions": [
-                {"question": "¿Tienes pernos de anclaje 3/8?", "answer": "Sí, tenemos 45 unidades a $2.500 cada uno.", "time": "hace 1 min"},
-                {"question": "¿Cuánto cuesta la tubería PVC?", "answer": "Tubería PVC 1/2\" a $3.800. Tenemos 120 unidades.", "time": "hace 3 min"},
-                {"question": "Necesito un martillo bueno", "answer": "Martillo de Peña a $15.900. Tenemos 12 unidades.", "time": "hace 5 min"}
-            ],
-            "impact": {
-                "questions_answered": demo["stats"]["questions_answered"],
-                "hours_saved": demo["stats"]["hours_saved"],
-                "customer_satisfaction": demo["stats"]["customer_satisfaction"]
-            }
-        }
-        result["completed"] = True
-        result["message"] = "🎉 ¡Asistente en vivo! Los vendedores ahora responden en segundos."
-    
-    return result
-
-
-def simulate_smartstacks_question(payload: dict[str, Any]) -> dict[str, Any]:
-    """Simula una pregunta al asistente de inventario."""
-    import random
-    
-    question = payload.get("question", "").strip()
-    
-    if not question:
-        return {"ok": False, "error": "Escribe una pregunta sobre el inventario."}
-    
-    products = SMARTSTACKS_DEMO["example_products"]
-    question_lower = question.lower()
-    
-    matches = []
-    for product in products:
-        if product["name"].lower() in question_lower or product["code"].lower() in question_lower:
-            matches.append(product)
-        elif any(word in question_lower for word in product["name"].lower().split()[:2]):
-            matches.append(product)
-    
-    if not matches:
-        categories = {
-            "perno": "PER-001",
-            "tuberia": "TUB-002",
-            "martillo": "MART-003",
-            "cinta": "CIN-004",
-            "llave": "LLAVE-005",
-            "disco": "DIS-006",
-            "pintura": "PINT-007",
-            "clavo": "CLAV-008",
-            "sierra": "SIER-009",
-            "taladro": "TAL-010"
-        }
-        
-        for key, code in categories.items():
-            if key in question_lower:
-                product = next((p for p in products if p["code"] == code), None)
-                if product:
-                    matches.append(product)
-    
-    if not matches:
-        responses = [
-            "No encontré ese producto en nuestro inventario. ¿Podrías darme más detalles? 🤔",
-            "Hmm, no reconozco ese producto. ¿Qué estás buscando exactamente? 🛠️",
-            "Lo siento, no tengo información sobre ese producto. ¿Puedes describirlo mejor? 📋"
-        ]
-        return {
-            "ok": True,
-            "answer": random.choice(responses),
-            "matches": [],
-            "response_time": round(random.uniform(0.3, 1.2), 1),
-            "tokens": estimate_tokens(question) + estimate_tokens(responses[0])
-        }
-    
-    if len(matches) == 1:
-        p = matches[0]
-        stock_emoji = "✅" if p["stock"] > 10 else "⚠️" if p["stock"] > 0 else "❌"
-        stock_text = f"{stock_emoji} Stock: {p['stock']} unidades" if p["stock"] > 0 else "❌ Sin stock disponible"
-        
-        answer = f"Sí, tenemos {p['name']} (Código: {p['code']}). {stock_text}. Precio: ${p['price']}."
-        
-        if p["description"]:
-            answer += f"\n\n📋 {p['description']}"
-        
-        if p["stock"] > 10:
-            answer += f"\n\n💡 ¿Te gustaría que te reserve algunos? Tenemos buena disponibilidad."
-        elif p["stock"] > 0:
-            answer += f"\n\n⚠️ Solo quedan {p['stock']} unidades. ¡Te recomiendo reservar pronto!"
-        else:
-            answer += f"\n\n🔄 Este producto está agotado. Podemos pedirlo en 24 horas."
-        
-        answer += " 😊"
-        
-        response_time = round(random.uniform(0.2, 1.2), 1)
-        tokens = estimate_tokens(question) + estimate_tokens(answer)
-        
-        return {
-            "ok": True,
-            "answer": answer,
-            "matches": [dict(p) for p in matches],
-            "response_time": response_time,
-            "tokens": tokens,
-            "source": "inventory_match"
-        }
-    
-    else:
-        answer = f"Encontré {len(matches)} productos que coinciden con tu búsqueda:\n\n"
-        for p in matches:
-            stock_emoji = "✅" if p["stock"] > 10 else "⚠️" if p["stock"] > 0 else "❌"
-            answer += f"📌 {p['name']} (Código: {p['code']}) - ${p['price']} - {stock_emoji} Stock: {p['stock']}\n"
-        
-        answer += "\n¿Cuál te interesa? Dime el código o el nombre y te doy más detalles. 🛒"
-        
-        response_time = round(random.uniform(0.3, 1.5), 1)
-        tokens = estimate_tokens(question) + estimate_tokens(answer)
-        
-        return {
-            "ok": True,
-            "answer": answer,
-            "matches": [dict(p) for p in matches],
-            "response_time": response_time,
-            "tokens": tokens,
-            "source": "multi_match"
-        }
-
-
-def add_custom_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
-    """Agrega un producto personalizado al inventario de demostración."""
-    missing = validate_required(payload, ["code", "name", "stock", "price"])
-    if missing:
-        return {"ok": False, "error": f"Faltan campos: {', '.join(missing)}"}
-    
-    try:
-        product = {
-            "code": str(payload["code"]).strip(),
-            "name": str(payload["name"]).strip(),
-            "stock": int(payload["stock"]),
-            "price": float(payload["price"]),
-            "description": str(payload.get("description", "")).strip() or "Sin descripción"
-        }
-        
-        if any(p["code"] == product["code"] for p in SMARTSTACKS_DEMO["example_products"]):
-            return {"ok": False, "error": f"El código {product['code']} ya existe"}
-        
-        SMARTSTACKS_DEMO["example_products"].append(product)
-        SMARTSTACKS_DEMO["stats"]["total_products"] += 1
-        SMARTSTACKS_DEMO["stats"]["total_stock"] += product["stock"]
-        
-        return {
-            "ok": True,
-            "message": f"Producto {product['name']} agregado correctamente",
-            "product": product
-        }
-    except ValueError as e:
-        return {"ok": False, "error": f"Error en los datos: {str(e)}"}
-
-
-# ============================================
-# CASO 2: SIMULACIÓN DE AUTOMATIZACIÓN CON EMPATÍA (LiteLLM Middleware)
-# ============================================
-
-MIDDLEWARE_DEMO = {
-    "id": "middleware",
-    "name": "🤖 Automatización de Respuestas con Empatía",
-    "description": "Proxy unificado que centraliza respuestas para múltiples canales con tono empático personalizado.",
-    "icon": "🤖",
-    "steps": [
-        {
-            "title": "1. Configurar el Proxy LiteLLM",
-            "desc": "Instalamos y configuramos LiteLLM como proxy unificado para administrar múltiples modelos GPT.",
-            "details": [
-                "✅ LiteLLM instalado en la VM con 42 GiB de RAM",
-                "✅ 3 modelos GPT configurados (GPT-4, GPT-3.5, GPT-4o-mini)",
-                "✅ Balanceo de carga automático configurado",
-                "✅ Control de costos por token activado"
-            ],
-            "action": "Configurar Proxy"
-        },
-        {
-            "title": "2. Conectar Canales",
-            "desc": "Conectamos tus canales de comunicación al proxy unificado.",
-            "details": [
-                "✅ WhatsApp Business API conectada",
-                "✅ Instagram Messenger integrado",
-                "✅ Email (IMAP/SMTP) configurado",
-                "✅ Web Chat conectado"
-            ],
-            "action": "Conectar Canales"
-        },
-        {
-            "title": "3. Definir Tono y Personalidad",
-            "desc": "Configuramos el tono de voz para cada canal según tu marca.",
-            "channels": [
-                {"name": "WhatsApp", "tone": "Cercano y breve", "emoji": "💬", "example": "¡Hola! ¿En qué te ayudo hoy? 😊"},
-                {"name": "Instagram", "tone": "Casual y con emojis", "emoji": "📸", "example": "Hey! Gracias por tu mensaje 🌟 ¿Cómo puedo ayudarte?"},
-                {"name": "Email", "tone": "Formal y estructurado", "emoji": "📧", "example": "Estimado/a, agradecemos su consulta..."},
-                {"name": "Web", "tone": "Profesional y directo", "emoji": "🌐", "example": "Bienvenido. ¿En qué podemos ayudarle hoy?"}
-            ],
-            "action": "Configurar Tono"
-        },
-        {
-            "title": "4. ¡Sistema en Vivo!",
-            "desc": "El sistema ya está respondiendo con empatía en todos tus canales. Aquí puedes ver ejemplos:",
-            "action": "Ver Dashboard"
-        }
-    ],
-    "example_messages": [
-        {"channel": "whatsapp", "message": "Hola, ¿tienen envío a domicilio?", "response": "¡Hola! Sí, realizamos envíos a todo el país. ¿Me indicas tu código postal para darte el costo exacto? 😊"},
-        {"channel": "instagram", "message": "Me encantó el producto, ¿hay descuento por primera compra?", "response": "¡Gracias! Me alegra que te haya gustado 🌟 Para primera compra tenemos un 10% de descuento. ¿Te interesa? 🛍️"},
-        {"channel": "email", "message": "Quisiera una cotización para 50 unidades.", "response": "Estimado/a, gracias por su consulta. Con gusto le enviamos una cotización detallada en las próximas 2 horas. Quedamos atentos."},
-        {"channel": "web", "message": "¿Cómo funciona el sistema de garantía?", "response": "Nuestro sistema de garantía cubre 12 meses. Puedes revisar los detalles en nuestra página de políticas o contactarnos para más información."}
-    ],
-    "stats": {
-        "total_messages": 1250,
-        "avg_response_time": 2.3,
-        "tokens_used": 450000,
-        "total_cost": 1.35,
-        "hours_saved": 48,
-        "response_rate": 98.5
-    },
-    "channel_stats": [
-        {"channel": "WhatsApp", "messages": 450, "avg_time": 1.8, "cost": 0.48},
-        {"channel": "Instagram", "messages": 380, "avg_time": 2.1, "cost": 0.41},
-        {"channel": "Email", "messages": 220, "avg_time": 3.2, "cost": 0.28},
-        {"channel": "Web", "messages": 200, "avg_time": 2.5, "cost": 0.18}
-    ]
-}
-
-
-def get_middleware_demo_state() -> dict[str, Any]:
-    """Obtiene el estado de la demostración del caso 2."""
-    return {
-        "ok": True,
-        "demo": MIDDLEWARE_DEMO,
-        "current_step": 0,
-        "is_complete": False
-    }
-
-
-def run_middleware_demo_step(payload: dict[str, Any]) -> dict[str, Any]:
-    """Ejecuta un paso de la demostración del middleware."""
-    step_index = payload.get("step_index", 0)
-    user_data = payload.get("user_data", {})
-    
-    demo = MIDDLEWARE_DEMO
-    steps = demo["steps"]
-    
-    if step_index >= len(steps):
-        return {"ok": False, "error": "Paso fuera de rango"}
-    
-    step = steps[step_index]
-    result = {
-        "ok": True,
-        "step_index": step_index,
-        "step": step,
-        "completed": False,
-        "message": f"✅ Paso '{step['title']}' completado",
-        "data": {}
-    }
-    
-    if step_index == 3:
-        result["data"]["dashboard"] = {
-            "stats": demo["stats"],
-            "recent_messages": [
-                {
-                    "channel": "WhatsApp",
-                    "message": "Hola, ¿tienen stock de martillos?",
-                    "response": "¡Sí! Tenemos martillos en stock. ¿Cuántos necesitas? Tenemos diferentes tamaños. 🔨",
-                    "time": "hace 2 min",
-                    "tokens": 45,
-                    "cost": 0.00018
-                },
-                {
-                    "channel": "Instagram",
-                    "message": "Me encantó la promoción!",
-                    "response": "¡Qué bien! Me alegra que te guste 🌟 La promo termina este viernes, ¿quieres que te reserve algo? 💫",
-                    "time": "hace 15 min",
-                    "tokens": 38,
-                    "cost": 0.00015
-                },
-                {
-                    "channel": "Email",
-                    "message": "Solicito información sobre precios mayoristas",
-                    "response": "Estimado/a, con gusto le enviamos nuestra lista de precios mayoristas. ¿Podría indicarnos qué productos le interesan?",
-                    "time": "hace 1 hora",
-                    "tokens": 62,
-                    "cost": 0.00025
-                }
-            ],
-            "channel_stats": demo["channel_stats"]
-        }
-        result["completed"] = True
-        result["message"] = "🎉 ¡Sistema completo! Puedes ver el dashboard en vivo."
-    
-    elif step_index == 2:
-        if user_data.get("custom_tone"):
-            result["data"]["custom_tone"] = user_data["custom_tone"]
-            result["message"] = "✅ Tono personalizado aplicado para todos los canales."
-        else:
-            result["data"]["channels"] = step["channels"]
-    
-    return result
-
-
-def simulate_middleware_message(payload: dict[str, Any]) -> dict[str, Any]:
-    """Simula el envío de un mensaje y genera una respuesta."""
-    import random
-    
-    channel = payload.get("channel", "web")
-    message = payload.get("message", "").strip()
-    custom_tone = payload.get("tone", "")
-    
-    if not message:
-        return {"ok": False, "error": "Escribe un mensaje para simular"}
-    
-    example_messages = MIDDLEWARE_DEMO["example_messages"]
-    matched_example = None
-    
-    for example in example_messages:
-        if example["channel"].lower() == channel.lower():
-            example_words = set(example["message"].lower().split())
-            message_words = set(message.lower().split())
-            if len(example_words.intersection(message_words)) >= 2:
-                matched_example = example
-                break
-    
-    if not matched_example:
-        responses = {
-            "whatsapp": [
-                "¡Gracias por tu mensaje! 😊 ¿En qué más puedo ayudarte?",
-                "Entendido, te ayudo con eso 💪 Déjame revisar la información.",
-                "¡Claro! Déjame revisarlo 📋 y te respondo en un momento."
-            ],
-            "instagram": [
-                "¡Hola! Gracias por escribir 🌟 Cuéntame más sobre lo que necesitas.",
-                "Qué interesante, cuéntame más detalles 💫 para poder ayudarte mejor.",
-                "¡Me encanta! Vamos a ver eso 🎯 y te doy una respuesta."
-            ],
-            "email": [
-                "Estimado/a, gracias por su consulta. Le responderemos a la brevedad.",
-                "Agradecemos su mensaje, le responderemos pronto con la información solicitada.",
-                "Hemos recibido su solicitud, le contactaremos en las próximas horas."
-            ],
-            "web": [
-                "Gracias por tu consulta. ¿En qué más puedo ayudarte?",
-                "Entendido, te ayudaremos con eso. ¿Algo más que necesites?",
-                "Procesando tu solicitud. Te responderemos en breve."
-            ]
-        }
-        
-        response = random.choice(responses.get(channel.lower(), ["Gracias por tu mensaje."]))
-        
-        if custom_tone:
-            response = f"({custom_tone}) {response}"
-        
-        tokens = estimate_tokens(message) + estimate_tokens(response)
-        cost = round((tokens / 1000) * 0.002, 5)
-        
-        return {
-            "ok": True,
-            "response": response,
-            "channel": channel,
-            "tokens": tokens,
-            "cost": cost,
-            "response_time": round(random.uniform(0.8, 2.5), 1),
-            "source": "simulated"
-        }
-    
-    tokens = estimate_tokens(message) + estimate_tokens(matched_example["response"])
-    cost = round((tokens / 1000) * 0.002, 5)
-    
-    return {
-        "ok": True,
-        "response": matched_example["response"],
-        "channel": channel,
-        "tokens": tokens,
-        "cost": cost,
-        "response_time": round(random.uniform(0.8, 2.5), 1),
-        "source": "example"
-    }
-
-
-# ============================================
-# NUEVO MÓDULO: SIMULACIÓN DE PROYECTO "LLAVE EN MANO"
-# ============================================
-
-AUTOMATION_DEMOS = {
-    "correo": {
-        "name": "📬 Automatización de Correos",
-        "description": "Filtra, clasifica y prioriza correos entrantes automáticamente, sugiriendo acciones a tomar.",
-        "icon": "📧",
-        "steps": [
-            {"title": "1. Conectar Bandeja de Entrada", "desc": "Simulamos la conexión a tu correo. (En la vida real, usaríamos la API de Gmail/Outlook)", "action": "Conectar Correo Demo"},
-            {"title": "2. Definir Reglas de Clasificación", "desc": "Creamos reglas para identificar correos urgentes, de ventas, administrativos o spam.", "action": "Definir Reglas"},
-            {"title": "3. Entrenar el Filtro IA", "desc": "El asistente IA aprende a clasificar correos basándose en el contenido y el asunto.", "action": "Entrenar IA"},
-            {"title": "4. ¡Automatización Activa!", "desc": "Los correos ahora se clasifican automáticamente y se te notifica de los más importantes.", "action": "Ver Panel de Control"},
-        ],
-        "example_data": [
-            {"sender": "cliente1@gmail.com", "subject": "Urgente: Problema con el pedido #1234", "body": "No he recibido mi pedido y ya pasó la fecha de entrega. Necesito una solución inmediata."},
-            {"sender": "proveedor@suministros.cl", "subject": "Cotización de productos", "body": "Buenos días, adjunto la cotización para los productos que nos solicitó la semana pasada. Quedo atento."},
-            {"sender": "info@empresa.com", "subject": "Factura del mes de julio", "body": "Adjunto la factura correspondiente al mes de julio. Por favor, revisarla y confirmar su recepción."},
-            {"sender": "promociones@spam.com", "subject": "¡Gane un premio!", "body": "¡Haga click aquí y gane un premio increíble! Último día para participar."},
-        ]
-    },
-    "agenda": {
-        "name": "📅 Gestión de Agenda Inteligente",
-        "description": "Un asistente que agenda, confirma y administra tus citas automáticamente.",
-        "icon": "🗓️",
-        "steps": [
-            {"title": "1. Configurar Disponibilidad", "desc": "Definimos tus horarios de trabajo y días disponibles.", "action": "Configurar Horarios"},
-            {"title": "2. Integrar con Calendario", "desc": "Sincronizamos el asistente con tu calendario (Google, Outlook, etc.)", "action": "Sincronizar Calendario"},
-            {"title": "3. Definir Tipos de Cita", "desc": "Creamos diferentes tipos de cita: ventas, soporte, consultoría, etc.", "action": "Crear Tipos de Cita"},
-            {"title": "4. ¡Sistema de Agendamiento en Vivo!", "desc": "El asistente agenda citas, envía recordatorios y cancela automáticamente.", "action": "Probar Agendamiento"},
-        ],
-        "example_data": [
-            {"client": "María Pérez", "contact": "maria@gmail.com", "date": "2026-08-15", "time": "10:00", "notes": "Reunión de ventas"},
-            {"client": "Juan Gómez", "contact": "juan@empresa.cl", "date": "2026-08-16", "time": "15:30", "notes": "Soporte técnico"},
-            {"client": "Ana Rodríguez", "contact": "ana@negocio.com", "date": "2026-08-17", "time": "11:00", "notes": "Consultoría de IA"},
-        ]
-    },
-    "whatsapp": {
-        "name": "💬 Automatización Empática (WhatsApp)",
-        "description": "Un asistente que responde consultas de WhatsApp con un tono empático y personalizado.",
-        "icon": "🤖",
-        "steps": [
-            {"title": "1. Conectar con WhatsApp", "desc": "Configuramos la API de WhatsApp Business para recibir y enviar mensajes.", "action": "Conectar WhatsApp"},
-            {"title": "2. Definir Flujos de Conversación", "desc": "Creamos flujos para preguntas frecuentes: precios, stock, envíos, etc.", "action": "Crear Flujos"},
-            {"title": "3. Entrenar con Preguntas Reales", "desc": "El asistente aprende a responder con ejemplos reales de tus clientes.", "action": "Entrenar Asistente"},
-            {"title": "4. ¡Botón de 'Responder con IA'!", "desc": "Cuando llega un mensaje, el asistente sugiere una respuesta que puedes revisar y enviar.", "action": "Probar Respuesta IA"},
-        ],
-        "example_data": [
-            {"message": "Hola, ¿tienen stock de martillos? Necesito 10 para mañana."},
-            {"message": "Buenas, ¿cuánto cuesta el envío a la región de Valparaíso?"},
-            {"message": "Quiero agendar una hora para ver el showroom, ¿están disponibles mañana?"},
-            {"message": "¡Gracias! Su atención es excelente."},
-        ]
-    },
-    "facturacion": {
-        "name": "🧾 Facturación y Pagos Automatizada",
-        "description": "Sistema de facturación que genera documentos, envía correos y verifica pagos automáticamente.",
-        "icon": "💳",
-        "steps": [
-            {"title": "1. Configurar Productos y Precios", "desc": "Cargamos tu catálogo de productos con precios y stock.", "action": "Cargar Productos"},
-            {"title": "2. Definir Datos Bancarios", "desc": "Configuramos las cuentas bancarias para los pagos.", "action": "Configurar Cuentas"},
-            {"title": "3. Crear Plantillas de Factura", "desc": "Diseñamos la plantilla de factura que se enviará a los clientes.", "action": "Diseñar Plantilla"},
-            {"title": "4. ¡Sistema de Facturación en Vivo!", "desc": "Crea una factura, el cliente recibe un correo y puede pagar.", "action": "Crear Factura Demo"},
-        ],
-        "example_data": [
-            {"client": "Cliente Demo 1", "products": [{"name": "Producto A", "price": 15000, "qty": 2}, {"name": "Producto B", "price": 5000, "qty": 1}]},
-            {"client": "Cliente Demo 2", "products": [{"name": "Producto C", "price": 25000, "qty": 1}, {"name": "Producto D", "price": 10000, "qty": 3}]},
-        ]
-    }
-}
-
-
-def get_demo_state() -> dict[str, Any]:
-    """Obtiene el estado de las demostraciones de proyectos."""
-    return {
-        "ok": True,
-        "demos": AUTOMATION_DEMOS,
-        "current_step": 0,
-        "demo_data": {},
-    }
-
-
-def run_demo_step(payload: dict[str, Any]) -> dict[str, Any]:
-    """Ejecuta un paso de la demostración de un proyecto."""
-    demo_id = payload.get("demo_id")
-    step_index = payload.get("step_index", 0)
-    user_data = payload.get("user_data", {})
-
-    if demo_id not in AUTOMATION_DEMOS:
-        return {"ok": False, "error": "Proyecto no encontrado"}
-
-    demo = AUTOMATION_DEMOS[demo_id]
-    steps = demo["steps"]
-    
-    if step_index >= len(steps):
-        return {"ok": False, "error": "Paso fuera de rango"}
-
-    step = steps[step_index]
-    
-    result = {
-        "ok": True,
-        "step_index": step_index,
-        "step": step,
-        "completed": False,
-        "message": f"Paso '{step['title']}' completado. ¡Excelente progreso!",
-        "next_action": "Continuar",
-        "data": {}
-    }
-
-    if demo_id == "correo":
-        if step_index == 3:
-            result["data"]["classified_emails"] = [
-                {"subject": "Urgente: Problema con el pedido #1234", "category": "urgente", "priority": "alta", "action": "Responder en 1 hora"},
-                {"subject": "Cotización de productos", "category": "ventas", "priority": "media", "action": "Enviar cotización"},
-                {"subject": "Factura del mes de julio", "category": "administrativo", "priority": "media", "action": "Derivar a contabilidad"},
-                {"subject": "¡Gane un premio!", "category": "spam", "priority": "baja", "action": "Archivar"},
-            ]
-            result["message"] = "✅ ¡Filtro de correos activo! Ahora todos los correos se clasifican automáticamente."
-            result["completed"] = True
-
-    elif demo_id == "agenda":
-        if step_index == 3:
-            result["data"]["appointments"] = [
-                {"client": "María Pérez", "date": "2026-08-15", "time": "10:00", "status": "confirmada"},
-                {"client": "Juan Gómez", "date": "2026-08-16", "time": "15:30", "status": "confirmada"},
-                {"client": "Carlos López", "date": "2026-08-17", "time": "09:00", "status": "pendiente"},
-            ]
-            result["message"] = "✅ ¡Agenda sincronizada! Las citas se gestionan automáticamente."
-            result["completed"] = True
-
-    elif demo_id == "whatsapp":
-        if step_index == 3:
-            messages = user_data.get("messages", demo["example_data"])
-            result["data"]["responses"] = [
-                {"message": msg["message"], "response": f"✅ Respuesta empática generada para: '{msg['message'][:30]}...'"}
-                for msg in messages
-            ]
-            result["message"] = "✅ ¡Asistente de WhatsApp activo! Puedes ver las respuestas sugeridas."
-            result["completed"] = True
-
-    elif demo_id == "facturacion":
-        if step_index == 3:
-            client = user_data.get("client", "Cliente Demo")
-            products = user_data.get("products", demo["example_data"][0]["products"])
-            subtotal = sum(p["price"] * p["qty"] for p in products)
-            tax = subtotal * 0.19
-            total = subtotal + tax
-            
-            result["data"]["invoice"] = {
-                "number": "INV-2026-0001",
-                "client": client,
-                "subtotal": subtotal,
-                "tax": tax,
-                "total": total,
-                "status": "enviada"
-            }
-            result["message"] = f"✅ ¡Factura {result['data']['invoice']['number']} creada y enviada a {client}!"
-            result["completed"] = True
-
-    return result
-
-
-def get_demo_data(demo_id: str) -> dict[str, Any]:
-    """Obtiene datos de ejemplo para un demo específico."""
-    if demo_id in AUTOMATION_DEMOS:
-        return {"ok": True, "data": AUTOMATION_DEMOS[demo_id]["example_data"]}
-    return {"ok": False, "error": "Demo no encontrado"}
-
-
-# ============================================
-# FUNCIONES DE INVENTARIO
-# ============================================
-
-def add_inventory_product(payload: dict[str, Any]) -> dict[str, Any]:
     """Agrega un producto al inventario."""
     missing = validate_required(payload, ["code", "name", "quantity"])
     if missing:
@@ -2866,19 +2398,19 @@ def process_purchase_request(question: str, channel: str) -> dict[str, Any]:
 
 
 # ============================================
-# RENDER HTML - Función principal (versión simplificada para no exceder límite)
+# RENDER HTML - Versión simplificada
 # ============================================
 
 def render_index() -> str:
-    """Renderiza la página HTML principal."""
-    return """<!doctype html>
+    state_json = json.dumps(get_dashboard_state(), ensure_ascii=False)
+    return f"""<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sabrina AI Lab · MVP IA Humana</title>
   <style>
-    :root {
+    :root {{
       color-scheme: dark;
       --bg: #090b12;
       --panel: rgba(255,255,255,.075);
@@ -2892,156 +2424,191 @@ def render_index() -> str:
       --danger: #ff6b7a;
       --shadow: 0 24px 80px rgba(0,0,0,.35);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    * { box-sizing: border-box; }
-    body {
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
       margin: 0;
-      background: radial-gradient(circle at 18% 12%, rgba(155,140,255,.28), transparent 32rem),
-                  radial-gradient(circle at 82% 0%, rgba(51,214,166,.16), transparent 30rem),
-                  linear-gradient(135deg, #080a12, #111827 48%, #07111d);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(155,140,255,.28), transparent 32rem),
+        radial-gradient(circle at 82% 0%, rgba(51,214,166,.16), transparent 30rem),
+        linear-gradient(135deg, #080a12, #111827 48%, #07111d);
       color: var(--text);
       min-height: 100vh;
       padding: 20px;
-    }
-    .wrap { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
-    header {
+    }}
+    a {{ color: inherit; }}
+    .wrap {{ width: min(1180px, calc(100% - 32px)); margin: 0 auto; }}
+    header {{
       position: sticky; top: 0; z-index: 10;
       backdrop-filter: blur(18px);
       background: rgba(9,11,18,.72);
       border-bottom: 1px solid var(--line);
       padding: 10px 0;
-    }
-    nav { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; gap: 14px; flex-wrap: wrap; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.03em; }
-    .logo { width: 38px; height: 38px; border-radius: 14px; background: linear-gradient(135deg, var(--brand), var(--brand2)); display:grid; place-items:center; box-shadow: var(--shadow); }
-    .navlinks { display: flex; gap: 6px; flex-wrap: wrap; }
-    .navlinks a { text-decoration: none; color: var(--muted); font-size: 12px; padding: 6px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
-    .navlinks a:hover, .navlinks a.active { background: var(--panel); color: var(--text); }
-    .hero { padding: 72px 0 36px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: center; }
-    .eyebrow { display:inline-flex; gap: 8px; align-items:center; color: var(--brand2); background: rgba(51,214,166,.09); border:1px solid rgba(51,214,166,.25); padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-    h1 { font-size: clamp(42px, 7vw, 76px); line-height: .92; margin: 20px 0; letter-spacing: -.07em; }
-    h2 { font-size: clamp(26px, 4vw, 42px); margin: 0 0 14px; letter-spacing: -.04em; }
-    h3 { margin: 0 0 8px; letter-spacing: -.02em; }
-    h4 { margin: 8px 0 4px; color: var(--text); }
-    p { color: var(--muted); line-height: 1.65; }
-    .hero p { font-size: 18px; max-width: 720px; }
-    .actions { display: flex; gap: 12px; margin-top: 26px; flex-wrap: wrap; }
-    button, .btn {
+    }}
+    nav {{ display: flex; justify-content: space-between; align-items: center; padding: 14px 0; gap: 14px; }}
+    .brand {{ display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.03em; }}
+    .logo {{ width: 38px; height: 38px; border-radius: 14px; background: linear-gradient(135deg, var(--brand), var(--brand2)); display:grid; place-items:center; box-shadow: var(--shadow); }}
+    .navlinks {{ display: flex; gap: 10px; flex-wrap: wrap; }}
+    .navlinks a {{ text-decoration: none; color: var(--muted); font-size: 14px; padding: 8px 10px; border-radius: 999px; cursor: pointer; }}
+    .navlinks a:hover, .navlinks a.active {{ background: var(--panel); color: var(--text); }}
+    .hero {{ padding: 72px 0 36px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 28px; align-items: center; }}
+    .eyebrow {{ display:inline-flex; gap: 8px; align-items:center; color: var(--brand2); background: rgba(51,214,166,.09); border:1px solid rgba(51,214,166,.25); padding: 8px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }}
+    h1 {{ font-size: clamp(42px, 7vw, 76px); line-height: .92; margin: 20px 0; letter-spacing: -.07em; }}
+    h2 {{ font-size: clamp(26px, 4vw, 42px); margin: 0 0 14px; letter-spacing: -.04em; }}
+    h3 {{ margin: 0 0 8px; letter-spacing: -.02em; }}
+    p {{ color: var(--muted); line-height: 1.65; }}
+    .hero p {{ font-size: 18px; max-width: 720px; }}
+    .actions {{ display: flex; gap: 12px; margin-top: 26px; flex-wrap: wrap; }}
+    button, .btn {{
       border: 0; color: #07111d; background: linear-gradient(135deg, var(--brand2), #b4ffe8);
-      padding: 10px 16px; border-radius: 14px; font-weight: 800; cursor: pointer;
+      padding: 12px 16px; border-radius: 14px; font-weight: 800; cursor: pointer;
       text-decoration: none; display: inline-flex; align-items:center; gap: 8px;
-      font-size: 13px;
-    }
-    button.secondary, .btn.secondary { background: var(--panel-strong); color: var(--text); border: 1px solid var(--line); }
-    button.small { padding: 6px 12px; font-size: 11px; }
-    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 22px; box-shadow: var(--shadow); }
-    .grid { display: grid; gap: 18px; }
-    .grid.two { grid-template-columns: repeat(2, 1fr); }
-    .grid.three { grid-template-columns: repeat(3, 1fr); }
-    .metric { font-size: 32px; font-weight: 900; letter-spacing: -.04em; }
-    .muted { color: var(--muted); }
-    .tag { display:inline-flex; padding: 6px 9px; border-radius: 999px; background: rgba(155,140,255,.13); border: 1px solid rgba(155,140,255,.28); color: #d8d2ff; font-size: 12px; font-weight: 600; }
-    section { padding: 38px 0; display: none; }
-    section.active { display: block; }
-    input, textarea, select {
+    }}
+    button.secondary, .btn.secondary {{ background: var(--panel-strong); color: var(--text); border: 1px solid var(--line); }}
+    .card {{ background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 22px; box-shadow: var(--shadow); }}
+    .grid {{ display: grid; gap: 18px; }}
+    .grid.two {{ grid-template-columns: repeat(2, 1fr); }}
+    .metric {{ font-size: 32px; font-weight: 900; letter-spacing: -.04em; }}
+    .muted {{ color: var(--muted); }}
+    .tag {{ display:inline-flex; padding: 6px 9px; border-radius: 999px; background: rgba(155,140,255,.13); border: 1px solid rgba(155,140,255,.28); color: #d8d2ff; font-size: 12px; font-weight: 600; }}
+    section {{ padding: 38px 0; display: none; }}
+    section.active {{ display: block; }}
+    input, textarea, select {{
       width: 100%; background: rgba(0,0,0,.24); color: var(--text);
       border: 1px solid var(--line); border-radius: 14px; padding: 12px 13px;
       outline: none; font: inherit;
-    }
-    textarea { min-height: 80px; resize: vertical; }
-    label { display:block; font-size: 13px; font-weight: 800; color: #dbe2f2; margin: 0 0 7px; }
-    .formgrid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-    .full { grid-column: 1 / -1; }
-    table { width:100%; border-collapse: collapse; overflow: hidden; border-radius: 16px; }
-    th, td { text-align:left; padding: 10px; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: top; font-size: 13px; }
-    th { color: var(--text); background: rgba(255,255,255,.06); }
-    .status-ok { color: var(--brand2); font-weight: 900; }
-    .conversation { background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0; border-left: 3px solid var(--brand2); }
-    .conversation.user { border-left-color: var(--brand); }
-    .conversation strong { color: var(--brand2); }
-    .conversation.user strong { color: var(--brand); }
-    .conversation p { margin-top: 4px; white-space: pre-wrap; }
-    .qcard { margin-bottom: 22px; }
-    .qoption {
+    }}
+    textarea {{ min-height: 110px; resize: vertical; }}
+    label {{ display:block; font-size: 13px; font-weight: 800; color: #dbe2f2; margin: 0 0 7px; }}
+    .formgrid {{ display:grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }}
+    .full {{ grid-column: 1 / -1; }}
+    table {{ width:100%; border-collapse: collapse; overflow: hidden; border-radius: 16px; }}
+    th, td {{ text-align:left; padding: 12px; border-bottom: 1px solid var(--line); color: var(--muted); vertical-align: top; }}
+    th {{ color: var(--text); background: rgba(255,255,255,.06); }}
+    .status-ok {{ color: var(--brand2); font-weight: 900; }}
+    .conversation {{ background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0; border-left: 3px solid var(--brand2); }}
+    .qcard {{ margin-bottom: 22px; }}
+    .qoption {{
       display:flex; align-items:center; gap: 10px; padding: 12px 14px;
       border: 1px solid var(--line); border-radius: 14px; margin-bottom: 8px;
       cursor: pointer; transition: background .15s ease;
-    }
-    .qoption:hover { background: var(--panel-strong); }
-    .qoption input { width: auto; accent-color: var(--brand2); }
-    .qoption span { color: var(--text); font-size: 14px; }
-    #diagnosticResult { display:none; }
-    .status-badge {
+    }}
+    .qoption:hover {{ background: var(--panel-strong); }}
+    .qoption input {{ width: auto; accent-color: var(--brand2); }}
+    .qoption span {{ color: var(--text); font-size: 14px; }}
+    #diagnosticResult {{ display:none; }}
+    #diagnosticResult ul {{ color: var(--muted); padding-left: 20px; margin: 10px 0; }}
+    #diagnosticResult ul li {{ margin-bottom: 4px; }}
+    .conversation.user {{ border-left-color: var(--brand); }}
+    .conversation strong {{ color: var(--brand2); }}
+    .conversation.user strong {{ color: var(--brand); }}
+    details {{
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      margin-bottom: 10px;
+      background: rgba(0,0,0,.18);
+      overflow: hidden;
+    }}
+    summary {{
+      list-style: none;
+      cursor: pointer;
+      padding: 16px 18px;
+      font-weight: 800;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--text);
+    }}
+    summary::-webkit-details-marker {{ display: none; }}
+    summary::after {{
+      content: '+';
+      font-size: 20px;
+      font-weight: 400;
+      color: var(--brand2);
+      transition: transform .2s ease;
+      flex-shrink: 0;
+    }}
+    details[open] summary::after {{ transform: rotate(45deg); }}
+    details[open] summary {{ border-bottom: 1px solid var(--line); }}
+    .faq-body {{ padding: 16px 18px 20px; color: var(--muted); line-height: 1.7; font-size: 14.5px; }}
+    .faq-body p {{ margin: 0 0 12px; }}
+    .faq-body p:last-child {{ margin-bottom: 0; }}
+    .faq-body table {{ width: 100%; border-collapse: collapse; margin: 10px 0 14px; border-radius: 12px; overflow: hidden; }}
+    .faq-body th, .faq-body td {{ text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 13.5px; }}
+    .faq-body th {{ color: var(--text); background: rgba(255,255,255,.06); }}
+    .faq-body strong {{ color: #dbe2f2; }}
+    .closing {{ margin-top: 26px; text-align: center; color: var(--muted); }}
+    footer {{ border-top: 1px solid var(--line); margin-top: 36px; padding: 24px 0 36px; color: var(--muted); }}
+    .toast {{ position: fixed; right: 18px; bottom: 18px; background: #102018; color: #d9ffe8; border: 1px solid rgba(51,214,166,.38); padding: 12px 14px; border-radius: 14px; opacity:0; transform: translateY(100px); transition: all .3s ease; z-index: 999; }}
+    .toast.show {{ opacity:1; transform: translateY(0); }}
+    .status-badge {{
       display: inline-block;
       padding: 4px 10px;
       border-radius: 999px;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
-    }
-    .status-pending { background: rgba(255,204,102,.15); color: var(--warn); }
-    .status-paid { background: rgba(51,214,166,.15); color: var(--brand2); }
-    .status-cancelled { background: rgba(255,107,122,.15); color: var(--danger); }
-    .status-verified { background: rgba(155,140,255,.15); color: var(--brand); }
-    .status-confirmada { background: rgba(51,214,166,.15); color: var(--brand2); }
-    .status-cancelada { background: rgba(255,107,122,.15); color: var(--danger); }
-    .cat-urgente { background: rgba(255,107,122,.15); color: var(--danger); }
-    .cat-ventas { background: rgba(51,214,166,.15); color: var(--brand2); }
-    .cat-administrativo { background: rgba(155,140,255,.15); color: var(--brand); }
-    .cat-spam { background: rgba(255,255,255,.1); color: var(--muted); }
-    .cat-general { background: rgba(255,204,102,.15); color: var(--warn); }
-    .priority-alta { background: rgba(255,107,122,.15); color: var(--danger); }
-    .priority-media { background: rgba(255,204,102,.15); color: var(--warn); }
-    .priority-baja { background: rgba(255,255,255,.1); color: var(--muted); }
-    .progress-bar {
-      background: rgba(0,0,0,.2);
-      border-radius: 12px;
-      padding: 4px;
-      margin: 10px 0;
-    }
-    .progress-fill {
-      height: 8px;
-      background: linear-gradient(90deg, var(--brand), var(--brand2));
-      border-radius: 12px;
-      transition: width 0.5s ease;
-    }
-    .stat-card {
-      background: rgba(0,0,0,.2);
-      padding: 12px;
-      border-radius: 12px;
-      text-align: center;
-    }
-    .stat-card .number {
-      font-size: 24px;
-      font-weight: 800;
-    }
-    .stat-card .label {
-      font-size: 11px;
-      color: var(--muted);
-    }
-    .stat-card .number.green { color: var(--brand2); }
-    .stat-card .number.purple { color: var(--brand); }
-    .stat-card .number.gold { color: var(--warn); }
-    footer { border-top: 1px solid var(--line); margin-top: 36px; padding: 24px 0 36px; color: var(--muted); }
-    .toast { position: fixed; right: 18px; bottom: 18px; background: #102018; color: #d9ffe8; border: 1px solid rgba(51,214,166,.38); padding: 12px 14px; border-radius: 14px; opacity:0; transform: translateY(100px); transition: all .3s ease; z-index: 999; }
-    .toast.show { opacity:1; transform: translateY(0); }
-    .inventory-preview {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-    .inventory-preview .item {
-      display: flex;
-      justify-content: space-between;
-      padding: 6px 8px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-      font-size: 13px;
-    }
-    .inventory-preview .item .stock { color: var(--brand2); }
-    @media (max-width: 850px) {
-      .hero, .grid.two, .grid.three { grid-template-columns: 1fr; }
-      .navlinks { display: none; }
-      .inventory-preview { grid-template-columns: 1fr; }
-    }
+    }}
+    .status-pending {{ background: rgba(255,204,102,.15); color: var(--warn); }}
+    .status-paid {{ background: rgba(51,214,166,.15); color: var(--brand2); }}
+    .status-cancelled {{ background: rgba(255,107,122,.15); color: var(--danger); }}
+    .status-verified {{ background: rgba(155,140,255,.15); color: var(--brand); }}
+    .status-confirmada {{ background: rgba(51,214,166,.15); color: var(--brand2); }}
+    .status-cancelada {{ background: rgba(255,107,122,.15); color: var(--danger); }}
+    .cat-urgente {{ background: rgba(255,107,122,.15); color: var(--danger); }}
+    .cat-ventas {{ background: rgba(51,214,166,.15); color: var(--brand2); }}
+    .cat-administrativo {{ background: rgba(155,140,255,.15); color: var(--brand); }}
+    .cat-spam {{ background: rgba(255,255,255,.1); color: var(--muted); }}
+    .cat-general {{ background: rgba(255,204,102,.15); color: var(--warn); }}
+    .priority-alta {{ background: rgba(255,107,122,.15); color: var(--danger); }}
+    .priority-media {{ background: rgba(255,204,102,.15); color: var(--warn); }}
+    .priority-baja {{ background: rgba(255,255,255,.1); color: var(--muted); }}
+    .sim-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 18px 0 26px; }}
+    .sim-card {{
+      background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px;
+      cursor: pointer; text-align: left; transition: all .2s ease; color: var(--text);
+    }}
+    .sim-card:hover {{ border-color: var(--brand2); transform: translateY(-2px); }}
+    .sim-card.active {{ border-color: var(--brand2); background: rgba(51,214,166,.1); box-shadow: 0 0 0 1px var(--brand2) inset; }}
+    .sim-card .sim-icon {{ font-size: 26px; margin-bottom: 8px; display: block; }}
+    .sim-card h4 {{ margin: 0 0 4px; font-size: 15px; letter-spacing: -.01em; }}
+    .sim-card p {{ margin: 0; font-size: 12px; line-height: 1.4; }}
+    .sim-form {{ display: none; }}
+    .sim-form.active {{ display: block; }}
+    .sim-stage {{ margin-top: 26px; display: none; }}
+    .sim-stage.active {{ display: block; }}
+    .sim-timeline {{ position: relative; padding-left: 6px; }}
+    .sim-step {{
+      position: relative; padding: 16px 16px 16px 52px; margin-bottom: 12px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+      opacity: 0; transform: translateY(14px); animation: simStepIn .5s ease forwards;
+    }}
+    .sim-step .sim-step-icon {{
+      position: absolute; left: -4px; top: 14px; width: 34px; height: 34px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--brand2), #b4ffe8); color: #07111d;
+      display: grid; place-items: center; font-size: 16px; box-shadow: var(--shadow);
+    }}
+    .sim-step h4 {{ margin: 0 0 6px; font-size: 14px; color: var(--brand2); }}
+    .sim-step .sim-step-detail {{ white-space: pre-line; font-size: 13px; color: var(--muted); line-height: 1.55; }}
+    .sim-step.pending {{ opacity: .35; animation: none; transform: none; }}
+    .sim-loading {{ display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; padding: 10px 0; }}
+    .sim-dot {{ width: 8px; height: 8px; border-radius: 50%; background: var(--brand2); animation: simPulse 1s infinite ease-in-out; }}
+    .sim-dot:nth-child(2) {{ animation-delay: .15s; }}
+    .sim-dot:nth-child(3) {{ animation-delay: .3s; }}
+    .sim-summary {{
+      margin-top: 16px; padding: 18px; border-radius: 16px; background: rgba(155,140,255,.1);
+      border: 1px solid rgba(155,140,255,.28); opacity: 0; animation: simStepIn .5s ease forwards;
+    }}
+    @keyframes simStepIn {{ from {{ opacity: 0; transform: translateY(14px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+    @keyframes simPulse {{ 0%, 80%, 100% {{ opacity: .25; transform: scale(.8); }} 40% {{ opacity: 1; transform: scale(1.15); }} }}
+    @media (max-width: 850px) {{
+      .sim-grid {{ grid-template-columns: repeat(2, 1fr); }}
+    }}
+    @media (max-width: 850px) {{
+      .hero, .grid.two {{ grid-template-columns: 1fr; }}
+      .navlinks {{ display:none; }}
+    }}
   </style>
 </head>
 <body>
@@ -3051,23 +2618,21 @@ def render_index() -> str:
         <div class="brand"><div class="logo">✦</div><span>Sabrina AI Lab</span></div>
         <div class="navlinks">
           <a onclick="showSection('dashboard')" class="active">Dashboard</a>
-          <a onclick="showSection('diagnostic')">🧭 Diagnóstico</a>
-          <a onclick="showSection('leads')">📋 Leads</a>
-          <a onclick="showSection('estimator')">🧮 Calculadora</a>
-          <a onclick="showSection('assistant')">🤖 Asistente</a>
-          <a onclick="showSection('smartstacks')" style="color: var(--brand2); font-weight: 700;">🏪 Caso 1: SmartStacks</a>
-          <a onclick="showSection('middleware')">📡 Automatización</a>
-          <a onclick="showSection('consulting')">🗝️ Llave en Mano</a>
-          <a onclick="showSection('invoicing')">🧾 Facturación</a>
-          <a onclick="showSection('middleware-demo')">🤖 Caso 2</a>
-          <a onclick="showSection('demo')">🚀 Proyectos</a>
-          <a onclick="showSection('faqs')">❓ FAQs</a>
+          <a onclick="showSection('diagnostic')">¿Qué necesito?</a>
+          <a onclick="showSection('leads')">Leads y Campañas</a>
+          <a onclick="showSection('estimator')">Calculadora</a>
+          <a onclick="showSection('assistant')">Asistente</a>
+          <a onclick="showSection('smartstacks')">SmartStacks</a>
+          <a onclick="showSection('middleware')">Automatización</a>
+          <a onclick="showSection('consulting')">Llave en Mano</a>
+          <a onclick="showSection('simulator')">🎬 Simulador</a>
+          <a onclick="showSection('invoicing')">Facturación</a>
+          <a onclick="showSection('faqs')">FAQs</a>
         </div>
       </nav>
     </header>
 
     <main>
-      <!-- DASHBOARD -->
       <section id="dashboard" class="active">
         <div class="hero">
           <div>
@@ -3077,11 +2642,6 @@ def render_index() -> str:
               Gestión integral de leads, inventario, facturación y asistentes de IA para comercios.
               Incluye automación de email, inventario en tiempo real y consultor estratégico.
             </p>
-            <div class="actions">
-              <button onclick="showSection('diagnostic')">🧭 Diagnóstico</button>
-              <button onclick="showSection('smartstacks')" style="background: linear-gradient(135deg, var(--brand), var(--brand2));">🏪 SmartStacks</button>
-              <button onclick="showSection('leads')" class="secondary">📋 Leads</button>
-            </div>
           </div>
           <div class="card">
             <h3>Estado del Sistema</h3>
@@ -3094,12 +2654,12 @@ def render_index() -> str:
         </div>
       </section>
 
-      <!-- DIAGNÓSTICO -->
       <section id="diagnostic">
         <h2>🧭 ¿Qué necesita tu negocio?</h2>
         <p class="muted" style="max-width:640px; margin-top:-6px;">
-          Responde 5 preguntas rápidas y te decimos cuál de nuestras soluciones encaja mejor con tu caso.
+          Responde 5 preguntas rápidas y te decimos cuál de nuestras soluciones encaja mejor con tu caso: SmartStacks, Automatización Empática o Digitalización Llave en Mano.
         </p>
+
         <div class="card">
           <form id="diagnosticForm">
             <div class="qcard">
@@ -3108,39 +2668,46 @@ def render_index() -> str:
               <label class="qoption"><input type="radio" name="q1" value="middleware"><span>Recibo las mismas preguntas todo el día por WhatsApp, redes o email</span></label>
               <label class="qoption"><input type="radio" name="q1" value="llave-en-mano"><span>Quiero digitalizar procesos completos y no sé por dónde empezar</span></label>
             </div>
+
             <div class="qcard">
               <label>2. ¿Cuántas interacciones o consultas maneja tu negocio al mes?</label>
               <label class="qoption"><input type="radio" name="q2" value="smartstacks" required><span>Menos de 500 — negocio pequeño, pocos vendedores</span></label>
               <label class="qoption"><input type="radio" name="q2" value="middleware"><span>Entre 500 y 5,000 — varios canales, volumen alto</span></label>
               <label class="qoption"><input type="radio" name="q2" value="llave-en-mano"><span>Miles, y sigue creciendo — necesito algo robusto</span></label>
             </div>
+
             <div class="qcard">
               <label>3. ¿Qué tan importante es tener control total y datos propios?</label>
               <label class="qoption"><input type="radio" name="q3" value="smartstacks" required><span>No es prioridad, solo quiero resolver el problema rápido</span></label>
               <label class="qoption"><input type="radio" name="q3" value="middleware"><span>Me importa el tono y la consistencia de las respuestas</span></label>
               <label class="qoption"><input type="radio" name="q3" value="llave-en-mano"><span>Muy importante, quiero un sistema transferible con mis datos</span></label>
             </div>
+
             <div class="qcard">
               <label>4. ¿Cuál es tu presupuesto mensual aproximado para esta solución?</label>
               <label class="qoption"><input type="radio" name="q4" value="smartstacks" required><span>Menos de USD 350</span></label>
               <label class="qoption"><input type="radio" name="q4" value="middleware"><span>Entre USD 350 y 500</span></label>
               <label class="qoption"><input type="radio" name="q4" value="llave-en-mano"><span>Más de USD 500, busco una implementación completa</span></label>
             </div>
+
             <div class="qcard">
               <label>5. ¿Ya tienes canales digitales activos con muchas consultas repetidas?</label>
               <label class="qoption"><input type="radio" name="q5" value="smartstacks" required><span>Tengo mostrador físico principalmente</span></label>
               <label class="qoption"><input type="radio" name="q5" value="middleware"><span>Sí, varios canales digitales simultáneos</span></label>
               <label class="qoption"><input type="radio" name="q5" value="llave-en-mano"><span>Quiero implementar todo desde cero, de forma integral</span></label>
             </div>
+
             <button type="submit">Ver resultado</button>
           </form>
+
           <div id="diagnosticResult"></div>
         </div>
       </section>
 
-      <!-- LEADS -->
       <section id="leads">
         <h2>📋 Leads y Campañas</h2>
+
+        <h3 style="margin-top:0; color: var(--muted); font-weight:600; font-size:13px; letter-spacing:.04em; text-transform:uppercase;">1. Registro de leads</h3>
         <div class="grid two">
           <div class="card">
             <h3>Últimas oportunidades</h3>
@@ -3148,8 +2715,8 @@ def render_index() -> str:
               <table><thead><tr><th>Fecha</th><th>Negocio</th><th>Email</th><th>Caso</th></tr></thead><tbody id="leadRows"></tbody></table>
             </div>
             <div style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
-              <button onclick="exportLeadsCSV()" class="secondary small">📥 CSV</button>
-              <button onclick="exportLeadsJSON()" class="secondary small">📥 JSON</button>
+              <button onclick="exportLeadsCSV()" class="secondary">📥 CSV</button>
+              <button onclick="exportLeadsJSON()" class="secondary">📥 JSON</button>
             </div>
           </div>
           <div class="card">
@@ -3165,9 +2732,32 @@ def render_index() -> str:
             </form>
           </div>
         </div>
+
+        <h3 style="margin-top:32px; color: var(--muted); font-weight:600; font-size:13px; letter-spacing:.04em; text-transform:uppercase;">2. Envío de campañas</h3>
+        <div class="grid two">
+          <div class="card">
+            <h3>Email masivo (múltiples leads)</h3>
+            <form id="emailForm" class="formgrid">
+              <div class="full"><label for="emailSubject">Asunto</label><input id="emailSubject" name="subject" required></div>
+              <div class="full"><label for="emailBody">Cuerpo (usa {{name}} y {{email}})</label><textarea id="emailBody" name="body" required>Hola {{name}},
+
+Vimos que tu negocio es {{email}} y tenemos una solución ideal para ti...</textarea></div>
+              <div class="full"><label>Selecciona leads:</label><div id="leadCheckboxes"></div></div>
+              <div class="full"><button type="submit">Enviar campaña</button></div>
+            </form>
+          </div>
+          <div class="card">
+            <h3>Email individual (un lead)</h3>
+            <form id="singleEmailForm" class="formgrid">
+              <div class="full"><label for="singleLeadSelect">Lead</label><select id="singleLeadSelect" name="lead_id" required></select></div>
+              <div class="full"><label for="singleEmailSubject">Asunto</label><input id="singleEmailSubject" name="subject" required></div>
+              <div class="full"><label for="singleEmailBody">Mensaje</label><textarea id="singleEmailBody" name="body" required>Hola {{name}}...</textarea></div>
+              <div class="full"><button type="submit">Enviar email</button></div>
+            </form>
+          </div>
+        </div>
       </section>
 
-      <!-- ESTIMADOR -->
       <section id="estimator">
         <h2>🧮 Calculadora de Valor Comercial</h2>
         <div class="grid two">
@@ -3201,7 +2791,6 @@ def render_index() -> str:
         </div>
       </section>
 
-      <!-- ASISTENTE ESTRATÉGICO -->
       <section id="assistant">
         <h2>🧭 Asistente Estratégico</h2>
         <div class="grid two">
@@ -3220,89 +2809,52 @@ def render_index() -> str:
         </div>
       </section>
 
-      <!-- CASO 1: SMARTSTACKS -->
       <section id="smartstacks">
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
-          <h2 style="margin: 0;">🏪 Caso 1: SmartStacks</h2>
-          <span class="tag" style="background: rgba(51,214,166,.15); color: var(--brand2);">Inventario + Asistente IA</span>
-        </div>
-        <p class="muted" style="max-width:640px; margin-top:-6px;">
-          Gestiona tu inventario en tiempo real y usa el asistente conversacional para responder preguntas al instante.
-        </p>
-
-        <!-- Estadísticas -->
-        <div class="grid three" style="margin: 16px 0;">
-          <div class="stat-card"><div class="number green" id="ssTotalProducts">0</div><div class="label">📦 Productos</div></div>
-          <div class="stat-card"><div class="number purple" id="ssTotalStock">0</div><div class="label">📊 Stock Total</div></div>
-          <div class="stat-card"><div class="number gold" id="ssConversations">0</div><div class="label">💬 Consultas</div></div>
-        </div>
-
-        <!-- Inventario Rápido -->
-        <div class="card">
-          <h3>📋 Inventario Rápido</h3>
-          <div id="inventoryPreview" class="inventory-preview">
-            <p style="color:var(--muted); grid-column:1/-1; text-align:center; padding:12px;">Cargando inventario...</p>
+        <h2>🏪 SmartStacks - Asistente de Inventario</h2>
+        <div class="grid two">
+          <div class="card">
+            <h3>📊 Inventario Actual</h3>
+            <div style="margin-bottom: 12px;">
+              <p><strong>Total de productos:</strong> <span id="productCount">0</span></p>
+              <p><strong>Stock total:</strong> <span id="totalStock">0</span> unidades</p>
+            </div>
+            <div style="overflow:auto; max-height: 500px;">
+              <table>
+                <thead>
+                  <tr><th>Código</th><th>Nombre</th><th>Stock</th><th>Precio</th><th>Acción</th></tr>
+                </thead>
+                <tbody id="productRows"></tbody>
+              </table>
+            </div>
+            <div style="margin-top: 14px;">
+              <button onclick="exportInventoryCSV()" class="secondary">📥 CSV</button>
+            </div>
           </div>
-          <div class="flex" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-            <button class="btn secondary small" onclick="showFullInventory()">📋 Ver Completo</button>
-            <button class="btn secondary small" onclick="exportCSV()">📥 CSV</button>
-            <button class="btn secondary small" onclick="loadDemo()">📋 Cargar Demo</button>
-          </div>
-        </div>
-
-        <div class="grid two" style="margin-top:18px;">
           <div class="card">
             <h3>➕ Agregar Producto</h3>
             <form id="productForm" class="formgrid">
-              <div class="full"><label>Código</label><input id="pCode" placeholder="EJ-001" required></div>
-              <div class="full"><label>Nombre</label><input id="pName" required></div>
-              <div><label>Cantidad</label><input id="pQty" type="number" min="0" required></div>
-              <div><label>Precio</label><input id="pPrice" type="number" step="0.01" placeholder="0"></div>
-              <div><label>Categoría</label><input id="pCategory" placeholder="Herramientas"></div>
-              <div><label>Descripción</label><textarea id="pDesc" rows="2"></textarea></div>
-              <div class="full"><button class="btn" type="submit">➕ Guardar</button></div>
-            </form>
-          </div>
-
-          <div class="card">
-            <h3>🤖 Asistente IA</h3>
-            <p style="color:var(--muted); font-size:13px;">Pregunta sobre tu inventario</p>
-            <div id="conversationHistory" style="max-height:300px; overflow:auto;"></div>
-            <form id="smartstacksForm" class="mt-12">
-              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-                <button type="button" class="btn secondary small" onclick="setQuestion('¿Tienes martillos?')">🔨 Martillos</button>
-                <button type="button" class="btn secondary small" onclick="setQuestion('¿Cuánto cuesta la tubería PVC?')">🔧 Tubería</button>
-                <button type="button" class="btn secondary small" onclick="setQuestion('¿Hay stock del código PER-001?')">📦 PER-001</button>
-                <button type="button" class="btn secondary small" onclick="setQuestion('¿Qué herramientas tienen?')">🛠️ Herramientas</button>
-              </div>
-              <input id="questionInput" placeholder="Ej: ¿Hay martillos disponibles?" required>
-              <button class="btn mt-12" type="submit">💬 Preguntar</button>
+              <div class="full"><label>Código (ej: E404)</label><input name="code" required></div>
+              <div class="full"><label>Nombre</label><input name="name" required></div>
+              <div class="full"><label>Cantidad</label><input name="quantity" type="number" min="0" required></div>
+              <div><label>Precio</label><input name="price" type="number" step="0.01" min="0"></div>
+              <div><label>Categoría</label><input name="category"></div>
+              <div class="full"><label>Descripción</label><textarea name="description" style="min-height: 80px;"></textarea></div>
+              <div class="full"><button type="submit">Guardar Producto</button></div>
             </form>
           </div>
         </div>
-
-        <!-- Progreso -->
-        <div class="card" style="margin-top:18px;">
-          <h3>🔄 Progreso de Implementación</h3>
-          <div class="progress-bar"><div class="progress-fill" id="ssProgressBar" style="width:0%;"></div></div>
-          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
-            <span>Inicio</span>
-            <span id="ssStepIndicator">Paso 0/4</span>
-            <span>Completo</span>
-          </div>
-          <div id="ssCurrentStep" style="margin-top:10px;">
-            <h4 id="ssStepTitle">Cargar Inventario Local</h4>
-            <p id="ssStepDesc" style="font-size:14px;">Subimos los datos de tu negocio: productos, códigos, precios y descripciones.</p>
-            <div id="ssStepDetails"></div>
-          </div>
-          <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
-            <button onclick="runSmartstacksStep()" class="btn" id="ssStepBtn">▶️ Ejecutar Paso</button>
-            <button onclick="resetSmartstacksDemo()" class="btn secondary">🔄 Reiniciar</button>
+        <div class="grid" style="margin-top: 28px;">
+          <div class="card">
+            <h3>🤖 Asistente de Inventario</h3>
+            <div id="conversationHistory" style="overflow:auto; max-height: 400px; margin-bottom: 14px;"></div>
+            <form id="smartstacksForm" class="formgrid">
+              <div class="full"><label>Tu pregunta sobre inventario</label><textarea id="smartQuestion" name="question" placeholder="Ej: ¿Hay martillos disponibles? ¿Cuál es el stock del código E404?" required></textarea></div>
+              <div class="full"><button type="submit">Hacer pregunta</button></div>
+            </form>
           </div>
         </div>
       </section>
 
-      <!-- MIDDLEWARE -->
       <section id="middleware">
         <h2>📡 Automatización Empática Multicanal</h2>
         <p class="muted" style="max-width:640px; margin-top:-6px;">
@@ -3344,12 +2896,18 @@ def render_index() -> str:
         </div>
       </section>
 
-      <!-- CONSULTING -->
       <section id="consulting">
         <h2>🗝️ Digitalización IA Llave en Mano</h2>
         <p class="muted" style="max-width:640px; margin-top:-6px;">
           Módulos a medida: filtrado automático de correos y gestión de agendas, funcionando con datos reales.
         </p>
+        <div class="card" style="margin: 0 0 24px; display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap;">
+          <div>
+            <h3 style="margin-bottom:4px;">🎬 ¿Quieres ver cómo se vería tu proyecto?</h3>
+            <p class="muted" style="margin:0;">Elige un tipo de automatización y mira, paso a paso, cómo el sistema lo resolvería con tus propios datos de ejemplo.</p>
+          </div>
+          <button onclick="showSection('simulator')">Ver simulación en vivo →</button>
+        </div>
         <div class="grid two">
           <div class="card">
             <h3>📬 Filtrado automático de correos</h3>
@@ -3389,7 +2947,84 @@ def render_index() -> str:
         </div>
       </section>
 
-      <!-- FACTURACIÓN -->
+      <section id="simulator">
+        <span class="eyebrow">🎬 SIMULADOR</span>
+        <h2 style="margin-top:14px;">Mira tu proyecto funcionando antes de contratarlo</h2>
+        <p class="muted" style="max-width:680px;">
+          Elige un tipo de automatización, ajusta los datos de ejemplo (o pon los tuyos) y dale a "Ver simulación".
+          Vas a ver, paso a paso, exactamente lo que haría el sistema con un caso real de tu negocio.
+        </p>
+
+        <div class="sim-grid">
+          <button type="button" class="sim-card active" data-sim="correo" onclick="selectSimProject('correo')">
+            <span class="sim-icon">📬</span>
+            <h4>Filtrado de correos</h4>
+            <p class="muted">La IA lee, clasifica y decide la acción a seguir.</p>
+          </button>
+          <button type="button" class="sim-card" data-sim="agenda" onclick="selectSimProject('agenda')">
+            <span class="sim-icon">📅</span>
+            <h4>Gestión de agenda</h4>
+            <p class="muted">Verifica disponibilidad y confirma la cita sola.</p>
+          </button>
+          <button type="button" class="sim-card" data-sim="whatsapp" onclick="selectSimProject('whatsapp')">
+            <span class="sim-icon">💬</span>
+            <h4>Automatización Empática</h4>
+            <p class="muted">Responde WhatsApp/redes con tono humano, al instante.</p>
+          </button>
+          <button type="button" class="sim-card" data-sim="facturacion" onclick="selectSimProject('facturacion')">
+            <span class="sim-icon">🧾</span>
+            <h4>Facturación</h4>
+            <p class="muted">Convierte un pedido en factura calculada al segundo.</p>
+          </button>
+        </div>
+
+        <div class="card">
+          <form id="simFormCorreo" class="sim-form active formgrid" onsubmit="runSimulation(event, 'correo')">
+            <div class="full"><label>Remitente (opcional)</label><input name="sender" placeholder="cliente@ejemplo.com" value="ana.torres@correo.com"></div>
+            <div class="full"><label>Asunto</label><input name="subject" required value="Consulta por stock y precio al por mayor"></div>
+            <div class="full"><label>Cuerpo del correo</label><textarea name="body" required>Hola, quisiera saber si tienen disponibilidad de 40 unidades del producto SKU-118 y qué precio manejan por volumen. Necesito la cotización esta semana. Gracias.</textarea></div>
+            <div class="full"><button type="submit">▶ Ver simulación</button></div>
+          </form>
+
+          <form id="simFormAgenda" class="sim-form formgrid" onsubmit="runSimulation(event, 'agenda')">
+            <div class="full"><label>Nombre del cliente</label><input name="client_name" required value="Marco Reyes"></div>
+            <div class="full"><label>Contacto</label><input name="contact" required value="marco.reyes@correo.com"></div>
+            <div><label>Fecha</label><input name="appointment_date" type="date" required></div>
+            <div><label>Hora</label><input name="appointment_time" type="time" required value="10:30"></div>
+            <div class="full"><label>Notas</label><textarea name="notes">Quiere ver una demo del asistente de inventario antes de decidir.</textarea></div>
+            <div class="full"><button type="submit">▶ Ver simulación</button></div>
+          </form>
+
+          <form id="simFormWhatsapp" class="sim-form formgrid" onsubmit="runSimulation(event, 'whatsapp')">
+            <div><label>Canal</label>
+              <select name="channel">
+                <option value="whatsapp" selected>WhatsApp</option>
+                <option value="instagram">Instagram</option>
+                <option value="web">Chat web</option>
+                <option value="email">Email</option>
+              </select>
+            </div>
+            <div></div>
+            <div class="full"><label>Mensaje del cliente</label><textarea name="message" required>Hola! Vi sus productos en redes, ¿cuánto cuesta el envío a domicilio y cada cuánto reparten pedidos?</textarea></div>
+            <div class="full"><button type="submit">▶ Ver simulación</button></div>
+          </form>
+
+          <form id="simFormFacturacion" class="sim-form formgrid" onsubmit="runSimulation(event, 'facturacion')">
+            <div class="full"><label>Nombre del cliente</label><input name="customer_name" required value="Comercial Andina Ltda."></div>
+            <div class="full"><label>Producto o servicio</label><input name="item_name" required value="Instalación de sensor IoT de inventario"></div>
+            <div><label>Cantidad</label><input name="quantity" type="number" min="1" value="3"></div>
+            <div><label>Precio unitario (USD)</label><input name="unit_price" type="number" min="0" step="0.01" value="150"></div>
+            <div class="full"><button type="submit">▶ Ver simulación</button></div>
+          </form>
+        </div>
+
+        <div class="sim-stage card" id="simStage">
+          <h3 style="margin-bottom:16px;">📽️ Así se está construyendo tu simulación</h3>
+          <div class="sim-timeline" id="simTimeline"></div>
+          <div id="simSummaryBox"></div>
+        </div>
+      </section>
+
       <section id="invoicing">
         <h2>🧾 Facturación y Pagos</h2>
         <div class="grid two">
@@ -3438,815 +3073,892 @@ def render_index() -> str:
         </div>
       </section>
 
-      <!-- CASO 2: MIDDLEWARE DEMO -->
-      <section id="middleware-demo">
-        <h2>🤖 Simulación: Automatización de Respuestas con Empatía</h2>
-        <p class="muted" style="max-width:640px; margin-top:-6px;">
-          Experimenta cómo funciona el proxy unificado LiteLLM que centraliza respuestas para múltiples canales con tono empático.
-        </p>
-        <div class="grid two" style="margin-bottom: 20px;">
-          <div class="card">
-            <h3>📊 Dashboard en Vivo</h3>
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
-              <div class="stat-card"><div class="number" id="mdTotalMessages">0</div><div class="label">Mensajes</div></div>
-              <div class="stat-card"><div class="number" id="mdAvgTime">0s</div><div class="label">Tiempo Prom.</div></div>
-              <div class="stat-card"><div class="number green" id="mdTotalCost">$0</div><div class="label">Costo</div></div>
-              <div class="stat-card"><div class="number purple" id="mdHoursSaved">0h</div><div class="label">Horas Ahorradas</div></div>
-            </div>
-          </div>
-          <div class="card">
-            <h3>📈 Estadísticas por Canal</h3>
-            <div id="mdChannelStats" style="overflow:auto; max-height: 200px;"><p class="muted">Completa la simulación para ver estadísticas.</p></div>
-          </div>
-        </div>
-        <div class="card">
-          <h3>🎯 Simulador de Mensajes</h3>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0;">
-            <div><label>Canal</label><select id="mdChannel"><option value="whatsapp">💬 WhatsApp</option><option value="instagram">📸 Instagram</option><option value="email">📧 Email</option><option value="web">🌐 Web</option></select></div>
-            <div><label>Tono Personalizado</label><input id="mdTone" placeholder="Ej: Formal, amigable..." /></div>
-          </div>
-          <div style="margin: 10px 0;"><label>Mensaje</label><textarea id="mdMessage" rows="3">Hola, ¿tienen stock de martillos?</textarea></div>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <button onclick="simulateMiddlewareMessage()" class="btn">🚀 Enviar</button>
-            <button onclick="loadMiddlewareExample()" class="btn secondary">📋 Ejemplo</button>
-          </div>
-          <div id="mdSimulationResult" style="margin-top: 16px; display: none;">
-            <div style="background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px;">
-              <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--muted);">
-                <span>Canal: <strong id="mdResultChannel">WhatsApp</strong></span>
-                <span>⏱ <span id="mdResultTime">0</span>s · 💰 $<span id="mdResultCost">0</span></span>
-              </div>
-              <div class="conversation user"><strong>Cliente:</strong><p id="mdResultMessage"></p></div>
-              <div class="conversation"><strong>🤖 Asistente:</strong><p id="mdResultResponse"></p></div>
-              <div style="font-size: 11px; color: var(--muted);">Fuente: <span id="mdResultSource">simulada</span> · Tokens: <span id="mdResultTokens">0</span></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- DEMO PROYECTOS -->
-      <section id="demo">
-        <h2>🚀 Simulación de Proyecto Llave en Mano</h2>
-        <p class="muted" style="max-width:640px; margin-top:-6px;">
-          Elige un proyecto y te mostraremos paso a paso cómo se construye y funciona.
-        </p>
-        <div class="grid two">
-          <div class="card">
-            <h3>Selecciona tu Proyecto</h3>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-              <button onclick="selectDemo('correo')" class="btn secondary small">📬 Correo</button>
-              <button onclick="selectDemo('agenda')" class="btn secondary small">📅 Agenda</button>
-              <button onclick="selectDemo('whatsapp')" class="btn secondary small">💬 WhatsApp</button>
-              <button onclick="selectDemo('facturacion')" class="btn secondary small">🧾 Facturación</button>
-            </div>
-            <div id="demoDescription" style="margin-top: 12px; color: var(--muted);"><p>Selecciona un proyecto para comenzar.</p></div>
-          </div>
-          <div class="card">
-            <h3>Progreso</h3>
-            <div id="demoProgress"><p class="muted">Esperando selección...</p></div>
-          </div>
-        </div>
-        <div class="card" id="demoSimulation" style="display: none; margin-top: 18px;">
-          <div id="demoStepContent">
-            <h3 id="demoStepTitle">Paso 1</h3>
-            <p id="demoStepDesc">Descripción del paso</p>
-            <div id="demoDataArea" style="background: rgba(0,0,0,.2); border-radius: 12px; padding: 14px; margin: 12px 0;"></div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-              <button id="demoStepActionBtn" class="btn" onclick="runDemoStep()">Continuar</button>
-              <button class="btn secondary" onclick="resetDemo()">Reiniciar</button>
-              <button class="btn secondary" onclick="toggleDemoEdit()">✏️ Usar mis datos</button>
-            </div>
-            <div id="demoUserInput" style="display: none; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px;">
-              <textarea id="demoUserDataInput" rows="4" style="width: 100%;" placeholder="Escribe tus datos aquí..."></textarea>
-              <button onclick="applyUserData()" class="btn" style="margin-top: 8px;">Aplicar</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- FAQS -->
       <section id="faqs">
         <h2>📋 Preguntas Frecuentes</h2>
+        <p class="muted" style="max-width:640px; margin-top:-6px;">
+          Todo lo que necesitas saber sobre Sin Pausas: qué hacemos, cuánto cuesta y cómo empezar.
+        </p>
+
         <div class="card" style="padding: 10px;">
-          <details><summary>🙋 ¿Qué es Sin Pausas?</summary><div class="faq-body"><p>Sin Pausas es una agencia especializada en bajar la Inteligencia Artificial a la realidad cotidiana de las empresas.</p></div></details>
-          <details><summary>🎯 ¿A qué nos dedicamos?</summary><div class="faq-body"><p>Diseñamos, implementamos y desplegamos soluciones con IA para digitalización y automatización de procesos empresariales.</p></div></details>
-          <details><summary>⏳ ¿Por qué 6 semanas?</summary><div class="faq-body"><p>Nuestro modelo de trabajo tiene un límite de 6 semanas para aprendizaje intensivo y desarrollo de MVP.</p></div></details>
-          <details><summary>💰 ¿Cuánto cuesta?</summary><div class="faq-body"><p>Desde $99/mes para SaaS Asistente Experto, $199/mes para Middleware LiteLLM, y desde $1,500 para Consultoría Llave en Mano.</p></div></details>
+
+          <details>
+            <summary>🙋 ¿Qué es exactamente Sin Pausas?</summary>
+            <div class="faq-body">
+              <p>Sin Pausas es una agencia especializada en bajar la Inteligencia Artificial a la realidad cotidiana de las empresas. No somos un laboratorio de ciencia ficción ni una consultora abstracta. Somos un equipo que entiende que la tecnología solo tiene sentido cuando resuelve problemas humanos concretos: reducir el estrés de los vendedores, responder más rápido a los clientes o automatizar tareas repetitivas que roban tiempo valioso.</p>
+              <p>Nuestra filosofía es simple: usamos el poder de la IA (42 GiB de RAM y modelos GPT de Azure Foundry) para que las personas trabajen mejor, no para reemplazarlas.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>🎯 ¿A qué nos dedicamos realmente?</summary>
+            <div class="faq-body">
+              <p>Nos dedicamos a diseñar, implementar y desplegar soluciones técnicas con IA para la digitalización y automatización de procesos empresariales. Pero no lo hacemos desde lo abstracto: lo hacemos desde la trinchera del día a día.</p>
+              <p>Nuestro enfoque se centra en tres áreas concretas:</p>
+              <table>
+                <thead><tr><th>Área</th><th>¿Qué hacemos?</th></tr></thead>
+                <tbody>
+                  <tr><td>Asistentes inteligentes para comercios</td><td>Convertimos el inventario, los manuales y los catálogos de una tienda en un asistente conversacional que responde al instante por WhatsApp o tablet.</td></tr>
+                  <tr><td>Automatización de respuestas con empatía</td><td>Centralizamos y gestionamos las interacciones de redes sociales y páginas web con un tono humano, personalizado y eficiente, usando un proxy unificado (LiteLLM) que administra múltiples modelos GPT.</td></tr>
+                  <tr><td>Digitalización 'llave en mano'</td><td>Creamos sistemas modulares (con Docker) para flujos como filtrado de correos, gestión de agendas o atención al cliente, y los dejamos funcionando de forma nativa en los equipos de nuestros clientes.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+          <details>
+            <summary>🧰 ¿Qué servicios concretos pueden contratar con nosotros?</summary>
+            <div class="faq-body">
+              <p>Nuestra cartera de servicios está diseñada para adaptarse a diferentes necesidades y presupuestos. Estos son nuestros modelos comerciales:</p>
+              <p><strong>1. SaaS de Asistente Experto (SmartStacks de Cercanía)</strong><br>
+              ¿Qué es? Una suscripción mensual que convierte los datos de tu negocio (inventario, precios, manuales) en un asistente de IA accesible por WhatsApp o dispositivo en tienda.<br>
+              ¿Para quién? Pymes, comercios locales, ferreterías industriales, almacenes y cualquier negocio con catálogo de productos.<br>
+              Beneficio clave: Tus vendedores dejan de buscar códigos y hojas técnicas. Preguntan en lenguaje natural y obtienen respuestas en 1 segundo. Menos filas, menos estrés, más ventas.</p>
+              <p><strong>2. Infraestructura Centralizada de Respuestas (LiteLLM Middleware)</strong><br>
+              ¿Qué es? Un motor unificado que conecta tus canales (web, WhatsApp, redes sociales) a los modelos GPT más avanzados, administrando el consumo de tokens para optimizar costos.<br>
+              ¿Para quién? Agencias de marketing, equipos de community management o desarrolladores que quieran ofrecer respuestas inteligentes a sus clientes sin lidiar con la complejidad técnica.<br>
+              Beneficio clave: Respondes con empatía y personalización a gran escala, sin descuidar tu negocio principal ni tu tiempo libre.</p>
+              <p><strong>3. Consultorías de Implementación 'Llave en Mano'</strong><br>
+              ¿Qué es? Un proyecto único donde diseñamos y configuramos un sistema a medida para tu empresa: desde el filtrado automático de correos hasta la gestión de agendas con IA.<br>
+              ¿Para quién? Empresas tradicionales que quieren dar el salto a la IA pero necesitan acompañamiento total y soluciones que funcionen "de cajón" en su propio entorno.<br>
+              Beneficio clave: Te olvidas de la complejidad técnica. Nosotros instalamos, configuramos y te formamos. Tú solo usas la solución.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>⏳ ¿Por qué el plazo de 6 semanas es importante?</summary>
+            <div class="faq-body">
+              <p>Nuestro modelo de trabajo tiene un límite estricto de 6 semanas porque operamos en un entorno de aprendizaje intensivo con recursos de alto rendimiento (los 42 GiB de RAM y los modelos GPT de Azure Foundry). Este es nuestro "laboratorio vivo".</p>
+              <p>El proceso es el siguiente:</p>
+              <p>Semanas 1-2: Aprendemos a fondo tu negocio y configuramos el entorno técnico.<br>
+              Semanas 3-4: Desarrollamos un MVP (producto mínimo viable) funcional.<br>
+              Semanas 5-6: Lo probamos en vivo contigo, recogemos feedback y armamos la propuesta comercial definitiva.</p>
+              <p>Pasado este plazo, los accesos expiran. La única forma de continuar es que la solución haya demostrado su valor real y consolidemos una propuesta de negocio con sentido para ambas partes. Esto nos asegura que solo trabajamos en proyectos que realmente marcan la diferencia.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>💰 ¿Cuánto cuesta trabajar con Sin Pausas?</summary>
+            <div class="faq-body">
+              <p>Nuestros precios varían según el modelo de servicio:</p>
+              <table>
+                <thead><tr><th>Servicio</th><th>Modelo de Pago</th><th>Rango Aproximado</th></tr></thead>
+                <tbody>
+                  <tr><td>SaaS Asistente Experto</td><td>Suscripción mensual</td><td>Desde $99/mes (dependiendo del volumen de datos y consultas)</td></tr>
+                  <tr><td>Middleware LiteLLM</td><td>Membresía fija o fee por interacción</td><td>Desde $199/mes por volumen básico</td></tr>
+                  <tr><td>Consultoría Llave en Mano</td><td>Pago único (setup + implementación)</td><td>Desde $1,500 (según complejidad del flujo)</td></tr>
+                </tbody>
+              </table>
+              <p>Nota: Los precios son referenciales y se ajustan en la propuesta comercial final, que se construye durante las 6 semanas de trabajo conjunto.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>🛡️ ¿Qué pasa con la seguridad y privacidad de mis datos?</summary>
+            <div class="faq-body">
+              <p>Es una prioridad absoluta. Al trabajar con nosotros:</p>
+              <p><strong>Datos locales:</strong> Tu información (inventarios, manuales, correos) se almacena de forma local en la VM o en tus propios servidores. No compartimos tus datos con terceros.</p>
+              <p><strong>Cifrado:</strong> Todas las comunicaciones con los modelos GPT de Azure se realizan bajo estándares de seguridad empresarial (HTTPS, tokens cifrados).</p>
+              <p><strong>Control total:</strong> En los proyectos 'llave en mano', el sistema se despliega en tu propia infraestructura, dándote el control absoluto de tus datos.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>🤝 ¿Cómo empiezo a trabajar con Sin Pausas?</summary>
+            <div class="faq-body">
+              <p>El proceso es sencillo y directo:</p>
+              <p>Contacto inicial: Nos cuentas tu negocio, tus dolores y tus objetivos. Sin compromiso.<br>
+              Diagnóstico rápido: Evaluamos si nuestro modelo de 6 semanas es adecuado para ti.<br>
+              Firma de acuerdo: Definimos alcance, fechas y condiciones.<br>
+              Comenzamos el laboratorio: Entramos en las 6 semanas de trabajo intensivo.<br>
+              Evaluación y continuidad: Al finalizar, decidimos juntos si la solución escala a un contrato comercial formal.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>📞 ¿Puedo probar la solución antes de comprometerme?</summary>
+            <div class="faq-body">
+              <p>¡Sí! Durante las semanas 5 y 6 del laboratorio, montamos una interfaz web con protección HTTPS para que puedas probar la solución en vivo con tus propios datos y usuarios reales. Recogemos sus opiniones y las usamos para ajustar la propuesta final. Es una prueba de concepto real antes de cualquier compromiso económico.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>❓ ¿Qué tipo de empresas se benefician más con Sin Pausas?</summary>
+            <div class="faq-body">
+              <p>Principalmente:</p>
+              <p>Comercios minoristas y mayoristas (ferreterías, tiendas de ropa, almacenes de suministros).<br>
+              Empresas de servicios (consultorías, estudios legales, agencias de marketing).<br>
+              Negocios tradicionales que quieren digitalizarse pero no saben por dónde empezar.<br>
+              Startups y emprendedores que necesitan automatizar su atención al cliente sin perder el toque humano.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>🧠 ¿Qué tecnología usan exactamente?</summary>
+            <div class="faq-body">
+              <p>Nuestro stack tecnológico está diseñado para ser potente y escalable:</p>
+              <p><strong>Hardware:</strong> Máquina virtual con 42 GiB de RAM, ideal para almacenar y procesar grandes volúmenes de datos locales (inventarios, históricos, documentos).</p>
+              <p><strong>Modelos de IA:</strong> Acceso a 3 modelos GPT de Azure Foundry, lo que nos permite elegir el mejor modelo para cada tarea (velocidad, costo o calidad de respuesta).</p>
+              <p><strong>Orquestación:</strong> Usamos LiteLLM como proxy unificado para administrar los modelos y balancear el consumo de tokens.</p>
+              <p><strong>Despliegue:</strong> Contenedores Docker para sistemas modulares y portables.</p>
+              <p><strong>Interfaces:</strong> Integración con WhatsApp Business API, web con HTTPS y tablets en tienda.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>🚀 ¿Qué diferencia a Sin Pausas de otras agencias de IA?</summary>
+            <div class="faq-body">
+              <p>Lo que nos hace únicos es nuestra visión humana y nuestro modelo de validación comercial:</p>
+              <p><strong>No vendemos humo:</strong> Solo trabajamos en proyectos que han sido probados y validados en el mundo real durante nuestras 6 semanas de laboratorio.</p>
+              <p><strong>Enfoque en la persona:</strong> Medimos el éxito en reducción de estrés, tiempo recuperado y mejora de la calidad de vida de los equipos, no solo en métricas técnicas.</p>
+              <p><strong>Transparencia total:</strong> Te mostramos los costos reales de cada respuesta de IA (consumo de tokens) para que tomes decisiones informadas.</p>
+              <p><strong>Compromiso con la continuidad:</strong> Si la solución no demuestra su valor, no forzamos una relación comercial. Tu éxito es el nuestro.</p>
+            </div>
+          </details>
+
+          <details>
+            <summary>📬 ¿Cómo puedo contactarlos?</summary>
+            <div class="faq-body">
+              <p>Puedes escribirnos a través del formulario de contacto en nuestra página web, o directamente a nuestro correo: contacto@sinpausas.ia (ejemplo). También puedes seguirnos en nuestras redes sociales para estar al día de nuestros casos de éxito y novedades.</p>
+            </div>
+          </details>
+
         </div>
+
+        <p class="closing">¿Tienes más preguntas? Estamos aquí para escucharte y construir juntos la solución que tu negocio necesita. ¡Sin pausas, pero con propósito! 🤖💙</p>
       </section>
 
     </main>
 
     <footer>
-      <strong>Sabrina AI Lab</strong> · Ejecuta: <code>python3 app.py</code>
+      <strong>Sabrina AI Lab</strong> · Ejecuta: <code>python3 proyectos/sabrina_ai_lab/app.py</code>
     </footer>
   </div>
 
   <div class="toast" id="toast"></div>
 
 <script>
-// ============================================
-// ESTADO GLOBAL
-// ============================================
-
-let state = {};
-let smartstacksState = {};
-let middlewareState = {};
-let consultingState = {};
-let smartstacksDemoState = { currentStep: 0, isComplete: false };
-let middlewareDemoState = { currentStep: 0, isComplete: false };
-let currentDemoId = null;
-let currentStep = 0;
-let demoData = [];
-let isUsingUserData = false;
+const state = {state_json};
+let smartstacksState = {{}};
+let middlewareState = {{}};
+let consultingState = {{}};
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
-
-const api = async (url, data) => {
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+const api = async (url, data) => {{
+  const res = await fetch(url, {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(data)}});
   return await res.json();
-};
-
-const toast = (msg) => {
+}};
+const toast = (msg) => {{
   const el = $('#toast');
   if (!el) return;
   el.textContent = msg;
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 3000);
-};
+}};
 
-function showSection(id) {
+function showSection(id) {{
   $$('section').forEach(s => s.classList.remove('active'));
   $$('.navlinks a').forEach(a => a.classList.remove('active'));
-  const section = $(`#${id}`);
+  const section = $(`#${{id}}`);
   if (section) section.classList.add('active');
-  document.querySelectorAll('.navlinks a').forEach(a => {
-    const onclick = a.getAttribute('onclick') || '';
-    if (onclick.includes(id) || (id === 'smartstacks' && a.textContent.includes('SmartStacks'))) {
-      a.classList.add('active');
-    }
-  });
-  if (id === 'smartstacks') refreshSmartStacks();
-  if (id === 'invoicing') { refreshInvoices(); refreshBankAccounts(); }
-  if (id === 'middleware') refreshMiddleware();
-  if (id === 'consulting') refreshConsulting();
-  if (id === 'middleware-demo') loadMiddlewareDemo();
-}
+  if (event && event.target) event.target.classList.add('active');
+  
+  if (id === 'invoicing') {{
+    refreshInvoices();
+    refreshBankAccounts();
+  }}
+  if (id === 'middleware') {{
+    refreshMiddleware();
+  }}
+  if (id === 'consulting') {{
+    refreshConsulting();
+  }}
+}}
 
-function showFullInventory() {
-  document.getElementById('fullInventory').style.display = 'block';
-  document.getElementById('fullInventory').scrollIntoView({ behavior: 'smooth' });
-}
-
-// ============================================
-// FUNCIONES DE RENDERIZADO
-// ============================================
-
-function renderState() {
+function renderState() {{
   const modeStatus = $('#modeStatus');
-  if (modeStatus) modeStatus.textContent = state.integrations?.email_ready ? '✓ Email configurado' : '⚠ Email no configurado';
+  if (modeStatus) {{
+    modeStatus.textContent = state.integrations.email_ready ? 
+      '✓ Email configurado' : 
+      '⚠ Email no configurado';
+  }}
+  
   const invoiceCount = $('#invoiceCount');
-  if (invoiceCount) invoiceCount.textContent = state.metrics?.invoices || 0;
+  if (invoiceCount) {{
+    invoiceCount.textContent = state.metrics.invoices || 0;
+  }}
   
   const leadRows = $('#leadRows');
-  if (leadRows) {
-    leadRows.innerHTML = state.leads?.length ? state.leads.map(l => `
-      <tr><td>${new Date(l.created_at).toLocaleString()}</td><td><strong>${l.business}</strong></td><td>${l.email}</td><td>${l.use_case}</td></tr>
-    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin leads</td></tr>';
-  }
+  if (leadRows) {{
+    leadRows.innerHTML = state.leads && state.leads.length ? state.leads.map(l => `
+      <tr>
+        <td>${{new Date(l.created_at).toLocaleString()}}</td>
+        <td><strong>${{l.business}}</strong></td>
+        <td>${{l.email}}</td>
+        <td>${{l.use_case}}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin leads registrados</td></tr>';
+  }}
   
+  const leadCheckboxes = $('#leadCheckboxes');
+  if (leadCheckboxes) {{
+    leadCheckboxes.innerHTML = state.leads && state.leads.length ? state.leads.map(l => `
+      <label><input type="checkbox" class="lead-checkbox" value="${{l.email}}"> <strong>${{l.business}}</strong> (${{l.email}})</label>
+    `).join('<br>') : '<p style="color:var(--muted);">Registra leads primero</p>';
+  }}
+  
+  const singleLeadSelect = $('#singleLeadSelect');
+  if (singleLeadSelect) {{
+    singleLeadSelect.innerHTML = state.leads && state.leads.length ? state.leads.map(l => `
+      <option value="${{l.id}}">${{l.business}} - ${{l.name}}</option>
+    `).join('') : '<option>Sin leads</option>';
+  }}
+
   const estimateRows = $('#estimateRows');
-  if (estimateRows) {
-    estimateRows.innerHTML = state.estimates?.length ? state.estimates.map(e => `
-      <tr><td>${e.use_case}</td><td>${e.interactions}</td><td>$${e.monthly_value}</td><td>$${e.suggested_price}</td></tr>
-    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin cálculos</td></tr>';
-  }
-  
+  if (estimateRows) {{
+    estimateRows.innerHTML = state.estimates && state.estimates.length ? state.estimates.map(e => `
+      <tr>
+        <td>${{e.use_case}}</td>
+        <td>${{e.interactions}}</td>
+        <td>$${{e.monthly_value}}</td>
+        <td>$${{e.suggested_price}}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin cálculos aún</td></tr>';
+  }}
+
   const assistantHistory = $('#assistantHistory');
-  if (assistantHistory) {
-    assistantHistory.innerHTML = state.assistant_events?.length ? state.assistant_events.slice().reverse().map(ev => `
-      <div class="conversation user"><strong>Tú (${ev.channel}):</strong><p>${ev.question}</p></div>
-      <div class="conversation"><strong>Asistente · ${ev.source}:</strong><p>${ev.answer.replace(/\\n/g, '<br>')}</p></div>
+  if (assistantHistory) {{
+    assistantHistory.innerHTML = state.assistant_events && state.assistant_events.length ? state.assistant_events.slice().reverse().map(ev => `
+      <div class="conversation user"><strong>Tú (${{ev.channel}}):</strong><p>${{ev.question}}</p></div>
+      <div class="conversation"><strong>Asistente · ${{ev.source}}:</strong><p>${{ev.answer.replace(/\\n/g, '<br>')}}</p></div>
     `).join('') : '<p class="muted">Sin consultas aún.</p>';
-  }
-}
+  }}
+}}
 
-function renderSmartStacks() {
-  const stats = smartstacksState.metrics || {};
-  $('#ssTotalProducts').textContent = stats.total_products || 0;
-  $('#ssTotalStock').textContent = stats.total_stock || 0;
-  $('#ssConversations').textContent = (smartstacksState.conversations || []).length;
+function renderSmartStacks() {{
+  const productCount = $('#productCount');
+  const totalStock = $('#totalStock');
+  if (productCount) productCount.textContent = smartstacksState.metrics?.total_products || 0;
+  if (totalStock) totalStock.textContent = smartstacksState.metrics?.total_stock || 0;
   
-  // Inventario rápido
-  const preview = $('#inventoryPreview');
-  const products = smartstacksState.products || [];
-  if (products.length) {
-    const display = products.slice(0, 8);
-    let html = '';
-    display.forEach(p => {
-      const emoji = p.quantity > 10 ? '✅' : p.quantity > 0 ? '⚠️' : '❌';
-      html += `<div class="item"><span><strong>${p.code}</strong> ${p.name}</span><span class="stock">${emoji} ${p.quantity}</span></div>`;
-    });
-    if (products.length > 8) {
-      html += `<div style="grid-column:1/-1; text-align:center; color:var(--muted); font-size:12px; padding:4px;">+ ${products.length - 8} productos más</div>`;
-    }
-    preview.innerHTML = html;
-  } else {
-    preview.innerHTML = '<p style="color:var(--muted); grid-column:1/-1; text-align:center; padding:12px;">No hay productos. Carga el demo.</p>';
-  }
+  const productRows = $('#productRows');
+  if (productRows) {{
+    productRows.innerHTML = smartstacksState.products && smartstacksState.products.length ? smartstacksState.products.map(p => `
+      <tr>
+        <td><strong>${{p.code}}</strong></td>
+        <td>${{p.name}}</td>
+        <td>${{p.quantity}}</td>
+        <td>${{p.price ? '$' + p.price : 'N/A'}}</td>
+        <td><button class="secondary" onclick="deleteProduct(${{p.id}})" style="padding: 6px 8px; font-size: 12px;">Eliminar</button></td>
+      </tr>
+    `).join('') : '<tr><td colspan="5" style="text-align:center;">Sin productos</td></tr>';
+  }}
   
-  // Conversaciones
-  const convHtml = smartstacksState.conversations?.length ? smartstacksState.conversations.slice().reverse().map(c => `
-    <div class="conversation user"><strong>Tú:</strong><p>${c.question}</p></div>
-    <div class="conversation"><strong>🤖 Asistente:</strong><p>${(c.answer || '').replace(/\\n/g, '<br>')}</p></div>
-  `).join('') : '<p style="color:var(--muted); text-align:center; padding:12px;">Haz una pregunta sobre el inventario.</p>';
-  $('#conversationHistory').innerHTML = convHtml;
-  
-  // Progreso
-  const convCount = (smartstacksState.conversations || []).length;
-  const progress = Math.min((convCount / 12) * 100, 100);
-  $('#ssProgressBar').style.width = progress + '%';
-  const steps = ['Cargar Inventario', 'Conectar Asistente', 'Entrenar', 'Asistente en Vivo'];
-  const stepIdx = Math.min(Math.floor(convCount / 3), steps.length - 1);
-  $('#ssStepIndicator').textContent = convCount > 0 ? `Paso ${stepIdx + 1}/${steps.length}` : 'Paso 0/4';
-  $('#ssStepTitle').textContent = steps[stepIdx] || steps[0];
-  $('#ssStepDesc').textContent = convCount > 0 ? 'El asistente está aprendiendo de tus consultas.' : 'Comienza haciendo preguntas sobre tu inventario.';
-  
-  const details = $('#ssStepDetails');
-  if (details) {
-    details.innerHTML = convCount > 0 ? `
-      <ul style="color:var(--muted); list-style:none; padding:0;">
-        <li style="padding:4px 0;">✅ ${convCount} consultas respondidas</li>
-        <li style="padding:4px 0;">✅ ${products.length} productos en inventario</li>
-        <li style="padding:4px 0;">${convCount >= 10 ? '✅ ¡Asistente entrenado!' : '⏳ ' + (10 - convCount) + ' consultas más para entrenar'}</li>
-      </ul>
-    ` : '<p style="color:var(--muted);">Haz preguntas sobre tu inventario para entrenar al asistente.</p>';
-  }
-  
-  const btn = $('#ssStepBtn');
-  if (btn) {
-    btn.textContent = convCount >= 10 ? '🎉 Completado' : '▶️ Ejecutar Paso';
-    btn.onclick = convCount >= 10 ? resetSmartstacksDemo : runSmartstacksStep;
-  }
-}
+  const conversationHistory = $('#conversationHistory');
+  if (conversationHistory) {{
+    conversationHistory.innerHTML = smartstacksState.conversations && smartstacksState.conversations.length ? smartstacksState.conversations.slice().reverse().map(c => `
+      <div class="conversation user">
+        <strong>Tú (${{c.channel}}):</strong>
+        <p>${{c.question}}</p>
+      </div>
+      <div class="conversation">
+        <strong>Asistente:</strong>
+        <p>${{(c.answer || '').replace(/\\n/g, '<br>')}}</p>
+      </div>
+    `).join('') : '<p style="color: var(--muted); text-align: center;">Sin conversaciones aún</p>';
+  }}
+}}
 
-function renderMiddleware() {
-  $('#middlewareTotalMessages').textContent = middlewareState.total_messages || 0;
-  $('#middlewareTotalCost').textContent = (middlewareState.total_cost || 0).toFixed(5);
-  
+async function refresh() {{
+  try {{
+    const res = await fetch('/api/state');
+    const newState = await res.json();
+    Object.assign(state, newState);
+    renderState();
+  }} catch (e) {{
+    console.error('Error refreshing state:', e);
+  }}
+}}
+
+async function refreshSmartStacks() {{
+  try {{
+    const res = await fetch('/api/smartstacks/state');
+    smartstacksState = await res.json();
+    renderSmartStacks();
+  }} catch (e) {{
+    console.error('Error refreshing smartstacks:', e);
+  }}
+}}
+
+function renderMiddleware() {{
+  const totalMessages = $('#middlewareTotalMessages');
+  const totalCost = $('#middlewareTotalCost');
+  if (totalMessages) totalMessages.textContent = middlewareState.total_messages || 0;
+  if (totalCost) totalCost.textContent = (middlewareState.total_cost || 0).toFixed(5);
+
   const byChannel = $('#middlewareByChannel');
-  if (byChannel) {
-    byChannel.innerHTML = middlewareState.by_channel?.length ? middlewareState.by_channel.map(c => `
-      <tr><td>${c.channel}</td><td>${c.total}</td><td>$${c.cost.toFixed(5)}</td></tr>
-    `).join('') : '<tr><td colspan="3" style="text-align:center;">Sin datos</td></tr>';
-  }
-  
+  if (byChannel) {{
+    byChannel.innerHTML = middlewareState.by_channel && middlewareState.by_channel.length ? middlewareState.by_channel.map(c => `
+      <tr><td>${{c.channel}}</td><td>${{c.total}}</td><td>$${{c.cost.toFixed(5)}}</td></tr>
+    `).join('') : '<tr><td colspan="3" style="text-align:center;">Sin datos aún</td></tr>';
+  }}
+
   const history = $('#middlewareHistory');
-  if (history) {
-    history.innerHTML = middlewareState.messages?.length ? middlewareState.messages.map(m => `
-      <div class="conversation user"><strong>Cliente (${m.channel}):</strong><p>${m.customer_message}</p></div>
-      <div class="conversation"><strong>Respuesta · ${m.source} (${m.tokens_estimated} tokens ≈ $${m.cost_estimated}):</strong><p>${m.reply.replace(/\\n/g, '<br>')}</p></div>
+  if (history) {{
+    history.innerHTML = middlewareState.messages && middlewareState.messages.length ? middlewareState.messages.map(m => `
+      <div class="conversation user"><strong>Cliente (${{m.channel}}):</strong><p>${{m.customer_message}}</p></div>
+      <div class="conversation"><strong>Respuesta · ${{m.source}} (${{m.tokens_estimated}} tokens ≈ $${{m.cost_estimated}}):</strong><p>${{m.reply.replace(/\\n/g, '<br>')}}</p></div>
     `).join('') : '<p class="muted">Sin mensajes aún.</p>';
-  }
-}
+  }}
+}}
 
-function renderConsulting() {
-  $('#upcomingCount').textContent = consultingState.upcoming_count || 0;
-  
+async function refreshMiddleware() {{
+  try {{
+    const res = await fetch('/api/middleware/state');
+    middlewareState = await res.json();
+    renderMiddleware();
+  }} catch (e) {{
+    console.error('Error refreshing middleware:', e);
+  }}
+}}
+
+function renderConsulting() {{
+  const upcomingCount = $('#upcomingCount');
+  if (upcomingCount) upcomingCount.textContent = consultingState.upcoming_count || 0;
+
   const emailRows = $('#emailClassifyRows');
-  if (emailRows) {
-    emailRows.innerHTML = consultingState.emails?.length ? consultingState.emails.map(e => `
-      <tr><td>${e.subject}</td><td><span class="status-badge cat-${e.category}">${e.category}</span></td><td><span class="status-badge priority-${e.priority}">${e.priority}</span></td></tr>
-    `).join('') : '<tr><td colspan="3" style="text-align:center;">Sin correos</td></tr>';
-  }
-  
+  if (emailRows) {{
+    emailRows.innerHTML = consultingState.emails && consultingState.emails.length ? consultingState.emails.map(e => `
+      <tr>
+        <td>${{e.subject}}</td>
+        <td><span class="status-badge cat-${{e.category}}">${{e.category}}</span></td>
+        <td><span class="status-badge priority-${{e.priority}}">${{e.priority}}</span></td>
+      </tr>
+    `).join('') : '<tr><td colspan="3" style="text-align:center;">Sin correos clasificados</td></tr>';
+  }}
+
   const appointmentRows = $('#appointmentRows');
-  if (appointmentRows) {
-    appointmentRows.innerHTML = consultingState.appointments?.length ? consultingState.appointments.map(a => `
-      <tr><td>${a.appointment_date} ${a.appointment_time}</td><td>${a.client_name}</td><td><span class="status-badge status-${a.status}">${a.status}</span></td>
-      <td>${a.status === 'confirmada' ? `<button class="secondary small" onclick="cancelAppointment(${a.id})">Cancelar</button>` : ''}</td></tr>
-    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin citas</td></tr>';
-  }
-}
+  if (appointmentRows) {{
+    appointmentRows.innerHTML = consultingState.appointments && consultingState.appointments.length ? consultingState.appointments.map(a => `
+      <tr>
+        <td>${{a.appointment_date}} ${{a.appointment_time}}</td>
+        <td>${{a.client_name}}</td>
+        <td><span class="status-badge status-${{a.status}}">${{a.status}}</span></td>
+        <td>${{a.status === 'confirmada' ? `<button class="secondary" onclick="cancelAppointment(${{a.id}})" style="padding: 6px 8px; font-size: 12px;">Cancelar</button>` : ''}}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center;">Sin citas agendadas</td></tr>';
+  }}
+}}
 
-// ============================================
-// FUNCIONES DE REFRESH
-// ============================================
+async function refreshConsulting() {{
+  try {{
+    const res = await fetch('/api/consulting/state');
+    consultingState = await res.json();
+    renderConsulting();
+  }} catch (e) {{
+    console.error('Error refreshing consulting:', e);
+  }}
+}}
 
-async function refresh() {
-  try { const res = await fetch('/api/state'); state = await res.json(); renderState(); } catch(e) { console.error(e); }
-}
+async function cancelAppointment(id) {{
+  if (!confirm('¿Cancelar esta cita?')) return;
+  const result = await api('/api/consulting/appointment/cancel', {{ appointment_id: id }});
+  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
+  toast(result.message);
+  refreshConsulting();
+}}
 
-async function refreshSmartStacks() {
-  try { const res = await fetch('/api/smartstacks/state'); smartstacksState = await res.json(); renderSmartStacks(); } catch(e) { console.error(e); }
-}
+function exportLeadsCSV() {{ window.location.href = '/api/leads/export/csv'; toast('Descargando CSV...'); }}
+function exportLeadsJSON() {{ window.location.href = '/api/leads/export/json'; toast('Descargando JSON...'); }}
+function exportInventoryCSV() {{ window.location.href = '/api/inventory/export/csv'; toast('Descargando CSV...'); }}
 
-async function refreshMiddleware() {
-  try { const res = await fetch('/api/middleware/state'); middlewareState = await res.json(); renderMiddleware(); } catch(e) { console.error(e); }
-}
+async function deleteProduct(id) {{
+  if (!confirm('¿Eliminar este producto?')) return;
+  const result = await api('/api/inventory/product/delete', {{ product_id: id }});
+  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
+  toast(result.message);
+  refreshSmartStacks();
+}}
 
-async function refreshConsulting() {
-  try { const res = await fetch('/api/consulting/state'); consultingState = await res.json(); renderConsulting(); } catch(e) { console.error(e); }
-}
-
-async function refreshInvoices() {
-  try {
+async function refreshInvoices() {{
+  try {{
     const res = await fetch('/api/invoices');
     const data = await res.json();
-    if (!data.ok) { toast('Error: ' + data.error); return; }
+    if (!data.ok) {{ toast('Error: ' + data.error); return; }}
+    
     const invoiceRows = $('#invoiceRows');
-    if (invoiceRows) {
-      invoiceRows.innerHTML = data.invoices?.length ? data.invoices.map(inv => `
+    if (invoiceRows) {{
+      invoiceRows.innerHTML = data.invoices && data.invoices.length ? data.invoices.map(inv => `
         <tr>
-          <td><strong>${inv.invoice_number}</strong></td>
-          <td>${inv.customer_name}</td>
-          <td>$${inv.total.toFixed(2)}</td>
-          <td><span class="status-badge status-${inv.status}">${inv.status}</span></td>
+          <td><strong>${{inv.invoice_number}}</strong></td>
+          <td>${{inv.customer_name}}</td>
+          <td>$${{inv.total.toFixed(2)}}</td>
+          <td><span class="status-badge status-${{inv.status}}">${{inv.status}}</span></td>
           <td>
-            <button onclick="updateInvoiceStatus(${inv.id}, 'verified')" class="secondary small">✓</button>
-            <button onclick="updateInvoiceStatus(${inv.id}, 'cancelled')" class="secondary small">✗</button>
+            <button onclick="updateInvoiceStatus(${{inv.id}}, 'verified')" class="secondary" style="padding: 4px 8px; font-size: 11px;">✓ Verificar</button>
+            <button onclick="updateInvoiceStatus(${{inv.id}}, 'cancelled')" class="secondary" style="padding: 4px 8px; font-size: 11px;">✗ Cancelar</button>
           </td>
         </tr>
       `).join('') : '<tr><td colspan="5" style="text-align:center;">Sin facturas</td></tr>';
-    }
-  } catch(e) { console.error(e); }
-}
+    }}
+  }} catch (e) {{
+    console.error('Error refreshing invoices:', e);
+  }}
+}}
 
-async function refreshBankAccounts() {
-  try {
+async function refreshBankAccounts() {{
+  try {{
     const res = await fetch('/api/bank-accounts');
     const data = await res.json();
-    if (!data.ok) return;
+    if (!data.ok) {{ toast('Error: ' + data.error); return; }}
+    
     const select = $('#invoiceBankAccount');
-    if (select) {
-      select.innerHTML = data.bank_accounts?.length ? data.bank_accounts.map(acc => `
-        <option value="${acc.id}">${acc.name} - ${acc.bank}</option>
-      `).join('') : '<option>No hay cuentas</option>';
-    }
-    const list = $('#bankAccountsList');
-    if (list) {
-      list.innerHTML = data.bank_accounts?.length ? data.bank_accounts.map(acc => `
-        <div style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid var(--line);">
-          <div><strong>${acc.name}</strong> <span style="color:var(--muted); font-size:12px;">${acc.bank}</span></div>
-          <div><span style="color:var(--brand2); font-size:12px;">✓ Activa</span></div>
+    if (select) {{
+      select.innerHTML = data.bank_accounts && data.bank_accounts.length ? data.bank_accounts.map(acc => `
+        <option value="${{acc.id}}">${{acc.name}} - ${{acc.bank}} - ${{acc.account_number}}</option>
+      `).join('') : '<option>No hay cuentas activas</option>';
+    }}
+    
+    const bankAccountsList = $('#bankAccountsList');
+    if (bankAccountsList) {{
+      bankAccountsList.innerHTML = data.bank_accounts && data.bank_accounts.length ? data.bank_accounts.map(acc => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid var(--line);">
+          <div>
+            <strong>${{acc.name}}</strong>
+            <span style="color: var(--muted); font-size: 12px;">${{acc.bank}} - ${{acc.account_number}}</span>
+          </div>
+          <div>
+            <span style="color: var(--brand2); font-size: 12px;">✓ Activa</span>
+            <button onclick="toggleBankAccount(${{acc.id}})" class="secondary" style="padding: 4px 8px; font-size: 11px;">Desactivar</button>
+          </div>
         </div>
-      `).join('') : '<p style="color:var(--muted);">No hay cuentas</p>';
-    }
-  } catch(e) { console.error(e); }
-}
+      `).join('') : '<p style="color: var(--muted);">No hay cuentas bancarias configuradas</p>';
+    }}
+  }} catch (e) {{
+    console.error('Error refreshing bank accounts:', e);
+  }}
+}}
 
-// ============================================
-// EXPORT FUNCTIONS
-// ============================================
+async function toggleBankAccount(accountId) {{
+  if (!confirm('¿Desactivar esta cuenta bancaria?')) return;
+  const result = await api('/api/bank-account/update', {{
+    account_id: accountId,
+    active: 0
+  }});
+  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
+  toast('Cuenta desactivada');
+  refreshBankAccounts();
+}}
 
-function exportLeadsCSV() { window.location.href = '/api/leads/export/csv'; toast('Descargando CSV...'); }
-function exportLeadsJSON() { window.location.href = '/api/leads/export/json'; toast('Descargando JSON...'); }
-function exportCSV() { window.location.href = '/api/inventory/export/csv'; toast('📥 Descargando CSV...'); }
-
-async function deleteProduct(id) {
-  if (!confirm('¿Eliminar este producto?')) return;
-  const result = await api('/api/inventory/product/delete', { product_id: id });
-  if (!result.ok) { toast('Error: ' + result.error); return; }
-  toast(result.message);
-  refreshSmartStacks();
-}
-
-async function updateInvoiceStatus(invoiceId, status) {
-  if (!confirm(`¿Cambiar a "${status}"?`)) return;
-  const result = await api('/api/invoice/status', { invoice_id: invoiceId, status, verified_by: 'Admin' });
-  if (!result.ok) { toast('Error: ' + result.error); return; }
+async function updateInvoiceStatus(invoiceId, status) {{
+  if (!confirm(`¿Cambiar estado de factura a "${{status}}"?`)) return;
+  const result = await api('/api/invoice/status', {{
+    invoice_id: invoiceId,
+    status: status,
+    verified_by: 'Admin Web'
+  }});
+  if (!result.ok) {{ toast('Error: ' + result.error); return; }}
   toast(result.message);
   refreshInvoices();
-}
+}}
 
-async function cancelAppointment(id) {
-  if (!confirm('¿Cancelar esta cita?')) return;
-  const result = await api('/api/consulting/appointment/cancel', { appointment_id: id });
-  if (!result.ok) { toast('Error: ' + result.error); return; }
-  toast(result.message);
-  refreshConsulting();
-}
-
-async function loadProductsForInvoice() {
-  try {
+async function loadProductsForInvoice() {{
+  try {{
     const res = await fetch('/api/smartstacks/state');
     const data = await res.json();
     const container = $('#invoiceProductSelection');
     if (!container) return;
-    if (!data.products?.length) {
-      container.innerHTML = '<p style="color:var(--muted);">No hay productos disponibles.</p>';
+    
+    if (!data.products || !data.products.length) {{
+      container.innerHTML = '<p style="color: var(--muted);">No hay productos disponibles en el inventario.</p>';
       return;
-    }
+    }}
+    
     container.innerHTML = data.products.map(p => `
-      <div style="display:flex; align-items:center; gap:12px; padding:6px 0; border-bottom:1px solid var(--line);">
-        <input type="checkbox" class="invoice-product-checkbox" data-id="${p.id}" data-price="${p.price || 0}" data-name="${p.name}">
-        <span><strong>${p.code}</strong> - ${p.name}</span>
-        <span style="color:var(--muted); font-size:12px;">Stock: ${p.quantity}</span>
-        <span style="color:var(--brand2);">$${p.price || 0}</span>
-        <input type="number" class="invoice-product-qty" data-id="${p.id}" value="1" min="1" max="${p.quantity}" style="width:60px; padding:4px;">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line);">
+        <input type="checkbox" class="invoice-product-checkbox" data-id="${{p.id}}" data-price="${{p.price || 0}}" data-name="${{p.name}}">
+        <span><strong>${{p.code}}</strong> - ${{p.name}}</span>
+        <span style="color: var(--muted); font-size: 12px;">Stock: ${{p.quantity}}</span>
+        <span style="color: var(--brand2);">$${{p.price || 0}}</span>
+        <input type="number" class="invoice-product-qty" data-id="${{p.id}}" value="1" min="1" max="${{p.quantity}}" style="width: 60px; padding: 4px;">
       </div>
     `).join('');
-  } catch(e) { console.error(e); }
-}
+  }} catch (e) {{
+    console.error('Error loading products:', e);
+  }}
+}}
 
-// ============================================
-// SMARTSTACKS - FUNCIONES
-// ============================================
+// Event Handlers
 
-function setQuestion(text) {
-  $('#questionInput').value = text;
-  $('#smartstacksForm').dispatchEvent(new Event('submit'));
-}
+const diagnosticForm = $('#diagnosticForm');
+if (diagnosticForm) {{
+  diagnosticForm.addEventListener('submit', (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const scores = {{'smartstacks': 0, 'middleware': 0, 'llave-en-mano': 0}};
+    for (const value of data.values()) {{
+      if (scores.hasOwnProperty(value)) scores[value]++;
+    }}
+    let bestId = 'smartstacks';
+    let bestScore = -1;
+    for (const [id, score] of Object.entries(scores)) {{
+      if (score > bestScore) {{ bestScore = score; bestId = id; }}
+    }}
+    renderDiagnosticResult(bestId);
+  }});
+}}
 
-async function loadDemo() {
-  const products = [
-    {code: 'PER-001', name: 'Perno de Anclaje 3/8"', quantity: 45, price: 2500, category: 'Fijaciones', description: 'Perno galvanizado para hormigón'},
-    {code: 'TUB-002', name: 'Tubería PVC 1/2"', quantity: 120, price: 3800, category: 'Tuberías', description: 'Tubería PVC para instalaciones'},
-    {code: 'MART-003', name: 'Martillo de Peña', quantity: 12, price: 15900, category: 'Herramientas', description: 'Martillo profesional'},
-    {code: 'CIN-004', name: 'Cinta Métrica 5m', quantity: 28, price: 4500, category: 'Medición', description: 'Cinta métrica 5m'},
-    {code: 'LLAVE-005', name: 'Llave Francesa 12"', quantity: 15, price: 8900, category: 'Herramientas', description: 'Llave ajustable cromada'},
-    {code: 'DIS-006', name: 'Disco de Corte 4"', quantity: 80, price: 3200, category: 'Accesorios', description: 'Disco de corte para metal'},
-  ];
-  let added = 0;
-  for (const p of products) {
-    const result = await api('/api/inventory/product/add', p);
-    if (result.ok) added++;
-  }
-  toast(`✅ ${added} productos demo cargados`);
-  refreshSmartStacks();
-}
-
-async function runSmartstacksStep() {
-  toast('🚀 Ejecutando paso...');
-  const result = await api('/api/smartstacks/demo/step', { step_index: 0 });
-  if (result.ok) toast(result.message);
-  refreshSmartStacks();
-}
-
-function resetSmartstacksDemo() {
-  if (confirm('¿Reiniciar el progreso de SmartStacks?')) {
-    toast('🔄 Reiniciado');
-    refreshSmartStacks();
-  }
-}
-
-// ============================================
-// MIDDLEWARE DEMO
-// ============================================
-
-async function loadMiddlewareDemo() {
-  try {
-    const res = await fetch('/api/middleware/demo/state');
-    const data = await res.json();
-    if (data.ok) {
-      const demo = data.demo || {};
-      if (demo.stats) {
-        $('#mdTotalMessages').textContent = demo.stats.total_messages || 0;
-        $('#mdAvgTime').textContent = (demo.stats.avg_response_time || 0) + 's';
-        $('#mdTotalCost').textContent = '$' + (demo.stats.total_cost || 0).toFixed(2);
-        $('#mdHoursSaved').textContent = (demo.stats.hours_saved || 0) + 'h';
-        const channelStats = $('#mdChannelStats');
-        if (channelStats && demo.channel_stats) {
-          let html = '<table><thead><tr><th>Canal</th><th>Mensajes</th><th>Tiempo</th><th>Costo</th></tr></thead><tbody>';
-          demo.channel_stats.forEach(ch => {
-            html += `<tr><td>${ch.channel}</td><td>${ch.messages}</td><td>${ch.avg_time}s</td><td>$${ch.cost.toFixed(2)}</td></tr>`;
-          });
-          html += '</tbody></table>';
-          channelStats.innerHTML = html;
-        }
-      }
-    }
-  } catch(e) { console.error(e); }
-}
-
-async function simulateMiddlewareMessage() {
-  const channel = $('#mdChannel').value;
-  const tone = $('#mdTone').value.trim();
-  const message = $('#mdMessage').value.trim();
-  if (!message) { toast('Escribe un mensaje'); return; }
-  const result = await api('/api/middleware/demo/simulate', { channel, message, tone });
-  if (!result.ok) { toast('Error: ' + result.error); return; }
-  const div = $('#mdSimulationResult');
-  if (div) {
-    div.style.display = 'block';
-    $('#mdResultChannel').textContent = result.channel || 'WhatsApp';
-    $('#mdResultTime').textContent = result.response_time || 0;
-    $('#mdResultCost').textContent = result.cost || 0;
-    $('#mdResultMessage').textContent = message;
-    $('#mdResultResponse').textContent = result.response || 'No se pudo generar';
-    $('#mdResultSource').textContent = result.source || 'simulada';
-    $('#mdResultTokens').textContent = result.tokens || 0;
-    toast('✅ Respuesta generada');
-  }
-}
-
-function loadMiddlewareExample() {
-  const examples = ['Hola, ¿tienen envío a domicilio?', 'Me encantó el producto, ¿hay descuento?', 'Quisiera una cotización para 50 unidades.'];
-  $('#mdMessage').value = examples[Math.floor(Math.random() * examples.length)];
-}
-
-// ============================================
-// DEMO DE PROYECTOS
-// ============================================
-
-async function selectDemo(demoId) {
-  currentDemoId = demoId;
-  currentStep = 0;
-  isUsingUserData = false;
-  const res = await fetch(`/api/demo/data/${demoId}`);
-  const data = await res.json();
-  if (data.ok) demoData = data.data;
-  $('#demoSimulation').style.display = 'block';
-  const desc = $('#demoDescription');
-  if (desc) {
-    const demos = await (await fetch('/api/demo/state')).json();
-    if (demos.demos && demos.demos[demoId]) {
-      desc.innerHTML = `<h4>${demos.demos[demoId].icon} ${demos.demos[demoId].name}</h4><p>${demos.demos[demoId].description}</p>`;
-    }
-  }
-  await runDemoStep();
-}
-
-async function runDemoStep() {
-  if (!currentDemoId) { toast('Selecciona un proyecto'); return; }
-  const userData = {};
-  if (isUsingUserData) {
-    const input = $('#demoUserDataInput');
-    if (input && input.value) {
-      try {
-        const parsed = JSON.parse(input.value);
-        if (currentDemoId === 'whatsapp') userData.messages = Array.isArray(parsed) ? parsed : [parsed];
-        else if (currentDemoId === 'facturacion') {
-          userData.client = parsed.client || 'Cliente';
-          userData.products = parsed.products || [];
-        }
-      } catch(e) { toast('JSON inválido'); return; }
-    }
-  }
-  const result = await api('/api/demo/step', { demo_id: currentDemoId, step_index: currentStep, user_data: userData });
-  if (!result.ok) { toast('Error: ' + result.error); return; }
-  currentStep = result.step_index + 1;
-  $('#demoStepTitle').textContent = result.step.title;
-  $('#demoStepDesc').textContent = result.step.desc;
-  const dataArea = $('#demoDataArea');
-  if (dataArea && result.data) {
-    if (result.data.classified_emails) {
-      let html = '<table><thead><tr><th>Asunto</th><th>Categoría</th><th>Acción</th></tr></thead><tbody>';
-      result.data.classified_emails.forEach(e => {
-        html += `<tr><td>${e.subject}</td><td><span class="status-badge cat-${e.category}">${e.category}</span></td><td>${e.action}</td></tr>`;
-      });
-      html += '</tbody></table>';
-      dataArea.innerHTML = html;
-    } else if (result.data.appointments) {
-      let html = '<table><thead><tr><th>Cliente</th><th>Fecha</th><th>Estado</th></tr></thead><tbody>';
-      result.data.appointments.forEach(a => {
-        html += `<tr><td>${a.client}</td><td>${a.date}</td><td><span class="status-badge status-${a.status}">${a.status}</span></td></tr>`;
-      });
-      html += '</tbody></table>';
-      dataArea.innerHTML = html;
-    } else if (result.data.invoice) {
-      const inv = result.data.invoice;
-      dataArea.innerHTML = `
-        <h4>🧾 Factura</h4>
-        <p><strong>Número:</strong> ${inv.number}</p>
-        <p><strong>Cliente:</strong> ${inv.client}</p>
-        <p><strong>Subtotal:</strong> $${inv.subtotal.toFixed(2)}</p>
-        <p><strong>IVA:</strong> $${inv.tax.toFixed(2)}</p>
-        <p><strong>Total:</strong> <span class="metric">$${inv.total.toFixed(2)}</span></p>
-      `;
-    } else {
-      dataArea.innerHTML = '<p style="color:var(--muted);">Paso completado. Continúa al siguiente.</p>';
-    }
-  }
-  if (result.completed) {
-    toast('🎉 Proyecto completado!');
-    $('#demoStepActionBtn').textContent = '🔄 Reiniciar';
-    $('#demoStepActionBtn').onclick = resetDemo;
-  }
-}
-
-function resetDemo() {
-  currentStep = 0;
-  isUsingUserData = false;
-  $('#demoUserInput').style.display = 'none';
-  $('#demoStepActionBtn').textContent = 'Continuar';
-  $('#demoStepActionBtn').onclick = runDemoStep;
-  $('#demoDataArea').innerHTML = '<p style="color:var(--muted);">Reiniciando demo...</p>';
-  runDemoStep();
-  toast('🔄 Demo reiniciada');
-}
-
-function toggleDemoEdit() {
-  const area = $('#demoUserInput');
-  const btn = $('#demoEditBtn');
-  if (area.style.display === 'none') {
-    area.style.display = 'block';
-    btn.textContent = '✖ Cerrar';
-    if (currentDemoId) {
-      $('#demoUserDataInput').value = JSON.stringify(demoData, null, 2);
-    }
-  } else {
-    area.style.display = 'none';
-    btn.textContent = '✏️ Usar mis datos';
-  }
-}
-
-function applyUserData() {
-  const input = $('#demoUserDataInput');
-  if (!input?.value?.trim()) { toast('Escribe tus datos'); return; }
-  isUsingUserData = true;
-  toast('✅ Datos aplicados');
-  runDemoStep();
-}
-
-// ============================================
-// DIAGNÓSTICO
-// ============================================
-
-document.getElementById('diagnosticForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const scores = { smartstacks: 0, middleware: 0, 'llave-en-mano': 0 };
-  for (const value of data.values()) {
-    if (scores.hasOwnProperty(value)) scores[value]++;
-  }
-  let bestId = 'smartstacks';
-  let bestScore = -1;
-  for (const [id, score] of Object.entries(scores)) {
-    if (score > bestScore) { bestScore = score; bestId = id; }
-  }
-  const uc = state.use_cases?.find(u => u.id === bestId);
+function renderDiagnosticResult(useCaseId) {{
+  const uc = (state.use_cases || []).find(u => u.id === useCaseId);
   const box = $('#diagnosticResult');
-  if (uc && box) {
-    box.innerHTML = `
-      <div class="conversation">
-        <span class="tag">${uc.tag}</span>
-        <h3>Te recomendamos: ${uc.title}</h3>
-        <p><strong>Tu problema:</strong> ${uc.problem}</p>
-        <p><strong>Solución:</strong> ${uc.solution}</p>
-        <p>Desde $${uc.price}/mes · Setup $${uc.setup}</p>
-        <ul>${uc.impact.map(i => `<li>${i}</li>`).join('')}</ul>
-        <button onclick="showSection('leads')">Registrar mi negocio</button>
-      </div>
-    `;
-    box.style.display = 'block';
-  }
-});
+  if (!uc || !box) return;
 
-// ============================================
-// EVENT HANDLERS
-// ============================================
-
-document.getElementById('leadForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const out = await api('/api/leads', Object.fromEntries(data));
-  if (!out.ok) { toast('Error: ' + out.error); return; }
-  toast(out.message);
-  e.target.reset();
-  refresh();
-});
-
-document.getElementById('estimateForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const payload = Object.fromEntries(data);
-  payload.interactions = parseInt(payload.interactions);
-  payload.minutes_saved = parseInt(payload.minutes_saved);
-  payload.hourly_cost = parseFloat(payload.hourly_cost);
-  const out = await api('/api/estimate', payload);
-  if (!out.ok) { toast('Error: ' + out.error); return; }
-  document.getElementById('estimateResult').innerHTML = `
-    <p><strong>Caso:</strong> ${out.use_case}</p>
-    <p><strong>Horas ahorradas/mes:</strong> ${out.human_hours_saved}</p>
-    <p><strong>Valor mensual:</strong> $${out.monthly_value}</p>
-    <p><strong>Precio sugerido:</strong> <span class="metric">$${out.suggested_price}</span></p>
-  `;
-  toast('Estimación calculada');
-  refresh();
-});
-
-document.getElementById('assistantForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const out = await api('/api/assistant', Object.fromEntries(data));
-  if (!out.ok) { toast('Error: ' + out.error); return; }
-  toast('Respuesta recibida (' + out.source + ')');
-  e.target.reset();
-  refresh();
-});
-
-document.getElementById('productForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const data = {
-    code: $('#pCode').value.trim(),
-    name: $('#pName').value.trim(),
-    quantity: parseInt($('#pQty').value),
-    price: parseFloat($('#pPrice').value) || null,
-    category: $('#pCategory').value.trim() || null,
-    description: $('#pDesc').value.trim() || null
-  };
-  if (!data.code || !data.name || isNaN(data.quantity)) {
-    toast('Completa código, nombre y cantidad');
-    return;
-  }
-  const out = await api('/api/inventory/product/add', data);
-  if (!out.ok) { toast('Error: ' + out.error); return; }
-  toast(out.message);
-  e.target.reset();
-  refreshSmartStacks();
-});
-
-document.getElementById('smartstacksForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const question = $('#questionInput').value.trim();
-  if (!question) return;
-  const out = await api('/api/smartstacks/assistant', { question });
-  if (!out.ok) { toast('Error: ' + out.error); return; }
-  $('#questionInput').value = '';
-  refreshSmartStacks();
-  toast('✅ Respuesta recibida');
-});
-
-document.getElementById('middlewareForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const out = await api('/api/middleware/reply', Object.fromEntries(data));
-  if (!out.ok) { toast('Error: ' + out.error); return; }
-  toast(`Respuesta · ${out.tokens_estimated} tokens ≈ $${out.cost_estimated}`);
-  e.target.reset();
-  refreshMiddleware();
-});
-
-document.getElementById('emailClassifyForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const out = await api('/api/consulting/email/classify', Object.fromEntries(data));
-  if (!out.ok) { toast('Error: ' + out.error); return; }
-  document.getElementById('emailClassifyResult').innerHTML = `
+  box.innerHTML = `
     <div class="conversation">
-      <p><span class="status-badge cat-${out.category}">${out.category}</span> <span class="status-badge priority-${out.priority}">prioridad ${out.priority}</span></p>
-      <p><strong>Acción:</strong> ${out.suggested_action}</p>
+      <span class="tag">${{uc.tag}}</span>
+      <h3 style="margin-top:10px;">Te recomendamos: ${{uc.title}}</h3>
+      <p><strong>Tu problema:</strong> ${{uc.problem}}</p>
+      <p><strong>Solución:</strong> ${{uc.solution}}</p>
+      <p class="muted">Desde $${{uc.price}}/mes · Setup desde $${{uc.setup}}</p>
+      <ul>${{uc.impact.map(i => `<li>${{i}}</li>`).join('')}}</ul>
+      <button onclick="applyDiagnosticToLead('${{uc.id}}')">Registrar mi negocio con este caso</button>
     </div>
   `;
-  toast('Correo clasificado');
-  e.target.reset();
-  refreshConsulting();
-});
+  box.style.display = 'block';
+  box.scrollIntoView({{behavior: 'smooth', block: 'nearest'}});
+}}
 
-document.getElementById('appointmentForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const data = new FormData(e.target);
-  const out = await api('/api/consulting/appointment/create', Object.fromEntries(data));
-  if (!out.ok) { toast('Error: ' + out.error); return; }
-  toast(out.message);
-  e.target.reset();
-  refreshConsulting();
-});
+function applyDiagnosticToLead(useCaseId) {{
+  $$('section').forEach(s => s.classList.remove('active'));
+  $$('.navlinks a').forEach(a => a.classList.remove('active'));
+  const leadsSection = $('#leads');
+  if (leadsSection) leadsSection.classList.add('active');
+  const leadsLink = Array.from($$('.navlinks a')).find(a => (a.getAttribute('onclick') || '').includes("'leads'"));
+  if (leadsLink) leadsLink.classList.add('active');
 
-document.getElementById('invoiceForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const selectedProducts = [];
-  document.querySelectorAll('.invoice-product-checkbox:checked').forEach(cb => {
-    const id = parseInt(cb.dataset.id);
-    const qtyInput = document.querySelector(`.invoice-product-qty[data-id="${id}"]`);
-    selectedProducts.push({ product_id: id, quantity: parseInt(qtyInput?.value || 1) });
-  });
-  if (!selectedProducts.length) { toast('Selecciona al menos un producto'); return; }
-  const data = {
-    customer_name: $('#invoiceCustomerName').value,
-    customer_email: $('#invoiceCustomerEmail').value,
-    customer_phone: $('#invoiceCustomerPhone').value,
-    customer_rut: $('#invoiceCustomerRut').value,
-    products: selectedProducts,
-    payment_method: $('#invoicePaymentMethod').value,
-    bank_account_id: parseInt($('#invoiceBankAccount').value)
-  };
-  const out = await api('/api/invoice/create', data);
-  if (!out.ok) { toast('Error: ' + out.error); return; }
-  toast(out.message);
-  e.target.reset();
-  refreshInvoices();
-  refreshSmartStacks();
-});
+  const select = document.querySelector('#leadForm select[name="use_case"]');
+  if (select) select.value = useCaseId;
 
-// ============================================
-// INICIALIZACIÓN
-// ============================================
+  const leadFormEl = $('#leadForm');
+  if (leadFormEl) leadFormEl.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+  toast('Caso preseleccionado: ' + useCaseId);
+}}
 
+const leadForm = $('#leadForm');
+if (leadForm) {{
+  leadForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/leads', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast(out.message);
+    e.target.reset();
+    refresh();
+  }});
+}}
+
+const estimateForm = $('#estimateForm');
+if (estimateForm) {{
+  estimateForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const payload = Object.fromEntries(data);
+    payload.interactions = parseInt(payload.interactions);
+    payload.minutes_saved = parseInt(payload.minutes_saved);
+    payload.hourly_cost = parseFloat(payload.hourly_cost);
+    const out = await api('/api/estimate', payload);
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    const estimateResult = $('#estimateResult');
+    if (estimateResult) {{
+      estimateResult.innerHTML = `
+        <p><strong>Caso:</strong> ${{out.use_case}}</p>
+        <p><strong>Horas humanas ahorradas/mes:</strong> ${{out.human_hours_saved}}</p>
+        <p><strong>Valor mensual generado:</strong> $${{out.monthly_value}}</p>
+        <p><strong>Costo estimado de IA:</strong> $${{out.estimated_ai_cost}}</p>
+        <p><strong>Precio mensual sugerido:</strong> <span class="metric">$${{out.suggested_price}}</span></p>
+        <p><strong>Setup sugerido:</strong> $${{out.setup}}</p>
+        <p class="muted">Margen aproximado: $${{out.margin_hint}}</p>
+      `;
+    }}
+    toast('Estimación calculada');
+    refresh();
+  }});
+}}
+
+const assistantForm = $('#assistantForm');
+if (assistantForm) {{
+  assistantForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/assistant', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast('Respuesta recibida (' + out.source + ')');
+    e.target.reset();
+    refresh();
+  }});
+}}
+
+const productForm = $('#productForm');
+if (productForm) {{
+  productForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const payload = Object.fromEntries(data);
+    payload.quantity = parseInt(payload.quantity);
+    if (payload.price) payload.price = parseFloat(payload.price);
+    const out = await api('/api/inventory/product/add', payload);
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast(out.message);
+    e.target.reset();
+    refreshSmartStacks();
+  }});
+}}
+
+const smartstacksForm = $('#smartstacksForm');
+if (smartstacksForm) {{
+  smartstacksForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/smartstacks/assistant', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast('Respuesta recibida');
+    e.target.reset();
+    refreshSmartStacks();
+  }});
+}}
+
+const middlewareForm = $('#middlewareForm');
+if (middlewareForm) {{
+  middlewareForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/middleware/reply', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast(`Respuesta generada · ${{out.tokens_estimated}} tokens ≈ $${{out.cost_estimated}}`);
+    e.target.reset();
+    refreshMiddleware();
+  }});
+}}
+
+const emailClassifyForm = $('#emailClassifyForm');
+if (emailClassifyForm) {{
+  emailClassifyForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/consulting/email/classify', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    const resultBox = $('#emailClassifyResult');
+    if (resultBox) {{
+      resultBox.innerHTML = `
+        <div class="conversation">
+          <p><span class="status-badge cat-${{out.category}}">${{out.category}}</span> <span class="status-badge priority-${{out.priority}}">prioridad ${{out.priority}}</span></p>
+          <p><strong>Acción sugerida:</strong> ${{out.suggested_action}}</p>
+        </div>
+      `;
+    }}
+    toast('Correo clasificado');
+    e.target.reset();
+    refreshConsulting();
+  }});
+}}
+
+const appointmentForm = $('#appointmentForm');
+if (appointmentForm) {{
+  appointmentForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/consulting/appointment/create', Object.fromEntries(data));
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast(out.message);
+    e.target.reset();
+    refreshConsulting();
+  }});
+}}
+
+const invoiceForm = $('#invoiceForm');
+if (invoiceForm) {{
+  invoiceForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    
+    const selectedProducts = [];
+    document.querySelectorAll('.invoice-product-checkbox:checked').forEach(cb => {{
+      const id = parseInt(cb.dataset.id);
+      const qtyInput = document.querySelector(`.invoice-product-qty[data-id="${{id}}"]`);
+      const quantity = parseInt(qtyInput ? qtyInput.value : 1);
+      selectedProducts.push({{product_id: id, quantity: quantity}});
+    }});
+    
+    if (!selectedProducts.length) {{
+      toast('Selecciona al menos un producto');
+      return;
+    }}
+    
+    const data = {{
+      customer_name: $('#invoiceCustomerName').value,
+      customer_email: $('#invoiceCustomerEmail').value,
+      customer_phone: $('#invoiceCustomerPhone').value,
+      customer_rut: $('#invoiceCustomerRut').value,
+      products: selectedProducts,
+      payment_method: $('#invoicePaymentMethod').value,
+      bank_account_id: parseInt($('#invoiceBankAccount').value)
+    }};
+    
+    const out = await api('/api/invoice/create', data);
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    
+    toast(out.message);
+    invoiceForm.reset();
+    refreshInvoices();
+    refreshSmartStacks();
+  }});
+}}
+
+const emailForm = $('#emailForm');
+if (emailForm) {{
+  emailForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const emails = Array.from(document.querySelectorAll('.lead-checkbox:checked')).map(cb => cb.value);
+    if (!emails.length) {{ toast('Selecciona al menos un lead'); return; }}
+    
+    const subject = $('#emailSubject').value;
+    const body = $('#emailBody').value;
+    
+    const out = await api('/api/email/campaign/create', {{
+      subject: subject,
+      body: body,
+      recipient_emails: emails
+    }});
+    
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    
+    if (confirm(`Campaña creada para ${{emails.length}} contactos. ¿Enviar ahora?`)) {{
+      const sent = await api(`/api/email/campaign/${{out.campaign_id}}/send`, {{}});
+      if (!sent.ok) {{ toast('Error: ' + sent.error); return; }}
+      if (sent.failed > 0 && sent.errors && sent.errors.length) {{
+        alert(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos.\\n\\nDetalle de fallos:\\n` + sent.errors.join('\\n'));
+      }} else {{
+        toast(`✓ ${{sent.sent}} enviados, ${{sent.failed}} fallos`);
+      }}
+    }}
+    
+    emailForm.reset();
+    refresh();
+  }});
+}}
+
+const singleEmailForm = $('#singleEmailForm');
+if (singleEmailForm) {{
+  singleEmailForm.addEventListener('submit', async (e) => {{
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const out = await api('/api/email/send', {{
+      lead_id: parseInt(data.get('lead_id')),
+      subject: data.get('subject'),
+      body: data.get('body')
+    }});
+    
+    if (!out.ok) {{ toast('Error: ' + out.error); return; }}
+    toast(out.message);
+    singleEmailForm.reset();
+    refresh();
+  }});
+}}
+
+// ---------- Simulador llave en mano ----------
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function selectSimProject(type) {{
+  $$('.sim-card').forEach((el) => el.classList.toggle('active', el.dataset.sim === type));
+  $$('.sim-form').forEach((el) => el.classList.remove('active'));
+  const form = $(`#simForm${{type.charAt(0).toUpperCase()}}${{type.slice(1)}}`);
+  if (form) form.classList.add('active');
+  $('#simStage').classList.remove('active');
+  $('#simTimeline').innerHTML = '';
+  $('#simSummaryBox').innerHTML = '';
+}}
+
+async function runSimulation(event, type) {{
+  event.preventDefault();
+  const form = event.target;
+  const btn = form.querySelector('button[type="submit"]');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Procesando...';
+
+  const formData = new FormData(form);
+  const payload = {{ project_type: type }};
+  formData.forEach((value, key) => {{ payload[key] = value; }});
+
+  const stage = $('#simStage');
+  const timeline = $('#simTimeline');
+  const summaryBox = $('#simSummaryBox');
+  timeline.innerHTML = '<div class="sim-loading"><span class="sim-dot"></span><span class="sim-dot"></span><span class="sim-dot"></span> Conectando con el motor de automatización...</div>';
+  summaryBox.innerHTML = '';
+  stage.classList.add('active');
+  stage.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+
+  try {{
+    const out = await api('/api/simulator/run', payload);
+    if (!out.ok) {{
+      timeline.innerHTML = `<div class="sim-loading">⚠️ ${{out.error}}</div>`;
+      return;
+    }}
+
+    await sleep(500);
+    timeline.innerHTML = '';
+
+    for (let i = 0; i < out.steps.length; i++) {{
+      const step = out.steps[i];
+      await sleep(i === 0 ? 200 : 900);
+      const stepEl = document.createElement('div');
+      stepEl.className = 'sim-step';
+      stepEl.innerHTML = `
+        <div class="sim-step-icon">${{step.icon}}</div>
+        <h4>${{i + 1}}. ${{step.title}}</h4>
+        <div class="sim-step-detail"></div>
+      `;
+      stepEl.querySelector('.sim-step-detail').textContent = step.detail;
+      timeline.appendChild(stepEl);
+      stepEl.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+    }}
+
+    await sleep(500);
+    summaryBox.innerHTML = `
+      <div class="sim-summary">
+        <strong>💡 ${{out.summary}}</strong>
+        <p style="margin:10px 0 0;">¿Quieres esto funcionando con tus datos reales?
+        <a class="btn secondary" style="margin-left:8px;" onclick="showSection('consulting')">Hablar de tu proyecto →</a></p>
+      </div>
+    `;
+  }} catch (e) {{
+    timeline.innerHTML = '<div class="sim-loading">⚠️ Ocurrió un error al simular. Intenta de nuevo.</div>';
+  }} finally {{
+    btn.disabled = false;
+    btn.textContent = original;
+  }}
+}}
+
+(function initSimDefaults() {{
+  const dateInput = document.querySelector('#simFormAgenda input[name="appointment_date"]');
+  if (dateInput) {{
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    dateInput.value = d.toISOString().slice(0, 10);
+  }}
+}})();
+
+// Inicialización
 renderState();
 refreshSmartStacks();
 refreshBankAccounts();
 loadProductsForInvoice();
-loadMiddlewareDemo();
 
 setInterval(refreshSmartStacks, 30000);
 setInterval(refreshInvoices, 30000);
-
 </script>
 </body>
 </html>"""
+
 
 # ============================================
 # SERVIDOR HTTP
@@ -4276,13 +3988,16 @@ class SabrinaHandler(BaseHTTPRequestHandler):
             json_response(self, get_consulting_state())
             return
         if parsed.path == "/api/leads/export/csv":
-            file_response(self, export_leads_csv(), "leads.csv", "text/csv")
+            csv_data = export_leads_csv()
+            file_response(self, csv_data, "leads.csv", "text/csv")
             return
         if parsed.path == "/api/leads/export/json":
-            file_response(self, export_leads_json(), "leads.json", "application/json")
+            json_data = export_leads_json()
+            file_response(self, json_data, "leads.json", "application/json")
             return
         if parsed.path == "/api/inventory/export/csv":
-            file_response(self, export_inventory_csv(), "inventory.csv", "text/csv")
+            csv_data = export_inventory_csv()
+            file_response(self, csv_data, "inventory.csv", "text/csv")
             return
         if parsed.path == "/api/invoices":
             json_response(self, get_invoices())
@@ -4292,19 +4007,6 @@ class SabrinaHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/notifications":
             json_response(self, get_invoice_notifications())
-            return
-        if parsed.path == "/api/demo/state":
-            json_response(self, get_demo_state())
-            return
-        if parsed.path.startswith("/api/demo/data/"):
-            demo_id = parsed.path.split("/")[-1]
-            json_response(self, get_demo_data(demo_id))
-            return
-        if parsed.path == "/api/smartstacks/demo/state":
-            json_response(self, get_smartstacks_demo_state())
-            return
-        if parsed.path == "/api/middleware/demo/state":
-            json_response(self, get_middleware_demo_state())
             return
         if parsed.path == "/health":
             json_response(self, {"ok": True, "time": now_iso()})
@@ -4332,12 +4034,12 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 result = add_inventory_product(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
-            if parsed.path == "/api/inventory/product/delete":
-                result = delete_inventory_product(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
             if parsed.path == "/api/inventory/product/update":
                 result = update_inventory_product(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/inventory/product/delete":
+                result = delete_inventory_product(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
             if parsed.path == "/api/smartstacks/assistant":
@@ -4358,6 +4060,10 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/consulting/appointment/cancel":
                 result = cancel_appointment(payload)
+                json_response(self, result, 200 if result.get("ok") else 400)
+                return
+            if parsed.path == "/api/simulator/run":
+                result = run_simulation(payload)
                 json_response(self, result, 200 if result.get("ok") else 400)
                 return
             if parsed.path == "/api/email/campaign/create":
@@ -4404,30 +4110,6 @@ class SabrinaHandler(BaseHTTPRequestHandler):
                 else:
                     json_response(self, {"ok": False, "error": "Falta notification_id"}, 400)
                 return
-            if parsed.path == "/api/demo/step":
-                result = run_demo_step(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
-            if parsed.path == "/api/smartstacks/demo/step":
-                result = run_smartstacks_demo_step(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
-            if parsed.path == "/api/smartstacks/demo/simulate":
-                result = simulate_smartstacks_question(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
-            if parsed.path == "/api/smartstacks/demo/product/add":
-                result = add_custom_inventory_product(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
-            if parsed.path == "/api/middleware/demo/step":
-                result = run_middleware_demo_step(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
-            if parsed.path == "/api/middleware/demo/simulate":
-                result = simulate_middleware_message(payload)
-                json_response(self, result, 200 if result.get("ok") else 400)
-                return
                 
             json_response(self, {"ok": False, "error": "Ruta no encontrada"}, HTTPStatus.NOT_FOUND)
         except json.JSONDecodeError:
@@ -4436,51 +4118,17 @@ class SabrinaHandler(BaseHTTPRequestHandler):
             json_response(self, {"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
-# ============================================
-# MAIN
-# ============================================
-
 def main() -> None:
     init_db()
-    # Cargar productos demo si no hay productos en la base de datos
-    with db_connect() as conn:
-        count = conn.execute("SELECT COUNT(*) AS c FROM inventory_products").fetchone()["c"]
-        if count == 0:
-            demo_products = [
-                {"code": "PER-001", "name": 'Perno de Anclaje 3/8"', "quantity": 45, "price": 2500, 
-                 "category": "Fijaciones", "description": "Perno de anclaje galvanizado, ideal para fijaciones en hormigón."},
-                {"code": "TUB-002", "name": 'Tubería PVC 1/2"', "quantity": 120, "price": 3800, 
-                 "category": "Tuberías", "description": "Tubería PVC para instalaciones eléctricas y sanitarias."},
-                {"code": "MART-003", "name": "Martillo de Peña", "quantity": 12, "price": 15900, 
-                 "category": "Herramientas", "description": "Martillo de peña profesional, mango de fibra de vidrio."},
-                {"code": "CIN-004", "name": "Cinta Métrica 5m", "quantity": 28, "price": 4500, 
-                 "category": "Medición", "description": "Cinta métrica de 5 metros con sistema de freno."},
-                {"code": "LLAVE-005", "name": 'Llave Francesa 12"', "quantity": 15, "price": 8900, 
-                 "category": "Herramientas", "description": "Llave francesa ajustable, acero cromado."},
-                {"code": "DIS-006", "name": 'Disco de Corte 4"', "quantity": 80, "price": 3200, 
-                 "category": "Accesorios", "description": "Disco de corte para metal, diámetro 4 pulgadas."},
-            ]
-            for p in demo_products:
-                try:
-                    conn.execute(
-                        "INSERT INTO inventory_products (created_at, code, name, quantity, price, description, category) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (now_iso(), p["code"], p["name"], p["quantity"], p["price"], p["description"], p["category"])
-                    )
-                except sqlite3.IntegrityError:
-                    pass
-            print("📦 Productos demo cargados automáticamente")
-    
     server = ThreadingHTTPServer((HOST, PORT), SabrinaHandler)
-    print(f"✅ Sabrina AI Lab listo en http://{HOST}:{PORT}")
-    print(f"📁 Base de datos: {DB_PATH}")
-    with db_connect() as conn:
-        count = conn.execute("SELECT COUNT(*) AS c FROM inventory_products").fetchone()["c"]
-        print(f"📦 Productos en inventario: {count}")
-    print("🔄 Presiona Ctrl+C para detener.")
+    print(f"Sabrina AI Lab listo en http://{HOST}:{PORT}")
+    print(f"Base de datos: {DB_PATH}")
+    print(f"Cuentas bancarias configuradas: {len(BANK_ACCOUNTS)}")
+    print("Ctrl+C para detener.")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n🛑 Servidor detenido.")
+        print("\nServidor detenido.")
     finally:
         server.server_close()
 
